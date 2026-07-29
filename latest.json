@@ -1,6 +1,6 @@
 {
-  "version": "3.0.0-beta.7",
-  "displayVersion": "3.0.0 beta 7",
-  "downloadUrl": "https://raw.githubusercontent.com/xG0ta/autoframe-by-gota/main/AutoFrameByGota-3.0.0-beta7.exe",
-  "notes": "Nuevo panel retractil para detectar, revisar y eliminar silencios."
+  "version": "3.0.0-beta.8",
+  "displayVersion": "3.0.0 beta 8",
+  "downloadUrl": "https://raw.githubusercontent.com/xG0ta/autoframe-by-gota/main/AutoFrameByGota-3.0.0-beta8.exe",
+  "notes": "Umbral de silencios editable y panel de reencuadre retractil."
 }
