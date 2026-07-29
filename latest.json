@@ -1,6 +1,6 @@
 {
-  "version": "3.1.0-beta.5",
-  "displayVersion": "3.1.0 beta 5 - Gota Creator Kit",
-  "downloadUrl": "https://raw.githubusercontent.com/xG0ta/gota-creator-kit/main/GotaCreatorKit-3.1.0-beta5.exe",
-  "notes": "Eliminar y cerrar huecos ahora mueve cada fragmento completo y mantiene juntos su video y audio."
+  "version": "3.1.0-beta.6",
+  "displayVersion": "3.1.0 beta 6 - Gota Creator Kit",
+  "downloadUrl": "https://raw.githubusercontent.com/xG0ta/gota-creator-kit/main/GotaCreatorKit-3.1.0-beta6.exe",
+  "notes": "El actualizador lee el archivo directo desde la API de GitHub sin usar funciones no disponibles en UXP."
 }
