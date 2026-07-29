@@ -1,8 +1,8 @@
 {
-  "version": "3.1.0-beta.8",
-  "displayVersion": "3.1.0 beta 8 - Gota Creator Kit",
-  "downloadUrl": "https://raw.githubusercontent.com/xG0ta/gota-creator-kit/main/GotaCreatorKit-3.1.0-beta8.exe",
-  "windowsDownloadUrl": "https://raw.githubusercontent.com/xG0ta/gota-creator-kit/main/GotaCreatorKit-3.1.0-beta8.exe",
-  "macDownloadUrl": "https://raw.githubusercontent.com/xG0ta/gota-creator-kit/main/GotaCreatorKit-3.1.0-beta8-macOS.zip",
-  "notes": "Corrige la validacion del motor 3.1 y amplia el tiempo de arranque en Windows y macOS."
+  "version": "3.1.0-beta.9",
+  "displayVersion": "3.1.0 beta 9 - Gota Creator Kit",
+  "downloadUrl": "https://raw.githubusercontent.com/xG0ta/gota-creator-kit/main/GotaCreatorKit-3.1.0-beta9.exe",
+  "windowsDownloadUrl": "https://raw.githubusercontent.com/xG0ta/gota-creator-kit/main/GotaCreatorKit-3.1.0-beta9.exe",
+  "macDownloadUrl": "https://raw.githubusercontent.com/xG0ta/gota-creator-kit/main/GotaCreatorKit-3.1.0-beta9-macOS.zip",
+  "notes": "Agrega soporte inicial para secuencias multicamara anidadas, cambios automaticos de angulo, audio maestro y reencuadre editable."
 }
