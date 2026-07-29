@@ -1,6 +1,6 @@
 {
-  "version": "3.0.0-beta.6",
-  "displayVersion": "3.0.0 beta 6",
-  "downloadUrl": "",
-  "notes": "Primera versión con búsqueda de actualizaciones desde el panel."
+  "version": "3.0.0-beta.7",
+  "displayVersion": "3.0.0 beta 7",
+  "downloadUrl": "https://raw.githubusercontent.com/xG0ta/autoframe-by-gota/main/AutoFrameByGota-3.0.0-beta7.exe",
+  "notes": "Nuevo panel retractil para detectar, revisar y eliminar silencios."
 }
