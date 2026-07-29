@@ -1,6 +1,6 @@
 {
-  "version": "3.0.0-beta.9",
-  "displayVersion": "3.0.0 beta 9",
-  "downloadUrl": "https://raw.githubusercontent.com/xG0ta/autoframe-by-gota/main/AutoFrameByGota-3.0.0-beta9.exe",
-  "notes": "Corrección del eliminador de silencios, edición en la secuencia activa, avisos de actualización y enlace de Instagram."
+  "version": "3.0.0-beta.10",
+  "displayVersion": "3.0.0 beta 10",
+  "downloadUrl": "https://raw.githubusercontent.com/xG0ta/autoframe-by-gota/main/AutoFrameByGota-3.0.0-beta10.exe",
+  "notes": "Recorte de silencios más estable y vista previa con diálogos en la pista superior y video original desactivado."
 }
