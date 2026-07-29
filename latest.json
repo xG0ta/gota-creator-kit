@@ -1,6 +1,6 @@
 {
-  "version": "3.0.0-beta.10",
-  "displayVersion": "3.0.0 beta 10",
-  "downloadUrl": "https://raw.githubusercontent.com/xG0ta/autoframe-by-gota/main/AutoFrameByGota-3.0.0-beta10.exe",
-  "notes": "Recorte de silencios más estable y vista previa con diálogos en la pista superior y video original desactivado."
+  "version": "3.0.0-beta.11",
+  "displayVersion": "3.0.0 beta 11",
+  "downloadUrl": "https://raw.githubusercontent.com/xG0ta/autoframe-by-gota/main/AutoFrameByGota-3.0.0-beta11.exe",
+  "notes": "Corrección de referencias vencidas al cerrar silencios y búsqueda automática de actualizaciones al abrir el panel."
 }
