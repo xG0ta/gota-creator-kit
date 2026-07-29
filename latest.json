@@ -1,8 +1,8 @@
 {
-  "version": "3.1.0-beta.9",
-  "displayVersion": "3.1.0 beta 9 - Gota Creator Kit",
-  "downloadUrl": "https://raw.githubusercontent.com/xG0ta/gota-creator-kit/main/GotaCreatorKit-3.1.0-beta9.exe",
-  "windowsDownloadUrl": "https://raw.githubusercontent.com/xG0ta/gota-creator-kit/main/GotaCreatorKit-3.1.0-beta9.exe",
-  "macDownloadUrl": "https://raw.githubusercontent.com/xG0ta/gota-creator-kit/main/GotaCreatorKit-3.1.0-beta9-macOS.zip",
-  "notes": "Agrega soporte inicial para secuencias multicamara anidadas, cambios automaticos de angulo, audio maestro y reencuadre editable."
+  "version": "3.1.0-beta.10",
+  "displayVersion": "3.1.0 beta 10 - Gota Creator Kit",
+  "downloadUrl": "https://raw.githubusercontent.com/xG0ta/gota-creator-kit/main/GotaCreatorKit-3.1.0-beta10.exe",
+  "windowsDownloadUrl": "https://raw.githubusercontent.com/xG0ta/gota-creator-kit/main/GotaCreatorKit-3.1.0-beta10.exe",
+  "macDownloadUrl": "https://raw.githubusercontent.com/xG0ta/gota-creator-kit/main/GotaCreatorKit-3.1.0-beta10-macOS.zip",
+  "notes": "Publica el instalador macOS automatico con Adobe UPIA, conserva permisos Unix e incluye el soporte multicamara."
 }
