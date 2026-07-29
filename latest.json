@@ -1,6 +1,6 @@
 {
-  "version": "3.0.0-beta.12",
-  "displayVersion": "3.0.0 beta 12",
-  "downloadUrl": "https://raw.githubusercontent.com/xG0ta/autoframe-by-gota/main/AutoFrameByGota-3.0.0-beta12.exe",
-  "notes": "Los silencios ahora respetan la duración real del clip montado, incluso con cambios de velocidad."
+  "version": "3.1.0-beta.1",
+  "displayVersion": "3.1.0 beta 1 — Gota Creator Kit ☔",
+  "downloadUrl": "https://raw.githubusercontent.com/xG0ta/gota-creator-kit/main/GotaCreatorKit-3.1.0-beta1.exe",
+  "notes": "AutoFrame by Gota evoluciona a Gota Creator Kit ☔. Conserva todas tus herramientas y actualizaciones."
 }
