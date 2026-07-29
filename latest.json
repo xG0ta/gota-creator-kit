@@ -1,6 +1,6 @@
 {
-  "version": "3.1.0-beta.4",
-  "displayVersion": "3.1.0 beta 4 - Gota Creator Kit",
-  "downloadUrl": "https://raw.githubusercontent.com/xG0ta/gota-creator-kit/main/GotaCreatorKit-3.1.0-beta4.exe",
-  "notes": "El actualizador ahora consulta directamente la API de GitHub y evita respuestas antiguas de cache."
+  "version": "3.1.0-beta.5",
+  "displayVersion": "3.1.0 beta 5 - Gota Creator Kit",
+  "downloadUrl": "https://raw.githubusercontent.com/xG0ta/gota-creator-kit/main/GotaCreatorKit-3.1.0-beta5.exe",
+  "notes": "Eliminar y cerrar huecos ahora mueve cada fragmento completo y mantiene juntos su video y audio."
 }
