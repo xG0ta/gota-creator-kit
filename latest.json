@@ -1,6 +1,6 @@
 {
-  "version": "3.0.0-beta.11",
-  "displayVersion": "3.0.0 beta 11",
-  "downloadUrl": "https://raw.githubusercontent.com/xG0ta/autoframe-by-gota/main/AutoFrameByGota-3.0.0-beta11.exe",
-  "notes": "Corrección de referencias vencidas al cerrar silencios y búsqueda automática de actualizaciones al abrir el panel."
+  "version": "3.0.0-beta.12",
+  "displayVersion": "3.0.0 beta 12",
+  "downloadUrl": "https://raw.githubusercontent.com/xG0ta/autoframe-by-gota/main/AutoFrameByGota-3.0.0-beta12.exe",
+  "notes": "Los silencios ahora respetan la duración real del clip montado, incluso con cambios de velocidad."
 }
