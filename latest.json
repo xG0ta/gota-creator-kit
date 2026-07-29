@@ -1,7 +1,6 @@
 {
-  "version": "3.1.0-beta.3",
-  "displayVersion": "3.1.0 beta 3 - Gota Creator Kit",
-  "downloadUrl": "https://raw.githubusercontent.com/xG0ta/gota-creator-kit/main/GotaCreatorKit-3.1.0-beta3.exe",
-  "notes": "Corrige el cierre de huecos y mantiene sincronizados video y audio.",
-  "publishedAt": "2026-07-29T00:00:00-06:00"
+  "version": "3.1.0-beta.4",
+  "displayVersion": "3.1.0 beta 4 - Gota Creator Kit",
+  "downloadUrl": "https://raw.githubusercontent.com/xG0ta/gota-creator-kit/main/GotaCreatorKit-3.1.0-beta4.exe",
+  "notes": "El actualizador ahora consulta directamente la API de GitHub y evita respuestas antiguas de cache."
 }
