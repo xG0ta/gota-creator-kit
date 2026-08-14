@@ -1,8 +1,8 @@
 {
-  "version": "3.2.2",
-  "displayVersion": "3.2.2 — Gota Creator Kit ☔",
-  "downloadUrl": "https://raw.githubusercontent.com/xG0ta/gota-creator-kit/main/GotaCreatorKit-3.2.2.exe",
-  "windowsDownloadUrl": "https://raw.githubusercontent.com/xG0ta/gota-creator-kit/main/GotaCreatorKit-3.2.2.exe",
-  "macDownloadUrl": "https://raw.githubusercontent.com/xG0ta/gota-creator-kit/main/GotaCreatorKit-3.2.2-macOS.zip",
-  "notes": "Botón Comprar licencia por Instagram, controles personalizados y mejoras de estabilidad."
+  "version": "3.2.3",
+  "displayVersion": "3.2.3 — Gota Creator Kit ☔",
+  "downloadUrl": "https://raw.githubusercontent.com/xG0ta/gota-creator-kit/main/GotaCreatorKit-3.2.3.exe",
+  "windowsDownloadUrl": "https://raw.githubusercontent.com/xG0ta/gota-creator-kit/main/GotaCreatorKit-3.2.3.exe",
+  "macDownloadUrl": "https://raw.githubusercontent.com/xG0ta/gota-creator-kit/main/GotaCreatorKit-3.2.3-macOS.zip",
+  "notes": "El botón Comprar licencia ahora está visible dentro de Licencia por código."
 }
