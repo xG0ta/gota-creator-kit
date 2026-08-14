@@ -1,8 +1,8 @@
 {
-  "version": "3.2.6",
-  "displayVersion": "3.2.6 — Gota Creator Kit ☔",
-  "downloadUrl": "https://raw.githubusercontent.com/xG0ta/gota-creator-kit/main/GotaCreatorKit-3.2.6.exe",
-  "windowsDownloadUrl": "https://raw.githubusercontent.com/xG0ta/gota-creator-kit/main/GotaCreatorKit-3.2.6.exe",
-  "macDownloadUrl": "https://raw.githubusercontent.com/xG0ta/gota-creator-kit/main/GotaCreatorKit-3.2.6-macOS.zip",
-  "notes": "Biblioteca Gota renovada: explorador de tres columnas, vista previa y bot\u00f3n seguro para a\u00f1adir archivos en pistas nuevas."
+  "version": "3.2.7",
+  "displayVersion": "3.2.7 — Gota Creator Kit ☔",
+  "downloadUrl": "https://raw.githubusercontent.com/xG0ta/gota-creator-kit/main/GotaCreatorKit-3.2.7.exe",
+  "windowsDownloadUrl": "https://raw.githubusercontent.com/xG0ta/gota-creator-kit/main/GotaCreatorKit-3.2.7.exe",
+  "macDownloadUrl": "https://raw.githubusercontent.com/xG0ta/gota-creator-kit/main/GotaCreatorKit-3.2.7-macOS.zip",
+  "notes": "El instalador de Windows ahora aplica el panel directamente con el instalador oficial de Adobe, evitando quedarse en una versión anterior."
 }
