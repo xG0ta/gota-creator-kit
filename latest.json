@@ -1,8 +1,8 @@
 {
-  "version": "3.2.10",
-  "displayVersion": "3.2.10 — Gota Creator Kit ☔",
-  "downloadUrl": "https://raw.githubusercontent.com/xG0ta/gota-creator-kit/main/GotaCreatorKit-3.2.10.exe",
-  "windowsDownloadUrl": "https://raw.githubusercontent.com/xG0ta/gota-creator-kit/main/GotaCreatorKit-3.2.10.exe",
-  "macDownloadUrl": "https://raw.githubusercontent.com/xG0ta/gota-creator-kit/main/GotaCreatorKit-3.2.10-macOS.zip",
-  "notes": "Biblioteca Gota: muestra las carpetas y el contenido correctamente, incluso con el panel acoplado estrecho."
+  "version": "3.2.11",
+  "displayVersion": "3.2.11 — Gota Creator Kit ☔",
+  "downloadUrl": "https://raw.githubusercontent.com/xG0ta/gota-creator-kit/main/GotaCreatorKit-3.2.11.exe",
+  "windowsDownloadUrl": "https://raw.githubusercontent.com/xG0ta/gota-creator-kit/main/GotaCreatorKit-3.2.11.exe",
+  "macDownloadUrl": "https://raw.githubusercontent.com/xG0ta/gota-creator-kit/main/GotaCreatorKit-3.2.11-macOS.zip",
+  "notes": "Biblioteca Gota: corrige la vista vacía en paneles acoplados y muestra las raíces disponibles de inmediato."
 }
