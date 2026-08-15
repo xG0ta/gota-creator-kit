@@ -1,8 +1,8 @@
 {
-  "version": "3.2.16",
-  "displayVersion": "3.2.16 — Gota Creator Kit ☔",
-  "downloadUrl": "https://raw.githubusercontent.com/xG0ta/gota-creator-kit/main/GotaCreatorKit-3.2.16.exe",
-  "windowsDownloadUrl": "https://raw.githubusercontent.com/xG0ta/gota-creator-kit/main/GotaCreatorKit-3.2.16.exe",
-  "macDownloadUrl": "https://raw.githubusercontent.com/xG0ta/gota-creator-kit/main/GotaCreatorKit-3.2.16-macOS.zip",
-  "notes": "Biblioteca Gota: convierte y guarda una copia temporal compatible para reproducir MP4 y MP3 dentro del panel. Subtítulos con animaciones distintas y controles de tamaño, tipografía y color."
+  "version": "3.2.17",
+  "displayVersion": "3.2.17 — Gota Creator Kit ☔",
+  "downloadUrl": "https://raw.githubusercontent.com/xG0ta/gota-creator-kit/main/GotaCreatorKit-3.2.17.exe",
+  "windowsDownloadUrl": "https://raw.githubusercontent.com/xG0ta/gota-creator-kit/main/GotaCreatorKit-3.2.17.exe",
+  "macDownloadUrl": "https://raw.githubusercontent.com/xG0ta/gota-creator-kit/main/GotaCreatorKit-3.2.17-macOS.zip",
+  "notes": "Biblioteca Gota usa el reproductor aislado de UXP para vista previa interna. Gota Pop ilumina palabra por palabra; color con selector y cuentagotas, y tipografía libre instalada."
 }
