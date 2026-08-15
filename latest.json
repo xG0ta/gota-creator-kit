@@ -1,8 +1,8 @@
 {
-  "version": "3.2.20",
-  "displayVersion": "3.2.20 — Gota Creator Kit ☔",
-  "downloadUrl": "https://raw.githubusercontent.com/xG0ta/gota-creator-kit/main/GotaCreatorKit-3.2.20.exe",
-  "windowsDownloadUrl": "https://raw.githubusercontent.com/xG0ta/gota-creator-kit/main/GotaCreatorKit-3.2.20.exe",
-  "macDownloadUrl": "https://raw.githubusercontent.com/xG0ta/gota-creator-kit/main/GotaCreatorKit-3.2.20-macOS.zip",
-  "notes": "Subtítulos: selector cromático desplegable propio para texto, trazo y sombra; controles redondeados y fuente instalada aplicada correctamente en la vista previa."
+  "version": "3.2.21",
+  "displayVersion": "3.2.21 — Gota Creator Kit ☔",
+  "downloadUrl": "https://raw.githubusercontent.com/xG0ta/gota-creator-kit/main/GotaCreatorKit-3.2.21.exe",
+  "windowsDownloadUrl": "https://raw.githubusercontent.com/xG0ta/gota-creator-kit/main/GotaCreatorKit-3.2.21.exe",
+  "macDownloadUrl": "https://raw.githubusercontent.com/xG0ta/gota-creator-kit/main/GotaCreatorKit-3.2.21-macOS.zip",
+  "notes": "Subtítulos: controles continuos de tamaño, trazo, sombra y color; motor Whisper local para transcribir solo el tramo seleccionado."
 }
