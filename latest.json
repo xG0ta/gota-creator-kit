@@ -1,8 +1,8 @@
 {
-  "version": "3.2.21",
-  "displayVersion": "3.2.21 — Gota Creator Kit ☔",
-  "downloadUrl": "https://raw.githubusercontent.com/xG0ta/gota-creator-kit/main/GotaCreatorKit-3.2.21.exe",
-  "windowsDownloadUrl": "https://raw.githubusercontent.com/xG0ta/gota-creator-kit/main/GotaCreatorKit-3.2.21.exe",
-  "macDownloadUrl": "https://raw.githubusercontent.com/xG0ta/gota-creator-kit/main/GotaCreatorKit-3.2.21-macOS.zip",
-  "notes": "Subtítulos: controles continuos de tamaño, trazo, sombra y color; motor Whisper local para transcribir solo el tramo seleccionado."
+  "version": "3.2.22",
+  "displayVersion": "3.2.22 — Gota Creator Kit ☔",
+  "downloadUrl": "https://raw.githubusercontent.com/xG0ta/gota-creator-kit/main/GotaCreatorKit-3.2.22.exe",
+  "windowsDownloadUrl": "https://raw.githubusercontent.com/xG0ta/gota-creator-kit/main/GotaCreatorKit-3.2.22.exe",
+  "macDownloadUrl": "https://raw.githubusercontent.com/xG0ta/gota-creator-kit/main/GotaCreatorKit-3.2.22-macOS.zip",
+  "notes": "Subtítulos: campos editables para cada barra, color de glow/destacado por animación y motor Whisper corregido."
 }
