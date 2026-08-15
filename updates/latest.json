@@ -1,8 +1,8 @@
 {
-  "version": "3.2.8",
-  "displayVersion": "3.2.8 — Gota Creator Kit ☔",
-  "downloadUrl": "https://raw.githubusercontent.com/xG0ta/gota-creator-kit/main/GotaCreatorKit-3.2.8.exe",
-  "windowsDownloadUrl": "https://raw.githubusercontent.com/xG0ta/gota-creator-kit/main/GotaCreatorKit-3.2.8.exe",
-  "macDownloadUrl": "https://raw.githubusercontent.com/xG0ta/gota-creator-kit/main/GotaCreatorKit-3.2.8-macOS.zip",
-  "notes": "Actualización robusta: ya no se bloquea si el registro del motor está abierto. Biblioteca Gota queda como panel independiente, sin contenido aplastado."
+  "version": "3.2.9",
+  "displayVersion": "3.2.9 — Gota Creator Kit ☔",
+  "downloadUrl": "https://raw.githubusercontent.com/xG0ta/gota-creator-kit/main/GotaCreatorKit-3.2.9.exe",
+  "windowsDownloadUrl": "https://raw.githubusercontent.com/xG0ta/gota-creator-kit/main/GotaCreatorKit-3.2.9.exe",
+  "macDownloadUrl": "https://raw.githubusercontent.com/xG0ta/gota-creator-kit/main/GotaCreatorKit-3.2.9-macOS.zip",
+  "notes": "Corrige el instalador: el paquete contiene la versión correcta. Biblioteca Gota se abre como panel independiente desde Ventana > UXP Plugins."
 }
