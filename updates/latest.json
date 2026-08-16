@@ -1,8 +1,8 @@
 {
-  "version": "3.2.35",
-  "displayVersion": "3.2.35 — Gota Creator Kit ☔",
-  "downloadUrl": "https://raw.githubusercontent.com/xG0ta/gota-creator-kit/main/GotaCreatorKit-3.2.35.exe",
-  "windowsDownloadUrl": "https://raw.githubusercontent.com/xG0ta/gota-creator-kit/main/GotaCreatorKit-3.2.35.exe",
-  "macDownloadUrl": "https://raw.githubusercontent.com/xG0ta/gota-creator-kit/main/GotaCreatorKit-3.2.35-macOS.zip",
-  "notes": "Gota Pop ahora destaca una palabra completa a la vez, sin deslizar el color por las letras."
+  "version": "3.2.36",
+  "displayVersion": "3.2.36 — Gota Creator Kit ☔",
+  "downloadUrl": "https://raw.githubusercontent.com/xG0ta/gota-creator-kit/main/GotaCreatorKit-3.2.36.exe",
+  "windowsDownloadUrl": "https://raw.githubusercontent.com/xG0ta/gota-creator-kit/main/GotaCreatorKit-3.2.36.exe",
+  "macDownloadUrl": "https://raw.githubusercontent.com/xG0ta/gota-creator-kit/main/GotaCreatorKit-3.2.36-macOS.zip",
+  "notes": "Biblioteca Gota: nuevo buscador en todas tus carpetas y subcarpetas enlazadas."
 }
