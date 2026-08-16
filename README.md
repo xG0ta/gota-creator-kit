@@ -1,2 +1,36 @@
-# autoframe-by-gota
-Auto frame para encuadrar tomas en premiere :)
+# Gota Creator Kit ☔
+
+Herramientas para Adobe Premiere Pro: reencuadre automático, edición de silencios, biblioteca local y subtítulos animados.
+
+## Descarga correcta
+
+| Tu computadora | Descarga esto | Importante |
+| --- | --- | --- |
+| **Windows** | [Instalador completo para Windows — GotaCreatorKit-3.2.35.exe](https://raw.githubusercontent.com/xG0ta/gota-creator-kit/main/GotaCreatorKit-3.2.35.exe) | Ejecuta este archivo. Instala el panel **y** el motor local de AutoFrame. |
+| **Mac** | [Instalador completo para macOS — GotaCreatorKit-3.2.35-macOS.zip](https://raw.githubusercontent.com/xG0ta/gota-creator-kit/main/GotaCreatorKit-3.2.35-macOS.zip) | Descomprime el ZIP y abre **Instalar Gota Creator Kit.command**. Instala el panel **y** el motor local. |
+
+> No descargues un archivo `.ccx` por separado salvo que sepas instalar complementos de Adobe manualmente. El `.ccx` instala únicamente el panel y **no** instala el motor de AutoFrame, subtítulos ni biblioteca.
+
+## Instalación en Windows
+
+1. Cierra Premiere Pro.
+2. Descarga y abre **GotaCreatorKit-3.2.35.exe**.
+3. Espera a que termine la instalación.
+4. Abre Premiere y ve a **Ventana > Plugins de UXP > Gota Creator Kit**.
+
+## Instalación en macOS
+
+1. Cierra Premiere Pro.
+2. Descarga y descomprime **GotaCreatorKit-3.2.35-macOS.zip**.
+3. Abre **Instalar Gota Creator Kit.command**. Si macOS lo bloquea, usa clic derecho > **Abrir**.
+4. Cuando termine, abre Premiere y ve a **Ventana > Plugins de UXP > Gota Creator Kit**.
+
+El instalador de macOS incluye el servicio local y funciona con Macs Intel y Apple Silicon, siempre que tengan Premiere Pro 25.6 o posterior.
+
+## Actualizaciones
+
+Desde Gota Creator Kit usa **Buscar actualizaciones**. Cuando haya una versión nueva, descarga y ejecuta el instalador completo de tu sistema operativo.
+
+## Ayuda
+
+Instagram: [@Jahir.Emm](https://www.instagram.com/jahir.emm/)
