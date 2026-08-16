@@ -1,8 +1,8 @@
 {
-  "version": "3.2.26",
-  "displayVersion": "3.2.26 — Gota Creator Kit ☔",
-  "downloadUrl": "https://raw.githubusercontent.com/xG0ta/gota-creator-kit/main/GotaCreatorKit-3.2.26.exe",
-  "windowsDownloadUrl": "https://raw.githubusercontent.com/xG0ta/gota-creator-kit/main/GotaCreatorKit-3.2.26.exe",
-  "macDownloadUrl": "https://raw.githubusercontent.com/xG0ta/gota-creator-kit/main/GotaCreatorKit-3.2.26-macOS.zip",
-  "notes": "Subtítulos: corrige la colocación de gráficos editables, añade máximo de palabras por línea y recupera la barra de tamaño de texto."
+  "version": "3.2.27",
+  "displayVersion": "3.2.27 — Gota Creator Kit ☔",
+  "downloadUrl": "https://raw.githubusercontent.com/xG0ta/gota-creator-kit/main/GotaCreatorKit-3.2.27.exe",
+  "windowsDownloadUrl": "https://raw.githubusercontent.com/xG0ta/gota-creator-kit/main/GotaCreatorKit-3.2.27.exe",
+  "macDownloadUrl": "https://raw.githubusercontent.com/xG0ta/gota-creator-kit/main/GotaCreatorKit-3.2.27-macOS.zip",
+  "notes": "Subtítulos: cada gráfico conserva su frase real, botón verde al estar listo y posición baja ajustable."
 }
