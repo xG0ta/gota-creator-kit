@@ -1,8 +1,8 @@
 {
-  "version": "3.2.28",
-  "displayVersion": "3.2.28 — Gota Creator Kit ☔",
-  "downloadUrl": "https://raw.githubusercontent.com/xG0ta/gota-creator-kit/main/GotaCreatorKit-3.2.28.exe",
-  "windowsDownloadUrl": "https://raw.githubusercontent.com/xG0ta/gota-creator-kit/main/GotaCreatorKit-3.2.28.exe",
-  "macDownloadUrl": "https://raw.githubusercontent.com/xG0ta/gota-creator-kit/main/GotaCreatorKit-3.2.28-macOS.zip",
-  "notes": "Subtítulos: ajusta posición entre guías, separa acciones y conserva fuente, tamaño y mayúsculas por gráfico."
+  "version": "3.2.29",
+  "displayVersion": "3.2.29 — Gota Creator Kit ☔",
+  "downloadUrl": "https://raw.githubusercontent.com/xG0ta/gota-creator-kit/main/GotaCreatorKit-3.2.29.exe",
+  "windowsDownloadUrl": "https://raw.githubusercontent.com/xG0ta/gota-creator-kit/main/GotaCreatorKit-3.2.29.exe",
+  "macDownloadUrl": "https://raw.githubusercontent.com/xG0ta/gota-creator-kit/main/GotaCreatorKit-3.2.29-macOS.zip",
+  "notes": "Subtítulos: reutiliza la transcripción al ajustar estilos, reemplaza gráficos previos y admite tamaños hasta 180 px."
 }
