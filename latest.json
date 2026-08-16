@@ -1,8 +1,8 @@
 {
-  "version": "3.2.31",
-  "displayVersion": "3.2.31 — Gota Creator Kit ☔",
-  "downloadUrl": "https://raw.githubusercontent.com/xG0ta/gota-creator-kit/main/GotaCreatorKit-3.2.31.exe",
-  "windowsDownloadUrl": "https://raw.githubusercontent.com/xG0ta/gota-creator-kit/main/GotaCreatorKit-3.2.31.exe",
-  "macDownloadUrl": "https://raw.githubusercontent.com/xG0ta/gota-creator-kit/main/GotaCreatorKit-3.2.31-macOS.zip",
-  "notes": "Subtítulos: posición predeterminada en guía baja y pop-in rápido desde abajo para Gota Pop e Impacto."
+  "version": "3.2.32",
+  "displayVersion": "3.2.32 — Gota Creator Kit ☔",
+  "downloadUrl": "https://raw.githubusercontent.com/xG0ta/gota-creator-kit/main/GotaCreatorKit-3.2.32.exe",
+  "windowsDownloadUrl": "https://raw.githubusercontent.com/xG0ta/gota-creator-kit/main/GotaCreatorKit-3.2.32.exe",
+  "macDownloadUrl": "https://raw.githubusercontent.com/xG0ta/gota-creator-kit/main/GotaCreatorKit-3.2.32-macOS.zip",
+  "notes": "Subtítulos: recolocación segura tras ediciones y la animación no bloquea la inserción de gráficos."
 }
