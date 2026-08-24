@@ -2,6 +2,8 @@
 
 Herramientas para Adobe Premiere Pro: reencuadre automático, edición de silencios, biblioteca local y subtítulos animados.
 
+> Este repositorio muestra únicamente la versión actual para evitar confusiones. Las versiones anteriores están guardadas en `archivos-historicos/` y no se recomiendan para instalaciones nuevas.
+
 ## Descarga correcta
 
 | Tu computadora | Descarga esto | Importante |
