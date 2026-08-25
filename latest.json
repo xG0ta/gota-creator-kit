@@ -1,8 +1,8 @@
 {
-  "version": "3.2.39",
-  "displayVersion": "3.2.39 — Gota Creator Kit ☔",
-  "downloadUrl": "https://raw.githubusercontent.com/xG0ta/gota-creator-kit/main/GotaCreatorKit-3.2.39.exe",
-  "windowsDownloadUrl": "https://raw.githubusercontent.com/xG0ta/gota-creator-kit/main/GotaCreatorKit-3.2.39.exe",
-  "macDownloadUrl": "https://raw.githubusercontent.com/xG0ta/gota-creator-kit/main/GotaCreatorKit-3.2.39-macOS.zip",
-  "notes": "Licencias: se corrige la dirección guardada de instalaciones antiguas, especialmente en macOS."
+  "version": "3.2.40",
+  "displayVersion": "3.2.40 — Gota Creator Kit ☔",
+  "downloadUrl": "https://raw.githubusercontent.com/xG0ta/gota-creator-kit/main/GotaCreatorKit-3.2.40.exe",
+  "windowsDownloadUrl": "https://raw.githubusercontent.com/xG0ta/gota-creator-kit/main/GotaCreatorKit-3.2.40.exe",
+  "macDownloadUrl": "https://raw.githubusercontent.com/xG0ta/gota-creator-kit/main/GotaCreatorKit-3.2.40-macOS.zip",
+  "notes": "macOS: instalador de doble clic con Terminal visible para evitar aperturas silenciosas."
 }
