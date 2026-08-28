@@ -1,8 +1,8 @@
 {
-  "version": "3.2.43",
-  "displayVersion": "3.2.43 — Gota Creator Kit ☔",
-  "downloadUrl": "https://github.com/xG0ta/gota-creator-kit/raw/refs/heads/main/GotaCreatorKit-3.2.43.exe",
-  "windowsDownloadUrl": "https://github.com/xG0ta/gota-creator-kit/raw/refs/heads/main/GotaCreatorKit-3.2.43.exe",
-  "macDownloadUrl": "https://github.com/xG0ta/gota-creator-kit/raw/refs/heads/main/GotaCreatorKit-3.2.43-macOS.zip",
-  "notes": "Windows: el inicio del motor ahora es silencioso y ya no deja una ventana de PowerShell abierta."
+  "version": "3.2.44",
+  "displayVersion": "3.2.44 — Gota Creator Kit ☔",
+  "downloadUrl": "https://github.com/xG0ta/gota-creator-kit/raw/refs/heads/main/GotaCreatorKit-3.2.44.exe",
+  "windowsDownloadUrl": "https://github.com/xG0ta/gota-creator-kit/raw/refs/heads/main/GotaCreatorKit-3.2.44.exe",
+  "macDownloadUrl": "https://github.com/xG0ta/gota-creator-kit/raw/refs/heads/main/GotaCreatorKit-3.2.44-macOS.zip",
+  "notes": "Licencias: conexion reforzada en Windows y macOS usando la red nativa del sistema."
 }
