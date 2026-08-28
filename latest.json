@@ -1,8 +1,8 @@
 {
-  "version": "3.2.44",
-  "displayVersion": "3.2.44 — Gota Creator Kit ☔",
-  "downloadUrl": "https://github.com/xG0ta/gota-creator-kit/raw/refs/heads/main/GotaCreatorKit-3.2.44.exe",
-  "windowsDownloadUrl": "https://github.com/xG0ta/gota-creator-kit/raw/refs/heads/main/GotaCreatorKit-3.2.44.exe",
-  "macDownloadUrl": "https://github.com/xG0ta/gota-creator-kit/raw/refs/heads/main/GotaCreatorKit-3.2.44-macOS.zip",
-  "notes": "Licencias: conexion reforzada en Windows y macOS usando la red nativa del sistema."
+  "version": "3.2.45",
+  "displayVersion": "3.2.45 — Gota Creator Kit ☔",
+  "downloadUrl": "https://github.com/xG0ta/gota-creator-kit/raw/refs/heads/main/GotaCreatorKit-3.2.45.exe",
+  "windowsDownloadUrl": "https://github.com/xG0ta/gota-creator-kit/raw/refs/heads/main/GotaCreatorKit-3.2.45.exe",
+  "macDownloadUrl": "https://github.com/xG0ta/gota-creator-kit/raw/refs/heads/main/GotaCreatorKit-3.2.45-macOS.zip",
+  "notes": "Motor unificado: migra la licencia y elimina instalaciones antiguas para evitar usar servicios desactualizados."
 }
