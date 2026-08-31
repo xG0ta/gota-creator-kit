@@ -8,7 +8,7 @@ Herramientas para Adobe Premiere Pro: reencuadre automático, edición de silenc
 
 | Tu computadora | Descarga esto | Importante |
 | --- | --- | --- |
-| **Windows** | [Instalador completo para Windows — GotaCreatorKit-3.2.46.exe](https://github.com/xG0ta/gota-creator-kit/raw/refs/heads/main/GotaCreatorKit-3.2.46.exe) | Ejecuta este archivo. Instala el panel **y** el motor local. |
+| **Windows** | [Instalador completo para Windows — GotaCreatorKit-3.2.52.exe](https://github.com/xG0ta/gota-creator-kit/releases/download/v3.2.52/GotaCreatorKit-3.2.52.exe) | Ejecuta este archivo. Instala el panel **y** el motor local. |
 | **Mac** | [Instalador completo para macOS — GotaCreatorKit-3.2.52-macOS.zip](https://github.com/xG0ta/gota-creator-kit/raw/refs/heads/main/GotaCreatorKit-3.2.52-macOS.zip) | Descomprime el ZIP y abre **Instalar Gota Creator Kit.app**. Instala el panel **y** el motor local. |
 
 > No descargues un archivo `.ccx` por separado salvo que sepas instalar complementos de Adobe manualmente. El `.ccx` instala únicamente el panel y **no** instala el motor de AutoFrame, subtítulos ni biblioteca.
@@ -16,7 +16,7 @@ Herramientas para Adobe Premiere Pro: reencuadre automático, edición de silenc
 ## Instalación en Windows
 
 1. Cierra Premiere Pro.
-2. Descarga y abre **GotaCreatorKit-3.2.46.exe**.
+2. Descarga y abre **GotaCreatorKit-3.2.52.exe**.
 3. Espera a que termine la instalación.
 4. Abre Premiere y ve a **Ventana > Plugins de UXP > Gota Creator Kit**.
 

@@ -1,8 +1,8 @@
 {
-  "version": "3.2.46",
-  "displayVersion": "3.2.46 — Gota Creator Kit ☔",
-  "downloadUrl": "https://github.com/xG0ta/gota-creator-kit/raw/refs/heads/main/GotaCreatorKit-3.2.46.exe",
-  "windowsDownloadUrl": "https://github.com/xG0ta/gota-creator-kit/raw/refs/heads/main/GotaCreatorKit-3.2.46.exe",
-  "macDownloadUrl": "https://github.com/xG0ta/gota-creator-kit/raw/refs/heads/main/GotaCreatorKit-3.2.46-macOS.zip",
-  "notes": "macOS: el motor se inicia al iniciar sesión y el instalador confirma que responda antes de finalizar."
+  "version": "3.2.52",
+  "displayVersion": "3.2.52 — Gota Creator Kit ☔",
+  "downloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.2.52/GotaCreatorKit-3.2.52.exe",
+  "windowsDownloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.2.52/GotaCreatorKit-3.2.52.exe",
+  "macDownloadUrl": "https://github.com/xG0ta/gota-creator-kit/raw/refs/heads/main/GotaCreatorKit-3.2.52-macOS.zip",
+  "notes": "Windows y macOS: el eliminador de silencios usa pistas libres para no separar ni sobrescribir tu edición. En Mac, abre Instalar Gota Creator Kit.app: no requiere comandos."
 }
