@@ -1,8 +1,8 @@
 {
-  "version": "3.2.53",
-  "displayVersion": "3.2.53 — Gota Creator Kit ☔",
-  "downloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.2.53/GotaCreatorKit-3.2.53.exe",
-  "windowsDownloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.2.53/GotaCreatorKit-3.2.53.exe",
-  "macDownloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.2.53/GotaCreatorKit-3.2.53-macOS.zip",
-  "notes": "Windows y macOS 3.2.53: al eliminar silencios, cada clip conserva una pareja fija de pistas libres para que su video y audio permanezcan juntos y no alteren tu edición existente."
+  "version": "3.2.54",
+  "displayVersion": "3.2.54 — Gota Creator Kit ☔",
+  "downloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.2.54/GotaCreatorKit-3.2.54.exe",
+  "windowsDownloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.2.54/GotaCreatorKit-3.2.54.exe",
+  "macDownloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.2.54/GotaCreatorKit-3.2.54-macOS.zip",
+  "notes": "Windows y macOS 3.2.54: el botón de silencios aplica el resultado con un solo clic y mantiene cada video y audio unidos en pistas libres."
 }
