@@ -1,8 +1,8 @@
 {
-  "version": "3.2.54",
-  "displayVersion": "3.2.54 — Gota Creator Kit ☔",
-  "downloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.2.54/GotaCreatorKit-3.2.54.exe",
-  "windowsDownloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.2.54/GotaCreatorKit-3.2.54.exe",
-  "macDownloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.2.54/GotaCreatorKit-3.2.54-macOS.zip",
-  "notes": "Windows y macOS 3.2.54: el botón de silencios aplica el resultado con un solo clic y mantiene cada video y audio unidos en pistas libres."
+  "version": "3.2.55",
+  "displayVersion": "3.2.55 — Gota Creator Kit ☔",
+  "downloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.2.55/GotaCreatorKit-3.2.55.exe",
+  "windowsDownloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.2.55/GotaCreatorKit-3.2.55.exe",
+  "macDownloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.2.55/GotaCreatorKit-3.2.55-macOS.zip",
+  "notes": "Windows y macOS 3.2.55: corrección de estabilidad para Eliminar y cerrar huecos. Premiere vuelve a localizar los clips entre cada operación para evitar que el proceso se detenga a mitad del montaje."
 }
