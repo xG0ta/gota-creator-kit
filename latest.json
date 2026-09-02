@@ -1,8 +1,8 @@
 {
-  "version": "3.2.55",
-  "displayVersion": "3.2.55 — Gota Creator Kit ☔",
-  "downloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.2.55/GotaCreatorKit-3.2.55.exe",
-  "windowsDownloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.2.55/GotaCreatorKit-3.2.55.exe",
-  "macDownloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.2.55/GotaCreatorKit-3.2.55-macOS.zip",
-  "notes": "Windows y macOS 3.2.55: corrección de estabilidad para Eliminar y cerrar huecos. Premiere vuelve a localizar los clips entre cada operación para evitar que el proceso se detenga a mitad del montaje."
+  "version": "3.2.56",
+  "displayVersion": "3.2.56 — Gota Creator Kit ☔",
+  "downloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.2.56/GotaCreatorKit-3.2.56.exe",
+  "windowsDownloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.2.56/GotaCreatorKit-3.2.56.exe",
+  "macDownloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.2.56/GotaCreatorKit-3.2.56-macOS.zip",
+  "notes": "Windows y macOS 3.2.56: Eliminar silencios ya no se detiene si Premiere reemplaza el identificador de un segmento después de recortarlo. El lote continúa de forma segura en sus pistas reservadas."
 }
