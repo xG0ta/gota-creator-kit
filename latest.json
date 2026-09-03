@@ -1,8 +1,8 @@
 {
-  "version": "3.2.56",
-  "displayVersion": "3.2.56 — Gota Creator Kit ☔",
-  "downloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.2.56/GotaCreatorKit-3.2.56.exe",
-  "windowsDownloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.2.56/GotaCreatorKit-3.2.56.exe",
-  "macDownloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.2.56/GotaCreatorKit-3.2.56-macOS.zip",
-  "notes": "Windows y macOS 3.2.56: Eliminar silencios ya no se detiene si Premiere reemplaza el identificador de un segmento después de recortarlo. El lote continúa de forma segura en sus pistas reservadas."
+  "version": "3.2.57",
+  "displayVersion": "3.2.57 — Gota Creator Kit ☔",
+  "downloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.2.57/GotaCreatorKit-3.2.57.exe",
+  "windowsDownloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.2.57/GotaCreatorKit-3.2.57.exe",
+  "macDownloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.2.57/GotaCreatorKit-3.2.57-macOS.zip",
+  "notes": "Windows y macOS 3.2.57: el instalador de Windows usa el instalador oficial de Adobe para reemplazar de forma confiable el panel anterior. Eliminar silencios conserva la recuperación segura de segmentos tras los recortes."
 }
