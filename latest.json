@@ -1,8 +1,8 @@
 {
-  "version": "3.2.57",
-  "displayVersion": "3.2.57 — Gota Creator Kit ☔",
-  "downloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.2.57/GotaCreatorKit-3.2.57.exe",
-  "windowsDownloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.2.57/GotaCreatorKit-3.2.57.exe",
-  "macDownloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.2.57/GotaCreatorKit-3.2.57-macOS.zip",
-  "notes": "Windows y macOS 3.2.57: el instalador de Windows usa el instalador oficial de Adobe para reemplazar de forma confiable el panel anterior. Eliminar silencios conserva la recuperación segura de segmentos tras los recortes."
+  "version": "3.2.58",
+  "displayVersion": "3.2.58 — Gota Creator Kit ☔",
+  "downloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.2.58/GotaCreatorKit-3.2.58.exe",
+  "windowsDownloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.2.58/GotaCreatorKit-3.2.58.exe",
+  "macDownloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.2.58/GotaCreatorKit-3.2.58-macOS.zip",
+  "notes": "Windows y macOS 3.2.58: se corrige el nombre interno del CCX del instalador de Windows, para que el panel sí se instale y reemplace la versión anterior. Incluye la recuperación segura de segmentos al eliminar silencios."
 }
