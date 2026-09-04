@@ -1,8 +1,8 @@
 {
-  "version": "3.2.59",
-  "displayVersion": "3.2.59 — Gota Creator Kit ☔",
-  "downloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.2.59/GotaCreatorKit-3.2.59.exe",
-  "windowsDownloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.2.59/GotaCreatorKit-3.2.59.exe",
-  "macDownloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.2.59/GotaCreatorKit-3.2.59-macOS.zip",
-  "notes": "Windows y macOS 3.2.59: versión global del eliminador de silencios con recuperación segura de segmentos y generación de pistas libres para conservar la edición original."
+  "version": "3.2.60",
+  "displayVersion": "3.2.60 — Gota Creator Kit ☔",
+  "downloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.2.60/GotaCreatorKit-3.2.60.exe",
+  "windowsDownloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.2.60/GotaCreatorKit-3.2.60.exe",
+  "macDownloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.2.60/GotaCreatorKit-3.2.60-macOS.zip",
+  "notes": "Windows y macOS 3.2.60: reemplazo seguro del panel. El instalador confirma la respuesta de Adobe y limpia únicamente copias antiguas de Gota tras una instalación correcta."
 }
