@@ -1,8 +1,8 @@
 {
-  "version": "3.2.62",
-  "displayVersion": "3.2.62 — Gota Creator Kit ☔",
-  "downloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.2.62/GotaCreatorKit-3.2.62.exe",
-  "windowsDownloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.2.62/GotaCreatorKit-3.2.62.exe",
-  "macDownloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.2.62/GotaCreatorKit-3.2.62-macOS.zip",
-  "notes": "Windows y macOS 3.2.62: retiro robusto del clip fuente tras compactar silencios. Evita referencias vencidas de Premiere al borrar el original y conserva el resultado sin huecos."
+  "version": "3.2.63",
+  "displayVersion": "3.2.63 — Gota Creator Kit ☔",
+  "downloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.2.63/GotaCreatorKit-3.2.63.exe",
+  "windowsDownloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.2.63/GotaCreatorKit-3.2.63.exe",
+  "macDownloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.2.63/GotaCreatorKit-3.2.63-macOS.zip",
+  "notes": "Windows y macOS 3.2.63: detector de silencios conservador para no cortar pausas de voz y nuevo registro silence-diagnostics.log con cada análisis y sus fallos."
 }
