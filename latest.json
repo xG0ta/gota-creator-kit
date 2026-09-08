@@ -1,8 +1,8 @@
 {
-  "version": "3.2.64",
-  "displayVersion": "3.2.64 — Gota Creator Kit ☔",
-  "downloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.2.64/GotaCreatorKit-3.2.64.exe",
-  "windowsDownloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.2.64/GotaCreatorKit-3.2.64.exe",
-  "macDownloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.2.64/GotaCreatorKit-3.2.64-macOS.zip",
-  "notes": "Windows y macOS 3.2.64: al compactar silencios, Gota vuelve a localizar el clip fuente antes de retirarlo. Si Premiere bloquea el borrado, lo desactiva sin duplicar imagen ni audio."
+  "version": "3.2.65",
+  "displayVersion": "3.2.65 — Gota Creator Kit ☔",
+  "downloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.2.65/GotaCreatorKit-3.2.65.exe",
+  "windowsDownloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.2.65/GotaCreatorKit-3.2.65.exe",
+  "macDownloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.2.65/GotaCreatorKit-3.2.65-macOS.zip",
+  "notes": "Windows y macOS 3.2.65: los silencios retiran video y audio originales en transacciones independientes y AutoFrame recorre clips largos por partes, sin límite artificial de duración."
 }
