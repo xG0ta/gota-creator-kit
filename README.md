@@ -10,8 +10,21 @@ Herramientas para Adobe Premiere Pro: reencuadre automático, edición de silenc
 | --- | --- | --- |
 | **Windows** | [Instalador completo para Windows — GotaCreatorKit-3.2.65.exe](https://github.com/xG0ta/gota-creator-kit/releases/download/v3.2.65/GotaCreatorKit-3.2.65.exe) | Ejecuta este archivo. Instala el panel **y** el motor local. |
 | **Mac** | [Instalador completo para macOS — GotaCreatorKit-3.2.65-macOS.zip](https://github.com/xG0ta/gota-creator-kit/releases/download/v3.2.65/GotaCreatorKit-3.2.65-macOS.zip) | Descomprime el ZIP y abre **Instalar Gota Creator Kit.app**. Instala el panel **y** el motor local. |
+| **Premiere Pro 2021–2025.5** | [Gota Creator Kit Legacy — instalador CEP firmado](https://github.com/xG0ta/gota-creator-kit/releases/download/v3.2.66-legacy-2024/GotaCreatorKit-Legacy-Premiere-2021-a-2025.5-3.2.66.zxp) | Para Premiere 2024 y anteriores. Instálalo con ZXP Installer. No instales este archivo si tienes Premiere 25.6 o posterior. |
 
 > No descargues un archivo `.ccx` por separado salvo que sepas instalar complementos de Adobe manualmente. El `.ccx` instala únicamente el panel y **no** instala el motor de AutoFrame, subtítulos ni biblioteca.
+
+## Premiere 2024 y anteriores: edición Legacy
+
+Para Premiere Pro **2021 (15.4) hasta 2025.5** instala el archivo
+**Gota Creator Kit Legacy** mediante ZXP Installer. Es un panel CEP firmado,
+separado del panel UXP moderno y con un ID distinto, por lo que ambos no se
+confunden.
+
+La edición Legacy incluye Biblioteca Gota: varias carpetas raíz, búsqueda,
+vista previa y colocación segura en la línea de tiempo. Las herramientas que
+automatizan la secuencia (reencuadre, silencios y subtítulos) requieren el DOM
+UXP oficial de Premiere y continúan disponibles en Premiere **25.6 o superior**.
 
 ## Instalación en Windows
 
