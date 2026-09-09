@@ -10,7 +10,7 @@ Herramientas para Adobe Premiere Pro: reencuadre automático, edición de silenc
 | --- | --- | --- |
 | **Windows** | [Instalador completo para Windows — GotaCreatorKit-3.2.73-Windows.exe](https://github.com/xG0ta/gota-creator-kit/releases/download/v3.2.73/GotaCreatorKit-3.2.73-Windows.exe) | Ejecuta este archivo. Instala el panel **y** el motor local. |
 | **Mac** | [Instalador completo para macOS — GotaCreatorKit-3.2.73-macOS.zip](https://github.com/xG0ta/gota-creator-kit/releases/download/v3.2.73/GotaCreatorKit-3.2.73-macOS.zip) | Descomprime el ZIP y abre **Instalar Gota Creator Kit.command**. Instala el panel **y** el motor local. |
-| **Premiere Pro 2021–2025.5** | [Gota Creator Kit Legacy — instalador CEP firmado](https://github.com/xG0ta/gota-creator-kit/releases/download/v3.2.66-legacy-2024/GotaCreatorKit-Legacy-Premiere-2021-a-2025.5-3.2.66.zxp) | Para Premiere 2024 y anteriores. Instálalo con ZXP Installer. No instales este archivo si tienes Premiere 25.6 o posterior. |
+| **Premiere Pro 2021–2025.5** | [Gota Creator Kit Legacy 3.2.73 — instalador CEP firmado](https://github.com/xG0ta/gota-creator-kit/releases/download/v3.2.73/GotaCreatorKit-Legacy-Premiere-2021-a-2025.5-3.2.73.zxp) | Para Premiere 2024 y anteriores. Instálalo con ZXP Installer. No instales este archivo si tienes Premiere 25.6 o posterior. |
 
 > No descargues un archivo `.ccx` por separado salvo que sepas instalar complementos de Adobe manualmente. El `.ccx` instala únicamente el panel y **no** instala el motor de AutoFrame, subtítulos ni biblioteca.
 
@@ -21,7 +21,7 @@ Para Premiere Pro **2021 (15.4) hasta 2025.5** instala el archivo
 separado del panel UXP moderno y con un ID distinto, por lo que ambos no se
 confunden.
 
-La edición Legacy incluye Biblioteca Gota: varias carpetas raíz, búsqueda,
+La edición Legacy 3.2.73 incluye Biblioteca Gota: varias carpetas raíz, búsqueda,
 vista previa y colocación segura en la línea de tiempo. Las herramientas que
 automatizan la secuencia (reencuadre, silencios y subtítulos) requieren el DOM
 UXP oficial de Premiere y continúan disponibles en Premiere **25.6 o superior**.
@@ -46,7 +46,7 @@ Si necesitas revisar una operación de silencios en Mac, el diagnóstico se guar
 
 ## Actualizaciones
 
-Desde Gota Creator Kit usa **Buscar actualizaciones**. Cuando haya una versión nueva, descarga y ejecuta el instalador completo de tu sistema operativo.
+Desde Gota Creator Kit usa **Buscar actualizaciones**. Windows, macOS y Legacy se publican siempre con el mismo número de versión. Cuando haya una versión nueva, descarga y ejecuta el instalador completo que corresponde a tu edición.
 
 ## Ayuda
 
