@@ -4,5 +4,6 @@
   "downloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.2.73/GotaCreatorKit-3.2.73-Windows.exe",
   "windowsDownloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.2.73/GotaCreatorKit-3.2.73-Windows.exe",
   "macDownloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.2.73/GotaCreatorKit-3.2.73-macOS.zip",
-  "notes": "Actualización global Windows y macOS 3.2.73: los clips largos recuperan su pareja de video y audio antes de cada bloque de cortes. El registro se crea desde el lanzamiento del motor en la raíz de Gota Creator Kit."
+  "legacyDownloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.2.73/GotaCreatorKit-Legacy-Premiere-2021-a-2025.5-3.2.73.zxp",
+  "notes": "Actualización global Windows, macOS y Legacy 3.2.73: los clips largos recuperan su pareja de video y audio antes de cada bloque de cortes. El registro se crea desde el lanzamiento del motor en la raíz de Gota Creator Kit."
 }
