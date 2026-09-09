@@ -1,8 +1,8 @@
 {
-  "version": "3.2.65",
-  "displayVersion": "3.2.65 — Gota Creator Kit ☔",
-  "downloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.2.65/GotaCreatorKit-3.2.65.exe",
-  "windowsDownloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.2.65/GotaCreatorKit-3.2.65.exe",
-  "macDownloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.2.65/GotaCreatorKit-3.2.65-macOS.zip",
-  "notes": "Windows y macOS 3.2.65: los silencios retiran video y audio originales en transacciones independientes y AutoFrame recorre clips largos por partes, sin límite artificial de duración."
+  "version": "3.2.67",
+  "displayVersion": "3.2.67 — Gota Creator Kit ☔",
+  "downloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.2.67/GotaCreatorKit-3.2.67-Windows.exe",
+  "windowsDownloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.2.67/GotaCreatorKit-3.2.67-Windows.exe",
+  "macDownloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.2.67/GotaCreatorKit-3.2.67-macOS.zip",
+  "notes": "Windows y macOS 3.2.67: corrección de estabilidad para Eliminar silencios. El proceso ya guarda las referencias de video y audio antes de cortar, evita referencias inválidas de Premiere y elimina la toma original solo cuando la nueva quedó creada."
 }
