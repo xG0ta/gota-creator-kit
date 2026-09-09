@@ -1,8 +1,8 @@
 {
-  "version": "3.2.70",
-  "displayVersion": "3.2.70 — Gota Creator Kit ☔",
-  "downloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.2.70/GotaCreatorKit-3.2.70-Windows.exe",
-  "windowsDownloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.2.70/GotaCreatorKit-3.2.70-Windows.exe",
-  "macDownloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.2.70/GotaCreatorKit-3.2.70-macOS.zip",
-  "notes": "Actualización global Windows y macOS 3.2.70: el modo Natural conserva los bordes de las palabras sin descartar pausas válidas. El motor registra cada análisis, incluso si falla, en silence-diagnostics.log."
+  "version": "3.2.72",
+  "displayVersion": "3.2.72 — Gota Creator Kit ☔",
+  "downloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.2.72/GotaCreatorKit-3.2.72-Windows.exe",
+  "windowsDownloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.2.72/GotaCreatorKit-3.2.72-Windows.exe",
+  "macDownloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.2.72/GotaCreatorKit-3.2.72-macOS.zip",
+  "notes": "Actualización global Windows y macOS 3.2.72: los clips largos se editan por bloques estables, recuperando las pistas de Premiere entre cortes. El registro de silencios se crea al iniciar el motor en silence-diagnostics.log."
 }
