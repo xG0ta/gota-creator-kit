@@ -1,9 +1,9 @@
 {
-  "version": "3.2.74",
-  "displayVersion": "3.2.74 — Gota Creator Kit ☔",
-  "downloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.2.74/GotaCreatorKit-3.2.74-Windows.exe",
-  "windowsDownloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.2.74/GotaCreatorKit-3.2.74-Windows.exe",
-  "macDownloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.2.74/GotaCreatorKit-3.2.74-macOS.zip",
-  "legacyDownloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.2.74/GotaCreatorKit-Legacy-Premiere-2021-a-2025.5-3.2.74.zxp",
-  "notes": "Actualización global Windows, macOS y Legacy 3.2.74: el motor incluido en macOS se sincroniza y se comprueba contra el código actual antes de publicar. El registro de silencios se crea desde la instalación y el detector descarta microcortes que no cumplen la duración final elegida."
+  "version": "3.2.75",
+  "displayVersion": "3.2.75 — Gota Creator Kit ☔",
+  "downloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.2.75/GotaCreatorKit-3.2.75-Windows.exe",
+  "windowsDownloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.2.75/GotaCreatorKit-3.2.75-Windows.exe",
+  "macDownloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.2.75/GotaCreatorKit-3.2.75-macOS.zip",
+  "legacyDownloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.2.75/GotaCreatorKit-Legacy-Premiere-2021-a-2025.5-3.2.75.zxp",
+  "notes": "Actualización global 3.2.75: nuevo panel Copy Paste para copiar una imagen y pegarla directamente en el indicador de la secuencia, en una pista de video libre. Las copias temporales se limpian solas después de 10 días."
 }
