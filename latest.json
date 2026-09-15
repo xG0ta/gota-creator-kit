@@ -1,9 +1,9 @@
 {
-  "version": "3.2.79",
-  "displayVersion": "3.2.79 — Gota Creator Kit ☔",
-  "downloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.2.79/GotaCreatorKit-3.2.79-Windows.exe",
-  "windowsDownloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.2.79/GotaCreatorKit-3.2.79-Windows.exe",
-  "macDownloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.2.79/GotaCreatorKit-3.2.79-macOS.zip",
-  "legacyDownloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.2.79/GotaCreatorKit-Legacy-Premiere-2021-a-2025.5-3.2.79.zxp",
-  "notes": "Actualización global 3.2.79: el instalador para macOS conserva los permisos de ejecución y ahora incluye Instalar Gota Creator Kit.app para iniciar con doble clic."
+  "version": "3.2.80",
+  "displayVersion": "3.2.80 — Gota Creator Kit ☔",
+  "downloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.2.80/GotaCreatorKit-3.2.80-Windows.exe",
+  "windowsDownloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.2.80/GotaCreatorKit-3.2.80-Windows.exe",
+  "macDownloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.2.80/GotaCreatorKit-3.2.80-macOS.zip",
+  "legacyDownloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.2.80/GotaCreatorKit-Legacy-Premiere-2021-a-2025.5-3.2.80.zxp",
+  "notes": "Actualización global 3.2.80: el ZIP de macOS ahora se identifica como UNIX y conserva los permisos de ejecución en Archive Utility."
 }
