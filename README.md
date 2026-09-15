@@ -8,9 +8,9 @@ Herramientas para Adobe Premiere Pro: reencuadre automático, edición de silenc
 
 | Tu computadora | Descarga esto | Importante |
 | --- | --- | --- |
-| **Windows** | [Instalador completo para Windows — GotaCreatorKit-3.2.77-Windows.exe](https://github.com/xG0ta/gota-creator-kit/releases/download/v3.2.77/GotaCreatorKit-3.2.77-Windows.exe) | Ejecuta este archivo. Instala el panel **y** el motor local. |
-| **Mac** | [Instalador completo para macOS — GotaCreatorKit-3.2.77-macOS.zip](https://github.com/xG0ta/gota-creator-kit/releases/download/v3.2.77/GotaCreatorKit-3.2.77-macOS.zip) | Descomprime el ZIP, abre **payload > Gota Creator Kit.ccx** y después ejecuta el instalador del motor local. |
-| **Premiere Pro 2021–2025.5** | [Gota Creator Kit Legacy 3.2.77 — instalador CEP firmado](https://github.com/xG0ta/gota-creator-kit/releases/download/v3.2.77/GotaCreatorKit-Legacy-Premiere-2021-a-2025.5-3.2.77.zxp) | Para Premiere 2024 y anteriores. Instálalo con ZXP Installer. No instales este archivo si tienes Premiere 25.6 o posterior. |
+| **Windows** | [Instalador completo para Windows — GotaCreatorKit-3.2.78-Windows.exe](https://github.com/xG0ta/gota-creator-kit/releases/download/v3.2.78/GotaCreatorKit-3.2.78-Windows.exe) | Ejecuta este archivo. Instala el panel **y** el motor local. |
+| **Mac** | [Instalador completo para macOS — GotaCreatorKit-3.2.78-macOS.zip](https://github.com/xG0ta/gota-creator-kit/releases/download/v3.2.78/GotaCreatorKit-3.2.78-macOS.zip) | Descomprime el ZIP, abre **payload > Gota Creator Kit.ccx** y después ejecuta el instalador del motor local. |
+| **Premiere Pro 2021–2025.5** | [Gota Creator Kit Legacy 3.2.78 — instalador CEP firmado](https://github.com/xG0ta/gota-creator-kit/releases/download/v3.2.78/GotaCreatorKit-Legacy-Premiere-2021-a-2025.5-3.2.78.zxp) | Para Premiere 2024 y anteriores. Instálalo con ZXP Installer. No instales este archivo si tienes Premiere 25.6 o posterior. |
 
 > No descargues un archivo `.ccx` por separado salvo que sepas instalar complementos de Adobe manualmente. El `.ccx` instala únicamente el panel y **no** instala el motor de AutoFrame, subtítulos ni biblioteca.
 
@@ -21,7 +21,7 @@ Para Premiere Pro **2021 (15.4) hasta 2025.5** instala el archivo
 separado del panel UXP moderno y con un ID distinto, por lo que ambos no se
 confunden.
 
-La edición Legacy 3.2.77 incluye Biblioteca Gota: varias carpetas raíz, búsqueda,
+La edición Legacy 3.2.78 incluye Biblioteca Gota: varias carpetas raíz, búsqueda,
 vista previa y colocación segura en la línea de tiempo. Las herramientas que
 automatizan la secuencia (reencuadre, silencios y subtítulos) requieren el DOM
 UXP oficial de Premiere y continúan disponibles en Premiere **25.6 o superior**.
@@ -29,16 +29,16 @@ UXP oficial de Premiere y continúan disponibles en Premiere **25.6 o superior**
 ## Instalación en Windows
 
 1. Cierra Premiere Pro.
-2. Descarga y abre **GotaCreatorKit-3.2.77-Windows.exe**.
+2. Descarga y abre **GotaCreatorKit-3.2.78-Windows.exe**.
 3. Espera a que termine la instalación.
 4. Abre Premiere y ve a **Ventana > Plugins de UXP > Gota Creator Kit**.
 
 ## Instalación en macOS
 
 1. Cierra Premiere Pro.
-2. Descarga y descomprime **GotaCreatorKit-3.2.77-macOS.zip**.
+2. Descarga y descomprime **GotaCreatorKit-3.2.78-macOS.zip**.
 3. Abre la carpeta **payload** y haz doble clic en **Gota Creator Kit.ccx**. Confirma la instalación en Adobe Creative Cloud.
-4. Regresa a la carpeta principal y abre **Instalar Gota Creator Kit.command** para instalar el motor local. Si macOS lo bloquea, usa clic derecho > **Abrir**.
+4. Regresa a la carpeta principal y abre **Instalar Gota Creator Kit.command** para instalar el motor local. Si macOS lo bloquea, usa clic derecho > **Abrir**. Si continúa bloqueado, ve a **Ajustes del Sistema > Privacidad y seguridad** y presiona **Abrir de todos modos**.
 5. Cuando termine, abre Premiere y ve a **Ventana > Plugins de UXP > Gota Creator Kit**.
 
 El ZIP también incluye el archivo **INSTRUCCIONES PARA MAC.txt** con estos mismos pasos. No es necesario abrir las carpetas `service` ni `service_v2`.
