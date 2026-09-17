@@ -9,10 +9,11 @@ Herramientas para Adobe Premiere Pro: reencuadre automático, edición de silenc
 | Tu computadora | Descarga esto | Importante |
 | --- | --- | --- |
 | **Windows** | [Instalador completo para Windows — GotaCreatorKit-3.2.84-Windows.exe](https://github.com/xG0ta/gota-creator-kit/releases/download/v3.2.84/GotaCreatorKit-3.2.84-Windows.exe) | Ejecuta este archivo. Instala el panel **y** el motor local. |
+| **Premiere 2026 sin Creative Cloud** | [Panel directo .ccx — GotaCreatorKit-Premiere-2026-3.2.84.ccx](https://github.com/xG0ta/gota-creator-kit/releases/download/v3.2.84/GotaCreatorKit-Premiere-2026-3.2.84.ccx) | Instálalo desde un gestor que admita archivos CCX. Después ejecuta el instalador de Windows para tener el motor local. |
 | **Mac** | [Instalador completo para macOS — GotaCreatorKit-3.2.84-macOS.zip](https://github.com/xG0ta/gota-creator-kit/releases/download/v3.2.84/GotaCreatorKit-3.2.84-macOS.zip) | Descomprime el ZIP, abre **payload > Gota Creator Kit.ccx** y después **Instalar Gota Creator Kit.app**. La app ya contiene internamente el motor. |
 | **Premiere Pro 2021–2025.5** | [Gota Creator Kit Legacy 3.2.84 — instalador CEP firmado](https://github.com/xG0ta/gota-creator-kit/releases/download/v3.2.84/GotaCreatorKit-Legacy-Premiere-2021-a-2025.5-3.2.84.zxp) | Para Premiere 2024 y anteriores. Instálalo con ZXP Installer. No instales este archivo si tienes Premiere 25.6 o posterior. |
 
-> No descargues un archivo `.ccx` por separado salvo que sepas instalar complementos de Adobe manualmente. El `.ccx` instala únicamente el panel y **no** instala el motor de AutoFrame, subtítulos ni biblioteca.
+> El archivo `.ccx` es una alternativa manual solo para registrar el panel moderno de Premiere 2026. No instala el motor de AutoFrame, subtítulos, biblioteca ni licencias: para esas funciones instala también el ejecutable de Windows.
 
 ## Premiere 2024 y anteriores: edición Legacy
 
@@ -26,6 +27,13 @@ La edición Legacy 3.2.84 incluye Biblioteca Gota: varias carpetas raíz, búsqu
 2. Descarga y abre **GotaCreatorKit-3.2.84-Windows.exe**.
 3. Espera a que termine la instalación.
 4. Abre Premiere y ve a **Ventana > Plugins de UXP > Gota Creator Kit**.
+
+## Instalación manual en Premiere 2026
+
+1. Descarga **GotaCreatorKit-Premiere-2026-3.2.84.ccx**.
+2. Ábrelo con un instalador que soporte archivos CCX.
+3. Ejecuta también **GotaCreatorKit-3.2.84-Windows.exe** para instalar el motor local.
+4. Reinicia Premiere y abre **Ventana > Plugins de UXP > Gota Creator Kit**.
 
 ## Instalación en macOS
 
