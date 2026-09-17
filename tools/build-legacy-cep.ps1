@@ -1,5 +1,5 @@
 param(
-  [string]$Output = (Join-Path $PSScriptRoot '..\dist\GotaCreatorKit-Legacy-Premiere-2021-a-2025.5-3.2.85.zxp')
+  [string]$Output = (Join-Path $PSScriptRoot '..\dist\GotaCreatorKit-Legacy-Premiere-2021-a-2025.5-3.2.86.zxp')
 )
 
 $source = Join-Path $PSScriptRoot '..\legacy-cep'

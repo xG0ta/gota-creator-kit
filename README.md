@@ -4,20 +4,20 @@ Herramientas para Adobe Premiere Pro: reencuadre automático, edición de silenc
 
 > Este repositorio muestra únicamente la versión actual para evitar confusiones. Las versiones anteriores están en los Releases de GitHub y no se recomiendan para instalaciones nuevas.
 
-## Descarga correcta — versión 3.2.85
+## Descarga correcta — versión 3.2.86
 
 | Tu computadora | Descarga esto | Importante |
 | --- | --- | --- |
-| **Windows** | [Instalador completo para Windows — GotaCreatorKit-3.2.85-Windows.exe](https://github.com/xG0ta/gota-creator-kit/releases/download/v3.2.85/GotaCreatorKit-3.2.85-Windows.exe) | Recomendado. Instala el panel y el motor local. |
-| **Premiere 2026 sin Creative Cloud** | [Panel directo .ccx — GotaCreatorKit-Premiere-2026-3.2.85.ccx](https://github.com/xG0ta/gota-creator-kit/releases/download/v3.2.85/GotaCreatorKit-Premiere-2026-3.2.85.ccx) | Instálalo mediante un gestor compatible con CCX. En Windows, ejecuta además el instalador completo para contar con el motor local. |
-| **Windows: instalación manual** | [Paquete manual ZIP](https://github.com/xG0ta/gota-creator-kit/releases/download/v3.2.85/GotaCreatorKit-3.2.85-Windows-Instalacion-Manual.zip) | Incluye el EXE, CCX, ZXP Legacy y guía de respaldo. |
-| **macOS** | [Instalador completo para macOS — GotaCreatorKit-3.2.85-macOS.zip](https://github.com/xG0ta/gota-creator-kit/releases/download/v3.2.85/GotaCreatorKit-3.2.85-macOS.zip) | Descomprime el ZIP completo, instala el CCX dentro de `payload` y abre **Instalar Gota Creator Kit.app**. |
-| **Premiere Pro 2021–2025.5** | [Gota Creator Kit Legacy 3.2.85 — ZXP firmado](https://github.com/xG0ta/gota-creator-kit/releases/download/v3.2.85/GotaCreatorKit-Legacy-Premiere-2021-a-2025.5-3.2.85.zxp) | Para Premiere 2024 y anteriores. Instálalo con ZXP Installer. |
+| **Windows** | [Instalador completo para Windows — GotaCreatorKit-3.2.86-Windows.exe](https://github.com/xG0ta/gota-creator-kit/releases/download/v3.2.86/GotaCreatorKit-3.2.86-Windows.exe) | Recomendado. Instala el panel y el motor local. |
+| **Premiere 2026 sin Creative Cloud** | [ZIP completo: EXE + CCX — GotaCreatorKit-3.2.86-Premiere-2026-sin-Creative-Cloud.zip](https://github.com/xG0ta/gota-creator-kit/releases/download/v3.2.86/GotaCreatorKit-3.2.86-Premiere-2026-sin-Creative-Cloud.zip) | Ejecuta primero el EXE y luego instala el CCX con un gestor compatible. Así también queda instalado el motor local. |
+| **macOS** | [Instalador completo para macOS — GotaCreatorKit-3.2.86-macOS.zip](https://github.com/xG0ta/gota-creator-kit/releases/download/v3.2.86/GotaCreatorKit-3.2.86-macOS.zip) | Descomprime el ZIP completo, instala el CCX dentro de `payload` y abre **Instalar Gota Creator Kit.app**. |
+| **Premiere Pro 2021–2025.5** | [Gota Creator Kit Legacy 3.2.86 — ZXP firmado](https://github.com/xG0ta/gota-creator-kit/releases/download/v3.2.86/GotaCreatorKit-Legacy-Premiere-2021-a-2025.5-3.2.86.zxp) | Para Premiere 2024 y anteriores. Instálalo con ZXP Installer. |
 
-## Novedades de 3.2.85
+## Novedades de 3.2.86
 
-- La vista previa de subtítulos ahora intenta cargar las fuentes instaladas por el usuario.
-- La muestra refleja color, trazo, sombra y glow sin depender de la herencia de estilos del panel.
+- La vista previa de subtítulos fue reconstruida para pintar fuente, color, trazo, sombra y glow directamente en cada palabra.
+- Las fuentes instaladas por el usuario se cargan localmente con datos de la propia fuente, sin subirlas a internet.
+- El paquete para Premiere 2026 sin Creative Cloud ahora incluye el EXE y el CCX juntos.
 - Windows, macOS y Legacy se publican con el mismo número de versión.
 
 ## Instalación rápida
@@ -25,7 +25,7 @@ Herramientas para Adobe Premiere Pro: reencuadre automático, edición de silenc
 ### Windows
 
 1. Cierra Premiere Pro.
-2. Ejecuta `GotaCreatorKit-3.2.85-Windows.exe`.
+2. Ejecuta `GotaCreatorKit-3.2.86-Windows.exe`.
 3. Abre Premiere y entra a **Ventana > Plugins de UXP > Gota Creator Kit**.
 
 ### macOS
