@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AutoFrame analysis job",
+  "type": "object",
+  "required": ["version", "mediaPath", "targetAspect"],
+  "properties": {
+    "version": { "const": "1.0" },
+    "mediaPath": { "type": "string", "minLength": 1 },
+    "targetAspect": { "type": "number", "exclusiveMinimum": 0 },
+    "sampleFps": { "type": "number", "minimum": 0.2, "maximum": 15 },
+    "margin": { "type": "number", "minimum": 0, "maximum": 2 },
+    "smoothing": { "type": "number", "minimum": 0, "maximum": 0.99 },
+    "startSeconds": { "type": "number", "minimum": 0 },
+    "endSeconds": { "type": ["number", "null"], "exclusiveMinimum": 0 }
+  },
+  "additionalProperties": false
+}

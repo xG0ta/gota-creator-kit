@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net9.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>Instalar Gota Creator Kit</AssemblyName>
+    <Version>3.2.85</Version>
+    <SelfContained>true</SelfContained>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <PublishSingleFile>true</PublishSingleFile>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <DebugType>none</DebugType>
+    <DefaultItemExcludes>$(DefaultItemExcludes);obj\**;bin\**</DefaultItemExcludes>
+  </PropertyGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="payload-3.2.85-clean.zip" LogicalName="AutoFramePayload" />
+  </ItemGroup>
+</Project>

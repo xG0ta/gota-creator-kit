@@ -1,0 +1,40 @@
+GOTA CREATOR KIT — INSTALACIÓN DE RESPALDO PARA WINDOWS
+
+Este ZIP contiene tres alternativas. Extrae todo antes de usarlo.
+
+1. INSTALACIÓN RECOMENDADA (panel moderno)
+   Ejecuta GotaCreatorKit-<versión>-Windows.exe.
+   Es la versión completa: Reencuadre, eliminar silencios, subtítulos,
+   Biblioteca Gota y licencias.
+
+2. PREMIERE 2026 — PAQUETE CCX MODERNO
+   Ejecuta primero el instalador .exe: instala el motor local necesario para
+   Reencuadre, eliminar silencios, subtítulos y licencias.
+
+   Si después de ejecutar el .exe Adobe no registra el panel, usa el archivo
+   GotaCreatorKit-Premiere-2026-<versión>.ccx incluido para registrar solo
+   el panel moderno.
+
+   - Cierra Premiere.
+   - Abre Adobe Creative Cloud Desktop.
+   - Ve a Archivo > Instalar complemento desde archivo CCX y selecciona el .ccx.
+   - Reinicia Premiere y ábrelo desde Ventana > Plugins > Gota Creator Kit.
+
+3. PREMIERE 2021 A 2025.5 — ZXP LEGACY
+   Si Adobe no reconoce el instalador en una versión anterior, usa el .zxp
+   incluido con una herramienta compatible con ZXP, por ejemplo ZXP Installer
+   o Anastasiy Extension Manager.
+
+   - Cierra Premiere antes de instalar.
+   - Arrastra el .zxp a la herramienta de instalación.
+   - Reinicia Premiere.
+   - Ábrelo desde Ventana > Extensiones (heredado).
+
+IMPORTANTE
+El archivo CCX es el registro manual del panel moderno para Premiere 2026
+y el ZXP es el panel Legacy/CEP para Premiere 2021 a 2025.5. Ambos requieren
+que primero se haya ejecutado el .exe, porque no instalan el motor local por
+sí solos.
+
+No hace falta instalar más de un paquete salvo que estés probando
+compatibilidad.

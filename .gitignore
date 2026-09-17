@@ -1,0 +1,14 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+*.ccx
+admin/private/
+outputs/Administrador Gota Creator Kit*.exe
+service/gota-license.json
+service/gota-first-run.json
+service/gota-licenses-test.sqlite3
+cloudflare-license/node_modules/
+cloudflare-license/.wrangler/
+cloudflare-license/.dev.vars
+cloudflare-license/wrangler.toml

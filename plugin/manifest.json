@@ -1,0 +1,42 @@
+{
+  "manifestVersion": 5,
+  "id": "com.autoframe.faces.dev",
+  "name": "Gota Creator Kit ☔",
+  "version": "3.2.85",
+  "main": "main.js",
+  "host": {
+    "app": "premierepro",
+    "minVersion": "25.6.0"
+  },
+  "entrypoints": [
+    {
+      "type": "panel",
+      "id": "autoframeFacesPanel",
+      "label": { "default": "Gota Creator Kit ☔" },
+      "minimumSize": { "width": 280, "height": 360 },
+      "preferredDockedSize": { "width": 340, "height": 560 }
+    },
+    {
+      "type": "panel",
+      "id": "gckLibraryPanel",
+      "label": { "default": "Biblioteca Gota ☔" },
+      "minimumSize": { "width": 620, "height": 360 },
+      "preferredDockedSize": { "width": 760, "height": 560 }
+    }
+  ],
+  "requiredPermissions": {
+    "network": {
+      "domains": "all"
+    },
+    "webview": {
+      "allow": "yes",
+      "domains": ["http://127.0.0.1:8765"],
+      "enableMessageBridge": "localAndRemote"
+    },
+    "launchProcess": {
+      "schemes": ["https"],
+      "extensions": [".zip", ".exe"]
+    },
+    "localFileSystem": "request"
+  }
+}

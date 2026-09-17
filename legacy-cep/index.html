@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' http://127.0.0.1:8765; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; img-src 'self' data: http://127.0.0.1:8765; media-src 'self' file: http://127.0.0.1:8765;">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Gota Creator Kit Legacy</title>
+  <link rel="stylesheet" href="css/panel.css">
+</head>
+<body>
+  <main>
+    <header>
+      <div><h1>Gota Creator Kit <span>☔</span></h1><p>Compatibilidad para Premiere Pro 2024</p></div>
+      <span id="host-version" class="pill">Comprobando…</span>
+    </header>
+    <section class="notice">
+      <strong>Modo Legacy</strong>
+      <span>Diseñado para Premiere 2024 (24.x). La edición moderna UXP sigue siendo la recomendada para Premiere 25.6 o posterior.</span>
+    </section>
+    <section class="card">
+      <div class="section-title"><h2>Biblioteca local</h2><button id="add-root" class="secondary">+ Añadir carpeta</button></div>
+      <input id="search" type="search" placeholder="Buscar archivo o carpeta…" autocomplete="off">
+      <div id="roots" class="roots" aria-live="polite"></div>
+      <div class="library-grid">
+        <div><p class="label">Contenido</p><div id="files" class="file-list empty">Elige una carpeta.</div></div>
+        <div><p class="label">Vista previa</p><div id="preview" class="preview empty">Selecciona un archivo.</div></div>
+      </div>
+      <button id="place" class="primary" disabled>Añadir en línea de tiempo</button>
+      <p class="hint">Se añade al marcador en las primeras pistas vacías disponibles; no sobrescribe clips existentes.</p>
+    </section>
+    <section class="card">
+      <div class="section-title"><h2>Herramientas</h2><span class="pill">motor local</span></div>
+      <button id="check-engine" class="secondary">Comprobar motor local</button>
+      <p id="engine-status" class="hint">La detección facial y silencios se ejecutan con el motor local incluido por el instalador.</p>
+    </section>
+    <section class="card compact">
+      <h2>Actualiza Premiere para todas las funciones</h2>
+      <p>Reencuadre automático, silencios automatizados y subtítulos editables dependen de las APIs UXP oficiales de Premiere 25.6+.</p>
+    </section>
+    <p id="status" class="status">Listo.</p>
+  </main>
+  <script src="js/panel.js"></script>
+</body>
+</html>
