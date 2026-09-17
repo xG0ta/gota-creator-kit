@@ -4,7 +4,7 @@ const os = require("os");
 const localFileSystem = storage.localFileSystem;
 
 const SERVICE_URL = "http://127.0.0.1:8765";
-const CURRENT_VERSION = "3.2.86";
+const CURRENT_VERSION = "3.2.87";
 const UPDATE_MANIFEST_URL =
   "https://api.github.com/repos/xG0ta/gota-creator-kit/contents/latest.json?ref=main";
 const OUTPUT_WIDTH = 1080;
@@ -5003,47 +5003,35 @@ let silenceDiagnosticLogs = [];
   });
   captionsBody.appendChild(captionsAlignLabel);
   captionsBody.appendChild(captionsAlignRow);
-  // Vista previa de subtítulos: se reconstruye de forma aislada y pinta cada
-  // palabra directamente. Así no depende de la herencia CSS incompleta de UXP.
+  // Vista previa de subtítulos. Se dibuja en un lienzo propio: no comparte
+  // estilos con el resto de UXP, por lo que color, trazo, sombra y glow se
+  // reflejan siempre aunque Premiere ignore propiedades CSS del texto.
   const captionsPreview = makeElement("div");
-  captionsPreview.style.height = "118px";
+  captionsPreview.style.height = "142px";
   captionsPreview.style.position = "relative";
-  captionsPreview.style.display = "flex";
-  captionsPreview.style.alignItems = "center";
-  captionsPreview.style.padding = "10px";
   captionsPreview.style.boxSizing = "border-box";
   captionsPreview.style.backgroundColor = "#101216";
-  captionsPreview.style.borderRadius = "6px";
+  captionsPreview.style.borderRadius = "7px";
   captionsPreview.style.border = "1px solid #4a5562";
   captionsPreview.style.overflow = "hidden";
-  const captionPreviewStage = makeElement("div");
-  captionPreviewStage.style.width = "100%";
-  captionPreviewStage.style.display = "flex";
-  captionPreviewStage.style.flexWrap = "wrap";
-  captionPreviewStage.style.alignItems = "center";
-  captionPreviewStage.style.gap = "7px";
-  captionPreviewStage.style.transition = "transform 130ms ease";
-  captionsPreview.appendChild(captionPreviewStage);
+  const captionPreviewCanvas = makeElement("canvas");
+  captionPreviewCanvas.width = 960;
+  captionPreviewCanvas.height = 300;
+  captionPreviewCanvas.style.display = "block";
+  captionPreviewCanvas.style.width = "100%";
+  captionPreviewCanvas.style.height = "140px";
+  captionPreviewCanvas.style.backgroundColor = "#101216";
+  captionsPreview.appendChild(captionPreviewCanvas);
   captionsBody.appendChild(captionsPreview);
   captionsBody.addEventListener("pointerdown", (event) => {
     if (openedCaptionPicker && !openedCaptionPicker.element.contains(event.target)) openedCaptionPicker.close();
   });
   const captionPreviewWords = ["Esto", "se verá", "increíble"];
-  const captionWords = captionPreviewWords.map((word) => {
-    const piece = makeElement("span", word);
-    piece.style.display = "inline-block";
-    piece.style.padding = "2px 3px";
-    piece.style.lineHeight = "1.05";
-    piece.style.whiteSpace = "nowrap";
-    piece.style.boxSizing = "border-box";
-    piece.style.transformOrigin = "50% 70%";
-    piece.style.transition = "transform 130ms ease, opacity 130ms ease, background-color 130ms ease, color 130ms ease, text-shadow 130ms ease";
-    captionPreviewStage.appendChild(piece);
-    return piece;
-  });
   const captionPreviewFonts = Object.create(null);
-  let captionPreviewFontFamily = "";
+  let captionPreviewFontFamily = "Arial, sans-serif";
   let captionPreviewFontRequest = 0;
+  let captionPreviewStep = 0;
+  let captionPreviewQueued = false;
   const previewFontAlias = (fontName) => `GotaPreview_${String(fontName || "Arial").replace(/[^a-z0-9]/gi, "_")}`;
   const fontBytesToBase64 = (buffer) => {
     const bytes = new Uint8Array(buffer); let binary = "";
@@ -5051,28 +5039,6 @@ let silenceDiagnosticLogs = [];
       binary += String.fromCharCode.apply(null, bytes.subarray(offset, Math.min(offset + 0x8000, bytes.length)));
     }
     return btoa(binary);
-  };
-  const loadCaptionPreviewFont = async (fontName) => {
-    const selected = String(fontName || "Arial").trim() || "Arial";
-    const alias = previewFontAlias(selected);
-    const requestId = ++captionPreviewFontRequest;
-    captionPreviewFontFamily = `"${alias}", "${selected.replace(/"/g, "")}", Arial, sans-serif`;
-    if (!captionPreviewFonts[alias]) {
-      try {
-        const response = await fetch(`${SERVICE_URL}/v1/font-file?fontName=${encodeURIComponent(selected)}`);
-        if (!response.ok) throw new Error(`Fuente no disponible (${response.status})`);
-        const data = fontBytesToBase64(await response.arrayBuffer());
-        const type = String(response.headers.get("content-type") || "font/ttf").split(";")[0];
-        const style = document.createElement("style");
-        style.textContent = `@font-face{font-family:"${alias}";src:url(data:${type};base64,${data}) format("truetype");font-style:normal;font-weight:100 900;}`;
-        (document.head || document.documentElement).appendChild(style);
-        captionPreviewFonts[alias] = true;
-        if (document.fonts && document.fonts.load) await document.fonts.load(`24px "${alias}"`);
-      } catch (_) {
-        // El nombre de fuente sigue como alternativa para las familias nativas.
-      }
-    }
-    if (requestId === captionPreviewFontRequest) updateCaptionPreview();
   };
   const captionPaint = () => ({
     baseColor: captionsColorControl.value || "#FFFFFF",
@@ -5082,71 +5048,97 @@ let silenceDiagnosticLogs = [];
     shadowBlur: Math.max(0, Math.min(30, Number(captionsShadowBlur.value || 0))),
     shadowOffset: Math.max(-20, Math.min(20, Number(captionsShadowOffset.value || 0))),
   });
-  const applyCaptionPaint = (piece, color, extraShadow = "") => {
-    const paint = captionPaint();
-    const shadows = [];
-    if (paint.shadowBlur || paint.shadowOffset) shadows.push(`${paint.shadowOffset}px ${paint.shadowOffset}px ${paint.shadowBlur}px ${paint.shadowColor}`);
-    if (extraShadow) shadows.push(extraShadow);
-    piece.style.setProperty("color", color || paint.baseColor, "important");
-    piece.style.setProperty("-webkit-text-fill-color", color || paint.baseColor, "important");
-    piece.style.setProperty("-webkit-text-stroke-width", `${paint.strokeWidth}px`, "important");
-    piece.style.setProperty("-webkit-text-stroke-color", paint.strokeColor, "important");
-    piece.style.setProperty("paint-order", "stroke fill", "important");
-    piece.style.setProperty("text-shadow", shadows.join(", ") || "none", "important");
-  };
   const captionText = (word) => {
     if (captionsCase.value === "upper") return word.toUpperCase();
     if (captionsCase.value === "lower") return word.toLowerCase();
     if (captionsCase.value === "title") return word.replace(/\b\w/g, (letter) => letter.toUpperCase());
     return word;
   };
-  let captionPreviewStep = 0;
-  const animateCaptionPreview = () => {
+  const renderCaptionPreview = () => {
+    captionPreviewQueued = false;
+    const canvas = captionPreviewCanvas;
+    const ctx = canvas && canvas.getContext ? canvas.getContext("2d") : null;
+    if (!ctx) return;
     const style = captionsStyle.value;
     const paint = captionPaint();
-    captionWords.forEach((piece, index) => {
+    const width = canvas.width; const height = canvas.height;
+    const background = style === "gota-pop" ? "#173e71" : style === "impact" ? "#5c1b6d" : "#101216";
+    captionsPreview.style.backgroundColor = background;
+    captionsPreview.style.border = style === "gota-pop" ? "2px solid #4ea0ff" : style === "impact" ? "2px solid #ec6bff" : "1px solid #4a5562";
+    ctx.clearRect(0, 0, width, height);
+    ctx.fillStyle = background; ctx.fillRect(0, 0, width, height);
+    ctx.strokeStyle = "rgba(255,255,255,.10)"; ctx.lineWidth = 2;
+    ctx.strokeRect(1, 1, width - 2, height - 2);
+    const words = captionPreviewWords.map(captionText);
+    const requestedSize = Math.max(12, Math.min(240, Number(captionsSize.value || 22)));
+    let fontSize = Math.round(Math.max(28, Math.min(112, requestedSize * 1.25)));
+    const family = captionPreviewFontFamily || "Arial, sans-serif";
+    const setFont = (size) => { ctx.font = `${style === "impact" ? "800" : "700"} ${size}px ${family}`; };
+    setFont(fontSize);
+    const gap = Math.max(16, Math.round(fontSize * .22));
+    let total = words.reduce((sum, word) => sum + ctx.measureText(word).width, 0) + gap * (words.length - 1);
+    if (total > width - 70) { fontSize = Math.max(20, Math.floor(fontSize * ((width - 70) / total))); setFont(fontSize); }
+    const measured = words.map((word) => ctx.measureText(word).width);
+    total = measured.reduce((sum, value) => sum + value, 0) + gap * (words.length - 1);
+    let x = captionsAlign.value === "left" ? 36 : captionsAlign.value === "right" ? width - total - 36 : (width - total) / 2;
+    const baseline = Math.round(height * .59);
+    words.forEach((word, index) => {
       const active = index === captionPreviewStep;
-      piece.style.backgroundColor = "transparent";
-      if (style === "gota-pop") {
-        piece.style.transform = active ? "translateY(-2px) scale(1.07)" : "translateY(0) scale(1)";
-        piece.style.opacity = active ? "1" : "0.62";
-        applyCaptionPaint(piece, active ? captionsGlowControl.value : paint.baseColor, active ? `0 0 9px ${captionsGlowControl.value || "#20B7FF"}` : "");
-      } else if (style === "impact") {
-        piece.style.transform = active ? "translateY(-1px) scale(1.10)" : "scale(0.96)";
-        piece.style.opacity = active ? "1" : "0.55";
-        piece.style.backgroundColor = active ? captionsImpactControl.value : "transparent";
-        applyCaptionPaint(piece, active ? "#111111" : paint.baseColor);
-      } else {
-        piece.style.transform = "translateY(0) scale(1)";
-        piece.style.opacity = active ? "1" : "0.76";
-        applyCaptionPaint(piece, paint.baseColor);
-      }
+      const wordWidth = measured[index];
+      const centerX = x + wordWidth / 2;
+      let scale = 1; let y = baseline; let fill = paint.baseColor; let alpha = 1;
+      if (style === "gota-pop") { scale = active ? 1.11 : 1; y -= active ? 8 : 0; fill = active ? (captionsGlowControl.value || "#20B7FF") : paint.baseColor; alpha = active ? 1 : .72; }
+      if (style === "impact") { scale = active ? 1.08 : .96; fill = active ? "#101216" : paint.baseColor; alpha = active ? 1 : .65; }
+      ctx.save(); ctx.translate(centerX, y); ctx.scale(scale, scale); ctx.translate(-centerX, -y); ctx.globalAlpha = alpha;
+      if (style === "impact" && active) { ctx.fillStyle = captionsImpactControl.value || "#F5CC38"; ctx.fillRect(x - 8, y - fontSize, wordWidth + 16, Math.round(fontSize * 1.24)); }
+      ctx.shadowColor = paint.shadowColor; ctx.shadowBlur = paint.shadowBlur * 2; ctx.shadowOffsetX = paint.shadowOffset * 2; ctx.shadowOffsetY = paint.shadowOffset * 2;
+      if (style === "gota-pop" && active) { ctx.shadowColor = captionsGlowControl.value || "#20B7FF"; ctx.shadowBlur = Math.max(12, paint.shadowBlur * 2 + 14); ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 0; }
+      if (paint.strokeWidth > 0) { ctx.strokeStyle = paint.strokeColor; ctx.lineWidth = paint.strokeWidth * 2; ctx.lineJoin = "round"; ctx.strokeText(word, x, y); }
+      ctx.fillStyle = fill; ctx.fillText(word, x, y); ctx.restore();
+      x += wordWidth + gap;
     });
-    captionPreviewStep = (captionPreviewStep + 1) % captionWords.length;
   };
   const updateCaptionPreview = () => {
+    if (captionPreviewQueued) return;
+    captionPreviewQueued = true;
+    if (typeof requestAnimationFrame === "function") requestAnimationFrame(renderCaptionPreview); else setTimeout(renderCaptionPreview, 0);
+  };
+  const loadCaptionPreviewFont = async (fontName) => {
+    const selected = String(fontName || "Arial").trim() || "Arial";
+    const alias = previewFontAlias(selected);
+    const requestId = ++captionPreviewFontRequest;
+    captionPreviewFontFamily = `"${alias}", "${selected.replace(/"/g, "")}", Arial, sans-serif`;
+    updateCaptionPreview();
+    if (!captionPreviewFonts[alias]) {
+      try {
+        const response = await fetch(`${SERVICE_URL}/v1/font-file?fontName=${encodeURIComponent(selected)}`);
+        if (!response.ok) throw new Error(`Fuente no disponible (${response.status})`);
+        const bytes = await response.arrayBuffer();
+        if (typeof FontFace === "function" && document.fonts) {
+          const face = new FontFace(alias, bytes);
+          await face.load(); document.fonts.add(face);
+        } else {
+          const styleNode = document.createElement("style");
+          styleNode.textContent = `@font-face{font-family:"${alias}";src:url(data:font/ttf;base64,${fontBytesToBase64(bytes)});}`;
+          (document.head || document.documentElement).appendChild(styleNode);
+        }
+        captionPreviewFonts[alias] = true;
+      } catch (_) {
+        captionPreviewFontFamily = `"${selected.replace(/"/g, "")}", Arial, sans-serif`;
+      }
+    }
+    if (requestId === captionPreviewFontRequest) updateCaptionPreview();
+  };
+  const animateCaptionPreview = () => {
+    captionPreviewStep = (captionPreviewStep + 1) % captionPreviewWords.length;
+    updateCaptionPreview();
+  };
+  const refreshCaptionPreviewUi = () => {
     const style = captionsStyle.value;
-    const requestedSize = Math.round(Math.max(12, Math.min(180, Number(captionsSize.value || 22))));
-    const previewSize = Math.round(Math.max(12, Math.min(48, requestedSize * 0.40)));
-    const selectedFont = String(captionsFont.value || "Arial").trim() || "Arial";
-    const family = captionPreviewFontFamily || `"${selectedFont.replace(/"/g, "")}", Arial, sans-serif`;
-    captionsPreview.style.backgroundColor = style === "gota-pop" ? "#183b69" : style === "impact" ? "#5a176b" : "#101216";
-    captionsPreview.style.border = style === "gota-pop" ? "2px solid #4ea0ff" : style === "impact" ? "2px solid #ec6bff" : "1px solid #6d737b";
-    captionPreviewStage.style.justifyContent = captionsAlign.value === "left" ? "flex-start" : captionsAlign.value === "right" ? "flex-end" : "center";
-    captionWords.forEach((piece, index) => {
-      piece.textContent = captionText(captionPreviewWords[index]);
-      piece.style.setProperty("font-family", family, "important");
-      piece.style.setProperty("font-size", `${previewSize}px`, "important");
-      piece.style.setProperty("font-weight", style === "impact" ? "800" : "700", "important");
-      piece.style.setProperty("text-transform", captionsCase.value === "upper" ? "uppercase" : captionsCase.value === "lower" ? "lowercase" : captionsCase.value === "title" ? "capitalize" : "none", "important");
-      applyCaptionPaint(piece, captionPaint().baseColor);
-    });
     captionsGlowControl.element.style.display = style === "gota-pop" ? "block" : "none";
     captionsImpactControl.element.style.display = style === "impact" ? "block" : "none";
-    captionPreviewStep = 0;
-    animateCaptionPreview();
   };
-  const updateCaptionStyle = () => { updateCaptionPreview(); markCaptionSettingsChanged(); };
+  const updateCaptionStyle = () => { refreshCaptionPreviewUi(); updateCaptionPreview(); markCaptionSettingsChanged(); };
   // Algunas versiones de UXP emiten `input` y otras solo `change` para los
   // selectores. Escuchamos ambos para que la previa siempre responda.
   captionsStyle.addEventListener("input", updateCaptionStyle);
@@ -5168,8 +5160,9 @@ let silenceDiagnosticLogs = [];
   captionsImpactControl.onChange = updateCaptionStyle;
   ;[captionsStrokeSize, captionsShadowBlur, captionsShadowOffset]
     .forEach((input) => { input.onChange = updateCaptionStyle; });
+  refreshCaptionPreviewUi();
   updateCaptionPreview();
-  setInterval(animateCaptionPreview, 700);
+  setInterval(animateCaptionPreview, 620);
   const createCaptions = makeElement("div", "Generar subtítulos");
   createCaptions.setAttribute("role", "button");
   createCaptions.style.padding = "9px";

@@ -1,5 +1,5 @@
 param(
-  [string]$Version = '3.2.86',
+  [string]$Version = '3.2.87',
   [string]$Output = ''
 )
 
