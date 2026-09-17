@@ -1,0 +1,31 @@
+GOTA CREATOR KIT — INSTALACIÓN EN MAC
+
+Antes de empezar
+• Cierra Adobe Premiere Pro.
+• Descomprime por completo el archivo .zip que descargaste. No intentes instalarlo desde la vista previa del ZIP.
+
+Instalación del panel de Premiere
+1. Abre la carpeta que se creó al descomprimir el ZIP.
+2. Abre la carpeta llamada “payload”.
+3. Haz doble clic en “Gota Creator Kit.ccx”.
+4. Adobe Creative Cloud o Adobe Desktop te pedirá confirmar la instalación: acepta e inicia sesión si te lo solicita.
+
+Instalación del motor local
+5. Regresa a la carpeta principal del instalador.
+6. Abre “Instalar Gota Creator Kit.app” con doble clic. Es la opción recomendada.
+   Si macOS muestra que el desarrollador no está identificado o bloquea el archivo:
+   a) Haz clic derecho sobre el archivo y elige “Abrir”.
+   b) Si sigue bloqueado, ve a Ajustes del Sistema > Privacidad y seguridad.
+   c) Baja hasta el aviso de Gota Creator Kit y presiona “Abrir de todos modos”.
+   d) Confirma “Abrir”. Esto se hace solo la primera vez.
+   Si la app no abre, usa el archivo “Instalar Gota Creator Kit.command”, que en esta versión ya incluye permiso de ejecución.
+7. Espera al mensaje “Instalación terminada” y presiona Enter para cerrar la ventana.
+
+Para abrir el plugin
+8. Abre Premiere Pro y ve a Ventana > Plugins de UXP > Gota Creator Kit.
+
+Importante
+• No abras ni ejecutes las carpetas “service” o “service_v2”.
+• Si el panel ya está instalado, vuelve a ejecutar únicamente “Instalar Gota Creator Kit.app” después de cada actualización para actualizar el motor local.
+• Si Adobe no reconoce el archivo CCX, actualiza Creative Cloud Desktop, abre Premiere una vez y vuelve a intentar el paso 3.
+• macOS bloquea por defecto los instaladores descargados que todavía no cuentan con firma de Apple. Los pasos del punto 6 permiten abrir este instalador de forma manual.

@@ -1,0 +1,19 @@
+#!/bin/bash
+# Finder abre esta app; Terminal ejecuta el instalador y conserva los mensajes.
+# El instalador y el payload viven dentro de la propia .app, así el usuario
+# puede mover o abrir la app sin romper las rutas del instalador.
+set -u
+APP_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+INSTALLER="$APP_ROOT/Contents/Resources/Instalar Gota Creator Kit.command"
+if [ ! -f "$INSTALLER" ]; then
+  /usr/bin/osascript -e 'display alert "Gota Creator Kit" message "El instalador interno está incompleto. Vuelve a descargar y descomprimir el ZIP completo." as critical'
+  exit 1
+fi
+/usr/bin/osascript - "$INSTALLER" <<'APPLESCRIPT'
+on run argv
+  tell application "Terminal"
+    activate
+    do script "/bin/bash " & quoted form of item 1 of argv
+  end tell
+end run
+APPLESCRIPT

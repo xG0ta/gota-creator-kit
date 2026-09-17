@@ -1,0 +1,1 @@
+"""AutoFrame local service."""
