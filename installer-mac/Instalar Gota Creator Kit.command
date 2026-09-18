@@ -85,7 +85,7 @@ ditto "$PAYLOAD_DIR/service_v2" "$INSTALL_DIR/service_v2"
 cp "$PAYLOAD_DIR/Supervisor.sh" "$INSTALL_DIR/Supervisor.sh"
 cp "$PAYLOAD_DIR/Gota Creator Kit.ccx" "$INSTALL_DIR/Gota Creator Kit.ccx"
 chmod +x "$INSTALL_DIR/Supervisor.sh"
-echo "3.2.87" > "$INSTALL_DIR/installed-engine-version.txt"
+echo "3.2.88" > "$INSTALL_DIR/installed-engine-version.txt"
 # El archivo existe desde la instalación. El motor irá agregando los eventos
 # de análisis y de edición, sin obligar al usuario a buscar dentro del ZIP.
 touch "$INSTALL_DIR/silence-diagnostics.log"
@@ -214,7 +214,7 @@ EXTERNAL_DIR="$HOME/Library/Application Support/Adobe/UXP/Plugins/External"
 if [ -d "$EXTERNAL_DIR" ]; then
   for folder in "$EXTERNAL_DIR"/com.autoframe.faces.dev_*; do
     [ -d "$folder" ] || continue
-    if ! /usr/bin/grep -q '"version"[[:space:]]*:[[:space:]]*"3.2.87"' "$folder/manifest.json" 2>/dev/null; then
+    if ! /usr/bin/grep -q '"version"[[:space:]]*:[[:space:]]*"3.2.88"' "$folder/manifest.json" 2>/dev/null; then
       rm -rf "$folder"
       echo "Se eliminó copia externa anterior: $folder"
     fi
