@@ -5083,19 +5083,30 @@ let silenceDiagnosticLogs = [];
     line.style.lineHeight = "1.12";
     line.style.textAlign = captionsAlign.value;
     line.style.wordBreak = "keep-all";
+    // UXP no aplica -webkit-text-stroke de forma consistente. Construimos el
+    // trazo con sombras direccionales, que sí se visualizan en todas las
+    // versiones soportadas de Premiere.
+    const outline = [];
+    if (paint.strokeWidth > 0) {
+      const distance = Math.max(1, Math.min(12, Math.round(paint.strokeWidth)));
+      [-1, 0, 1].forEach((xOffset) => [-1, 0, 1].forEach((yOffset) => {
+        if (xOffset || yOffset) outline.push(`${xOffset * distance}px ${yOffset * distance}px 0 ${paint.strokeColor}`);
+      }));
+    }
+    const baseShadow = `${paint.shadowOffset}px ${paint.shadowOffset}px ${paint.shadowBlur}px ${paint.shadowColor}`;
     words.forEach((word, index) => {
       const active = index === captionPreviewStep;
       const token = makeElement("span", word);
       token.style.display = "inline-block";
       token.style.color = paint.baseColor;
-      token.style.webkitTextStroke = paint.strokeWidth > 0 ? `${paint.strokeWidth}px ${paint.strokeColor}` : "0 transparent";
-      token.style.textShadow = `${paint.shadowOffset}px ${paint.shadowOffset}px ${paint.shadowBlur}px ${paint.shadowColor}`;
+      token.style.webkitTextStroke = "0 transparent";
+      token.style.textShadow = [...outline, baseShadow].join(", ");
       token.style.transition = "transform 120ms ease-out, color 120ms ease-out, text-shadow 120ms ease-out, background-color 120ms ease-out";
       if (style === "gota-pop" && active) {
         const glow = captionsGlowControl.value || "#20B7FF";
         token.style.color = glow;
         token.style.transform = "translateY(-5px) scale(1.10)";
-        token.style.textShadow = `0 0 ${Math.max(10, paint.shadowBlur + 12)}px ${glow}, ${paint.shadowOffset}px ${paint.shadowOffset}px ${paint.shadowBlur}px ${paint.shadowColor}`;
+        token.style.textShadow = [...outline, `0 0 ${Math.max(10, paint.shadowBlur + 12)}px ${glow}`, baseShadow].join(", ");
       }
       if (style === "impact" && active) {
         token.style.color = "#101216";

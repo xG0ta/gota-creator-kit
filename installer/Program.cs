@@ -10,7 +10,7 @@ internal static class Program
 {
     private const string ProductName = "Gota Creator Kit ☔";
     private const string PluginId = "com.autoframe.faces.dev";
-    private const string PackageVersion = "3.2.88";
+    private const string PackageVersion = "3.2.89";
     private static readonly string InstallDir = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "AutoFrameByGota");
@@ -256,6 +256,12 @@ internal static class Program
         if (string.IsNullOrWhiteSpace(ccx))
             throw new InvalidOperationException("No se encontró el plugin CCX.");
 
+        // La utilidad de Adobe puede devolver éxito aunque Premiere conserve un
+        // panel anterior en caché. Instalamos primero la copia exacta incluida
+        // en este EXE en la ruta externa de UXP; así EXE y CCX siempre dejan la
+        // misma versión disponible, incluso si Creative Cloud no responde.
+        InstallPluginDirectly(ccx);
+
         // Abrir un .ccx con la aplicación predeterminada dejaba instalada una
         // copia anterior en algunos equipos. Usamos UPIA, el instalador oficial
         // de Adobe incluido con Creative Cloud, para reemplazar el panel por la
@@ -282,6 +288,39 @@ internal static class Program
         }
 
         Process.Start(new ProcessStartInfo(ccx) { UseShellExecute = true });
+    }
+
+    private static void InstallPluginDirectly(string ccx)
+    {
+        string external = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            "Adobe", "UXP", "Plugins", "External");
+        string destinationRoot = Path.Combine(external, "GotaCreatorKit-current");
+        Directory.CreateDirectory(external);
+
+        // El destino es fijo y pertenece únicamente a Gota Creator Kit. Al
+        // reemplazarlo evitamos que Premiere prefiera una copia anterior.
+        if (Directory.Exists(destinationRoot)) Directory.Delete(destinationRoot, true);
+        Directory.CreateDirectory(destinationRoot);
+
+        using ZipArchive archive = ZipFile.OpenRead(ccx);
+        foreach (ZipArchiveEntry entry in archive.Entries)
+        {
+            string destination = Path.GetFullPath(Path.Combine(destinationRoot, entry.FullName));
+            if (!destination.StartsWith(destinationRoot + Path.DirectorySeparatorChar,
+                    StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(destination, destinationRoot, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException("El paquete CCX contiene una ruta no válida.");
+            if (string.IsNullOrEmpty(entry.Name))
+            {
+                Directory.CreateDirectory(destination);
+                continue;
+            }
+            Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
+            entry.ExtractToFile(destination, true);
+        }
+        File.AppendAllText(LogFile,
+            $"Panel {PackageVersion} instalado directamente en {destinationRoot}\n");
     }
 
     private static bool IsPremiereRunning()
