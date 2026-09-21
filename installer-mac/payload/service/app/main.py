@@ -32,7 +32,7 @@ from service.hybrid_license import (
     remove_license,
 )
 
-APP_VERSION = "3.2.89"
+APP_VERSION = "3.2.90"
 app = FastAPI(title="Gota Creator Kit Local Service", version=APP_VERSION)
 app.add_middleware(
     CORSMiddleware,
@@ -1014,6 +1014,85 @@ def _caption_control_matches(control: dict) -> bool:
     return False
 
 
+def _essential_control_name(control: dict) -> str:
+    """Lee el nombre mostrado de un control de una MOGRT sin asumir idioma."""
+    name = control.get("uiName", {}) if isinstance(control, dict) else {}
+    if isinstance(name, str):
+        return name.strip().casefold()
+    if isinstance(name, dict):
+        return " ".join(
+            str(item.get("str", "")).strip().casefold()
+            for item in name.get("strDB", []) if isinstance(item, dict)
+        ).strip()
+    return ""
+
+
+def _caption_style_value(control_name: str, style: dict):
+    """Relaciona los controles de nuestra MOGRT original con el panel UXP.
+
+    La función ignora controles que no existan. De ese modo las instalaciones
+    que aún tienen la plantilla anterior siguen funcionando, mientras que la
+    plantilla v2 recibe todos los valores de estilo al ser preparada.
+    """
+    name = str(control_name or "").casefold()
+    if "color del texto" in name:
+        return style.get("textColor")
+    if "color del trazo" in name:
+        return style.get("strokeColor")
+    if "grosor del trazo" in name:
+        return style.get("strokeSize")
+    if "color de sombra" in name:
+        return style.get("shadowColor")
+    if "suavidad" in name:
+        return style.get("shadowBlur")
+    if "desplazamiento" in name:
+        return style.get("shadowOffset")
+    if "color del glow" in name:
+        return style.get("glowColor")
+    if "gota pop activo" in name:
+        return 1 if str(style.get("style") or "") == "gota-pop" else 0
+    if "posici" in name and "vertical" in name:
+        return style.get("verticalPosition")
+    if "tama" in name and "texto" in name:
+        return style.get("fontSize")
+    return None
+
+
+def _caption_rgb(value) -> list[float] | None:
+    """Convierte #RRGGBB a componentes que entiende Color Control de AE."""
+    raw = str(value or "").strip().lstrip("#")
+    if len(raw) != 6:
+        return None
+    try:
+        return [round(int(raw[index:index + 2], 16) / 255, 6) for index in (0, 2, 4)] + [1.0]
+    except ValueError:
+        return None
+
+
+def _write_essential_default(current, desired):
+    """Escribe números y colores conservando el formato de definition.json."""
+    if isinstance(desired, str) and desired.startswith("#"):
+        rgb = _caption_rgb(desired)
+        if rgb is None:
+            return current, False
+        if isinstance(current, list):
+            return rgb[:len(current)] if current else rgb, True
+        # Las definiciones de algunas versiones de AE guardan Color Control
+        # como objeto en lugar de arreglo.
+        if isinstance(current, dict):
+            result = dict(current)
+            for key, component in zip(("r", "g", "b", "a"), rgb):
+                if key in result:
+                    result[key] = component
+            return result, result != current
+        return rgb, True
+    if isinstance(desired, bool):
+        desired = 1 if desired else 0
+    if isinstance(desired, (int, float)):
+        return float(desired), True
+    return current, False
+
+
 def _set_caption_text_in_definition(definition: dict, text: str, style: dict) -> bool:
     """Actualiza la propiedad esencial y el valor inicial de la MOGRT.
 
@@ -1035,18 +1114,17 @@ def _set_caption_text_in_definition(definition: dict, text: str, style: dict) ->
     for control in definition.get("clientControls", []):
         if not isinstance(control, dict):
             continue
-        control_name = ""
-        ui_name = control.get("uiName", {})
-        if isinstance(ui_name, str):
-            control_name = ui_name.lower()
-        elif isinstance(ui_name, dict):
-            control_name = " ".join(
-                str(item.get("str", "")).lower()
-                for item in ui_name.get("strDB", []) if isinstance(item, dict)
-            )
+        control_name = _essential_control_name(control)
         if "duraci" in control_name:
             control["value"] = duration_seconds
             changed = True
+            continue
+        style_value = _caption_style_value(control_name, style)
+        if style_value is not None:
+            value, was_changed = _write_essential_default(control.get("value"), style_value)
+            if was_changed:
+                control["value"] = value
+                changed = True
             continue
         if not _caption_control_matches(control):
             continue
@@ -1081,6 +1159,13 @@ def _set_caption_text_in_definition(definition: dict, text: str, style: dict) ->
             if "duraci" in name:
                 parameter["capPropDefault"] = duration_seconds
                 changed = True
+                continue
+            style_value = _caption_style_value(name, style)
+            if style_value is not None:
+                value, was_changed = _write_essential_default(parameter.get("capPropDefault"), style_value)
+                if was_changed:
+                    parameter["capPropDefault"] = value
+                    changed = True
                 continue
             if "texto" not in name and "text" not in name:
                 continue

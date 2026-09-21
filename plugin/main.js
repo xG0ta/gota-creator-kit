@@ -4816,6 +4816,29 @@ let silenceDiagnosticLogs = [];
   captionsStyle.style.width = "58%";
   captionsStyleLabel.appendChild(captionsStyle);
   captionsBody.appendChild(captionsStyleLabel);
+  const captionPresetLabel = makeElement("div", "Estilos rápidos");
+  captionPresetLabel.style.fontSize = "11px";
+  captionsBody.appendChild(captionPresetLabel);
+  const captionPresetRow = makeElement("div");
+  captionPresetRow.style.display = "flex";
+  captionPresetRow.style.gap = "6px";
+  captionPresetRow.style.flexWrap = "wrap";
+  captionsBody.appendChild(captionPresetRow);
+  const captionPresetButtons = [];
+  [["clean", "Limpio"], ["pop", "Gota Pop"], ["impact", "Impacto"]]
+    .forEach(([value, label]) => {
+      const button = makeElement("div", label);
+      button.setAttribute("role", "button");
+      button.style.padding = "5px 8px";
+      button.style.border = "1px solid #435161";
+      button.style.borderRadius = "5px";
+      button.style.backgroundColor = "#28313b";
+      button.style.cursor = "pointer";
+      button.style.fontSize = "10px";
+      button.dataset.preset = value;
+      captionPresetButtons.push(button);
+      captionPresetRow.appendChild(button);
+    });
   // Los controles nativos de rango de UXP han tenido comportamientos distintos
   // según la versión de Premiere (en algunos equipos saltan de mínimo a máximo).
   // Este control mide directamente la posición dentro de su propia barra.
@@ -4853,6 +4876,16 @@ let silenceDiagnosticLogs = [];
     };
     readout.addEventListener("input", applyEnteredValue);
     readout.addEventListener("change", applyEnteredValue);
+    // Los presets usan el mismo camino que un arrastre o un valor escrito;
+    // así la vista previa no queda desfasada al cambiar de estilo.
+    control.setValue = (nextValue, notify = false) => {
+      const numeric = Number(nextValue);
+      if (!Number.isFinite(numeric)) return;
+      const rounded = Math.round(numeric / step) * step;
+      control.value = String(Math.max(minimum, Math.min(maximum, Number(rounded.toFixed(2)))));
+      refresh();
+      if (notify && control.onChange) control.onChange();
+    };
     refresh(); control.element = wrap; return control;
   };
   const captionsSizeLabel = makeElement("div", "Tamaño del texto");
@@ -4954,6 +4987,15 @@ let silenceDiagnosticLogs = [];
       redraw();
     };
     swatch.addEventListener("click", toggle); arrow.addEventListener("click", toggle); redraw();
+    control.setValue = (nextValue, notify = false) => {
+      const value = String(nextValue || "").trim();
+      if (!/^#[0-9a-f]{6}$/i.test(value)) return;
+      control.value = value.toUpperCase();
+      const next = hexToHsv(control.value);
+      hsv.h = next.h; hsv.s = next.s; hsv.v = next.v;
+      redraw();
+      if (notify && control.onChange) control.onChange();
+    };
     control.element = wrap; control.close = close; return control;
   };
   const captionsColorControl = makeVisualColorControl("Color del texto", "#FFFFFF");
@@ -5059,6 +5101,10 @@ let silenceDiagnosticLogs = [];
     return word;
   };
   const renderCaptionPreview = () => {
+    // Esta vista se compone de capas HTML independientes y no de text-shadow
+    // ni de canvas. UXP trata esos dos recursos de manera diferente entre
+    // Premiere 2024–2026; con capas reales cada cambio de trazo, sombra, glow
+    // o fuente se puede ver siempre antes de generar los gráficos.
     const style = captionsStyle.value;
     const paint = captionPaint();
     const background = style === "gota-pop" ? "#173e71" : style === "impact" ? "#5c1b6d" : "#101216";
@@ -5068,14 +5114,15 @@ let silenceDiagnosticLogs = [];
     while (captionPreviewSurface.firstChild) captionPreviewSurface.removeChild(captionPreviewSurface.firstChild);
     const words = captionPreviewWords.map(captionText);
     const requestedSize = Math.max(12, Math.min(240, Number(captionsSize.value || 22)));
-    const fontSize = Math.round(Math.max(18, Math.min(88, requestedSize * 1.04)));
+    const fontSize = Math.round(Math.max(18, Math.min(86, requestedSize * 1.03)));
     const family = captionPreviewFontFamily || "Arial, sans-serif";
     const line = makeElement("div");
+    line.style.position = "relative";
     line.style.display = "flex";
     line.style.alignItems = "center";
     line.style.justifyContent = "inherit";
     line.style.flexWrap = "wrap";
-    line.style.gap = `${Math.max(6, Math.round(fontSize * .20))}px`;
+    line.style.gap = `${Math.max(6, Math.round(fontSize * .18))}px`;
     line.style.width = "100%";
     line.style.fontFamily = family;
     line.style.fontWeight = style === "impact" ? "800" : "700";
@@ -5083,38 +5130,57 @@ let silenceDiagnosticLogs = [];
     line.style.lineHeight = "1.12";
     line.style.textAlign = captionsAlign.value;
     line.style.wordBreak = "keep-all";
-    // UXP no aplica -webkit-text-stroke de forma consistente. Construimos el
-    // trazo con sombras direccionales, que sí se visualizan en todas las
-    // versiones soportadas de Premiere.
-    const outline = [];
-    if (paint.strokeWidth > 0) {
-      const distance = Math.max(1, Math.min(12, Math.round(paint.strokeWidth)));
-      [-1, 0, 1].forEach((xOffset) => [-1, 0, 1].forEach((yOffset) => {
-        if (xOffset || yOffset) outline.push(`${xOffset * distance}px ${yOffset * distance}px 0 ${paint.strokeColor}`);
-      }));
-    }
-    const baseShadow = `${paint.shadowOffset}px ${paint.shadowOffset}px ${paint.shadowBlur}px ${paint.shadowColor}`;
+    const outlineDistance = Math.max(0, Math.min(12, Math.round(paint.strokeWidth)));
+    const outlineOffsets = outlineDistance ? [
+      [-1, -1], [0, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [0, 1], [1, 1]
+    ] : [];
+    const makeLayer = (word, color, left, top, opacity = 1) => {
+      const layer = makeElement("span", word);
+      layer.style.position = "absolute";
+      layer.style.left = `${left}px`;
+      layer.style.top = `${top}px`;
+      layer.style.color = color;
+      layer.style.opacity = String(opacity);
+      layer.style.whiteSpace = "pre";
+      layer.style.pointerEvents = "none";
+      return layer;
+    };
     words.forEach((word, index) => {
       const active = index === captionPreviewStep;
-      const token = makeElement("span", word);
+      const token = makeElement("span");
+      token.style.position = "relative";
       token.style.display = "inline-block";
-      token.style.color = paint.baseColor;
-      token.style.webkitTextStroke = "0 transparent";
-      token.style.textShadow = [...outline, baseShadow].join(", ");
-      token.style.transition = "transform 120ms ease-out, color 120ms ease-out, text-shadow 120ms ease-out, background-color 120ms ease-out";
+      token.style.whiteSpace = "pre";
+      token.style.transition = "transform 130ms ease-out";
+      // Sombra: capa real, visible aun cuando CSS filter/text-shadow falle.
+      if (paint.shadowBlur > 0 || paint.shadowOffset !== 0) {
+        const shadow = makeLayer(word, paint.shadowColor, paint.shadowOffset, paint.shadowOffset, Math.max(.22, Math.min(.82, .28 + paint.shadowBlur / 55)));
+        shadow.style.filter = `blur(${Math.min(8, Math.max(0, paint.shadowBlur / 3))}px)`;
+        token.appendChild(shadow);
+      }
+      outlineOffsets.forEach(([x, y]) => token.appendChild(makeLayer(
+        word, paint.strokeColor, x * outlineDistance, y * outlineDistance
+      )));
+      const face = makeElement("span", word);
+      face.style.position = "relative";
+      face.style.display = "inline-block";
+      face.style.color = paint.baseColor;
+      face.style.whiteSpace = "pre";
       if (style === "gota-pop" && active) {
         const glow = captionsGlowControl.value || "#20B7FF";
-        token.style.color = glow;
-        token.style.transform = "translateY(-5px) scale(1.10)";
-        token.style.textShadow = [...outline, `0 0 ${Math.max(10, paint.shadowBlur + 12)}px ${glow}`, baseShadow].join(", ");
+        const glowLayer = makeLayer(word, glow, 0, 0, .82);
+        glowLayer.style.filter = "blur(6px)";
+        token.insertBefore(glowLayer, token.firstChild);
+        face.style.color = glow;
+        token.style.transform = "translateY(-4px) scale(1.08)";
       }
       if (style === "impact" && active) {
-        token.style.color = "#101216";
-        token.style.backgroundColor = captionsImpactControl.value || "#F5CC38";
-        token.style.padding = "2px 7px";
-        token.style.transform = "scale(1.07)";
-        token.style.textShadow = "none";
+        face.style.color = "#101216";
+        face.style.backgroundColor = captionsImpactControl.value || "#F5CC38";
+        face.style.padding = "2px 7px";
+        token.style.transform = "scale(1.06)";
       }
+      token.appendChild(face);
       line.appendChild(token);
     });
     captionPreviewSurface.appendChild(line);
@@ -5139,14 +5205,28 @@ let silenceDiagnosticLogs = [];
         const response = await fetch(`${SERVICE_URL}/v1/font-file?fontName=${encodeURIComponent(selected)}`);
         if (!response.ok) throw new Error(`Fuente no disponible (${response.status})`);
         const bytes = await response.arrayBuffer();
+        // UXP puede declarar FontFace pero no aplicarlo a nodos HTML en
+        // algunos builds. Registramos tanto la cara nativa como una regla
+        // @font-face local; la segunda cubre fuentes instaladas manualmente.
+        let loaded = false;
         if (typeof FontFace === "function" && document.fonts) {
-          const face = new FontFace(alias, bytes);
-          await face.load(); document.fonts.add(face);
-        } else {
-          const styleNode = document.createElement("style");
-          styleNode.textContent = `@font-face{font-family:"${alias}";src:url(data:font/ttf;base64,${fontBytesToBase64(bytes)});}`;
-          (document.head || document.documentElement).appendChild(styleNode);
+          try {
+            const face = new FontFace(alias, bytes);
+            await face.load();
+            document.fonts.add(face);
+            loaded = true;
+          } catch (_) { /* la regla local de abajo es el respaldo */ }
         }
+        const mimeType = String(response.headers.get("content-type") || "").toLowerCase();
+        const fontType = mimeType.includes("otf") ? "font/otf" : "font/ttf";
+        const fontFormat = mimeType.includes("otf") ? "opentype" : "truetype";
+        const styleNode = document.createElement("style");
+        styleNode.textContent = `@font-face{font-family:"${alias}";src:url(data:${fontType};base64,${fontBytesToBase64(bytes)}) format("${fontFormat}");font-display:block;}`;
+        (document.head || document.documentElement).appendChild(styleNode);
+        if (document.fonts && typeof document.fonts.load === "function") {
+          try { await document.fonts.load(`16px "${alias}"`); loaded = true; } catch (_) { /* la fuente del sistema sigue como respaldo */ }
+        }
+        if (!loaded) throw new Error("UXP no pudo registrar la fuente");
         captionPreviewFonts[alias] = true;
       } catch (_) {
         captionPreviewFontFamily = `"${selected.replace(/"/g, "")}", Arial, sans-serif`;
@@ -5164,6 +5244,39 @@ let silenceDiagnosticLogs = [];
     captionsImpactControl.element.style.display = style === "impact" ? "block" : "none";
   };
   const updateCaptionStyle = () => { refreshCaptionPreviewUi(); updateCaptionPreview(); markCaptionSettingsChanged(); };
+  const applyCaptionPreset = (preset) => {
+    const settings = {
+      clean: {
+        style: "minimal", fontSize: 42, text: "#FFFFFF", stroke: "#000000",
+        strokeSize: 2, shadow: "#000000", blur: 5, offset: 2
+      },
+      pop: {
+        style: "gota-pop", fontSize: 46, text: "#FFFFFF", stroke: "#072944",
+        strokeSize: 2, shadow: "#001828", blur: 8, offset: 2, glow: "#20B7FF"
+      },
+      impact: {
+        style: "impact", fontSize: 52, text: "#FFFFFF", stroke: "#161616",
+        strokeSize: 1, shadow: "#000000", blur: 4, offset: 2, impact: "#F5CC38"
+      }
+    }[preset];
+    if (!settings) return;
+    captionsStyle.value = settings.style;
+    captionsSize.setValue(settings.fontSize);
+    captionsColorControl.setValue(settings.text);
+    captionsStrokeControl.setValue(settings.stroke);
+    captionsStrokeSize.setValue(settings.strokeSize);
+    captionsShadowControl.setValue(settings.shadow);
+    captionsShadowBlur.setValue(settings.blur);
+    captionsShadowOffset.setValue(settings.offset);
+    if (settings.glow) captionsGlowControl.setValue(settings.glow);
+    if (settings.impact) captionsImpactControl.setValue(settings.impact);
+    captionPresetButtons.forEach((button) => {
+      button.style.backgroundColor = button.dataset.preset === preset ? "#1473e6" : "#28313b";
+      button.style.borderColor = button.dataset.preset === preset ? "#62a8ff" : "#435161";
+    });
+    updateCaptionStyle();
+  };
+  captionPresetButtons.forEach((button) => button.addEventListener("click", () => applyCaptionPreset(button.dataset.preset)));
   // Algunas versiones de UXP emiten `input` y otras solo `change` para los
   // selectores. Escuchamos ambos para que la previa siempre responda.
   captionsStyle.addEventListener("input", updateCaptionStyle);
@@ -5223,6 +5336,63 @@ let silenceDiagnosticLogs = [];
   captionsTranscript.style.border = "1px solid #384450";
   captionsTranscript.style.borderRadius = "5px";
   captionsBody.appendChild(captionsTranscript);
+  // Sugerencias para el paquete BONUS SFX autorizado por el creador. Los
+  // audios siguen siendo locales: el editor enlaza esa carpeta desde
+  // Biblioteca Gota y el plugin nunca los sube ni descarga durante una edición.
+  const sfxSuggestions = makeElement("div");
+  sfxSuggestions.style.display = "none";
+  sfxSuggestions.style.padding = "8px";
+  sfxSuggestions.style.backgroundColor = "#12161b";
+  sfxSuggestions.style.border = "1px solid #384450";
+  sfxSuggestions.style.borderRadius = "5px";
+  captionsBody.appendChild(sfxSuggestions);
+  const makeSfxSuggestions = (segments) => {
+    while (sfxSuggestions.firstChild) sfxSuggestions.removeChild(sfxSuggestions.firstChild);
+    const heading = makeElement("div", "SFX sugeridos (beta)");
+    heading.style.fontSize = "11px";
+    heading.style.fontWeight = "bold";
+    sfxSuggestions.appendChild(heading);
+    const note = makeElement("div", "Enlaza BONUS SFX en Biblioteca Gota para colocar estos sonidos desde tu disco. No se suben ni se descargan durante la edición.");
+    note.style.fontSize = "9px";
+    note.style.color = "#aeb8c4";
+    note.style.marginTop = "3px";
+    sfxSuggestions.appendChild(note);
+    const triggers = [
+      { words: /\b(risa|risas|jaja|ja ja)\b/i, label: "BONUS SFX / SMV SFX · risa o reacción" },
+      { words: /\b(aplauso|aplausos|bravo)\b/i, label: "BONUS SFX / Pack de Contenido · aplauso" },
+      { words: /\b(golpe|boom|pum|impacto)\b/i, label: "BONUS SFX / Subdrop Low+Hi · impacto" },
+      { words: /\b(sorpresa|incre[ií]ble|wow|impresionante)\b/i, label: "BONUS SFX / Risers Default · whoosh" },
+      { words: /\b(error|fall[oó]|no funciona)\b/i, label: "BONUS SFX / App Social Sounds · glitch" },
+      { words: /\b(teclado|escribe|escribir|mensaje)\b/i, label: "BONUS SFX / Keyboard · tecleo" },
+      { words: /\b(iphone|tel[eé]fono|llamada|celular)\b/i, label: "BONUS SFX / iPhone · notificación" },
+    ];
+    const found = [];
+    (segments || []).forEach((segment) => triggers.forEach((trigger) => {
+      if (trigger.words.test(String(segment.text || ""))) {
+        const id = `${trigger.label}:${Math.round(Number(segment.startSeconds) || 0)}`;
+        if (!found.some((item) => item.id === id)) found.push({ id, label: trigger.label, at: segment.startSeconds });
+      }
+    }));
+    if (!found.length) {
+      const empty = makeElement("div", "No encontré palabras que sugieran un efecto. Puedes seguir eligiendo cualquier audio desde Biblioteca Gota.");
+      empty.style.fontSize = "10px";
+      empty.style.marginTop = "7px";
+      empty.style.color = "#b8c2cd";
+      sfxSuggestions.appendChild(empty);
+    } else {
+      found.slice(0, 8).forEach((item) => {
+        const row = makeElement("div", `${formatCaptionTime(item.at)}  ·  ${item.label}`);
+        row.style.marginTop = "5px";
+        row.style.padding = "5px 6px";
+        row.style.backgroundColor = "#25313e";
+        row.style.borderRadius = "4px";
+        row.style.fontSize = "10px";
+        row.style.color = "#d8e8f8";
+        sfxSuggestions.appendChild(row);
+      });
+    }
+    sfxSuggestions.style.display = "block";
+  };
   let editableCaptionSegments = [];
   let captionsPlaced = false;
   let captionsNeedReapply = false;
@@ -5407,6 +5577,7 @@ let silenceDiagnosticLogs = [];
         captionsTranscript.appendChild(row);
       });
       captionsTranscript.style.display = "block";
+      makeSfxSuggestions(editableCaptionSegments);
       captionsPlaced = false;
       captionsNeedReapply = placedCaptionGraphics.length > 0;
       exportCaptions.style.display = "block";
@@ -5464,6 +5635,7 @@ let silenceDiagnosticLogs = [];
           glowColor: captionsGlowControl.value,
           style: captionsStyle.value,
           alignment: captionsAlign.value,
+          verticalPosition: Number(captionsPosition.value),
           durationSeconds: Math.max(0.18, Number(segment.endSeconds) - Number(segment.startSeconds))
         });
         const inserted = await editor.insertMogrtFromPath(
