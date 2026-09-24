@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<ExtensionManifest Version="7.0" ExtensionBundleId="com.xg0ta.gotacreatorkit.legacy" ExtensionBundleVersion="3.2.95" ExtensionBundleName="Gota Creator Kit Legacy">
+<ExtensionManifest Version="7.0" ExtensionBundleId="com.xg0ta.gotacreatorkit.legacy" ExtensionBundleVersion="3.2.96" ExtensionBundleName="Gota Creator Kit Legacy">
   <ExtensionList>
-    <Extension Id="com.xg0ta.gotacreatorkit.legacy.panel" Version="3.2.95" />
+    <Extension Id="com.xg0ta.gotacreatorkit.legacy.panel" Version="3.2.96" />
   </ExtensionList>
   <ExecutionEnvironment>
     <HostList>
