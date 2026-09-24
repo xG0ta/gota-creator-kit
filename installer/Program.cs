@@ -10,7 +10,7 @@ internal static class Program
 {
     private const string ProductName = "Gota Creator Kit ☔";
     private const string PluginId = "com.autoframe.faces.dev";
-    private const string PackageVersion = "3.2.93";
+    private const string PackageVersion = "3.2.94";
     private static readonly string InstallDir = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "AutoFrameByGota");

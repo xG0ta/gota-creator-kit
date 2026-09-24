@@ -4,7 +4,7 @@ const os = require("os");
 const localFileSystem = storage.localFileSystem;
 
 const SERVICE_URL = "http://127.0.0.1:8765";
-const CURRENT_VERSION = "3.2.93";
+const CURRENT_VERSION = "3.2.94";
 const UPDATE_MANIFEST_URL =
   "https://api.github.com/repos/xG0ta/gota-creator-kit/contents/latest.json?ref=main";
 const OUTPUT_WIDTH = 1080;
@@ -79,23 +79,26 @@ async function makeCaptionMogrt(templatePath, text, style) {
   return payload.mogrtPath;
 }
 
-// Premiere 2024/2025/2026 no siempre acepta la misma cantidad de argumentos
-// para insertMogrtFromPath.  Mantener los intentos aquí evita que un
-// `bad_any_cast` de una versión detenga toda la colocación de subtítulos.
+// La API de Premiere define cuatro argumentos para insertMogrtFromPath.
+// Mantener solo firmas de cuatro argumentos evita que UXP/CEP convierta una
+// llamada corta en el error "Illegal parameter type".
 async function insertCaptionMogrt(editor, path, start, videoTrackIndex) {
   let lastError = null;
-  const attempts = [
-    [path, start, videoTrackIndex, -1],
-    [path, start, videoTrackIndex, 0],
-    [path, start, videoTrackIndex]
-  ];
-  for (const args of attempts) {
-    try {
-      const result = await editor.insertMogrtFromPath(...args);
-      if (result) return result;
-    } catch (error) {
-      lastError = error;
-    }
+  // UXP/CEP entrega a veces el índice de pista como un valor numérico
+  // envuelto. Premiere acepta un entero JS normal, pero rechaza valores
+  // negativos o strings con el mensaje "Illegal parameter type".
+  const normalizedPath = String(path || "");
+  const normalizedTrack = Math.max(0, Math.floor(Number(videoTrackIndex) || 0));
+  try {
+    // La API oficial de Premiere define cuatro parámetros. La pista de audio
+    // 0 es el valor compatible incluso cuando el MOGRT no contiene audio;
+    // -1 y la firma corta provocan "Illegal parameter type" en UXP reciente.
+    const result = await editor.insertMogrtFromPath(
+      normalizedPath, start, normalizedTrack, 0
+    );
+    if (result) return result;
+  } catch (error) {
+    lastError = error;
   }
   throw lastError || new Error("Premiere no pudo insertar el gráfico de subtítulo.");
 }
@@ -5783,7 +5786,7 @@ let silenceDiagnosticLogs = [];
           // distinto. Reintentamos con una copia mínima (texto + duración),
           // conservando la colocación y evitando perder toda la transcripción.
           const detail = String(insertError && insertError.message || insertError);
-          if (!/any_cast|script object|invalid parameter/i.test(detail)) throw insertError;
+          if (!/any_cast|script object|invalid parameter|illegal parameter type/i.test(detail)) throw insertError;
           const safeMogrtPath = await makeCaptionMogrt(mogrtPath, captionText, {
             durationSeconds: Math.max(0.18, Number(segment.endSeconds) - Number(segment.startSeconds))
           });
