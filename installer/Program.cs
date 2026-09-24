@@ -10,7 +10,7 @@ internal static class Program
 {
     private const string ProductName = "Gota Creator Kit ☔";
     private const string PluginId = "com.autoframe.faces.dev";
-    private const string PackageVersion = "3.2.90";
+    private const string PackageVersion = "3.2.91";
     private static readonly string InstallDir = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "AutoFrameByGota");
@@ -298,6 +298,11 @@ internal static class Program
         string destinationRoot = Path.Combine(external, "GotaCreatorKit-current");
         Directory.CreateDirectory(external);
 
+        // Adobe puede conservar una copia anterior con otro nombre de carpeta.
+        // Límpialas antes de copiar el paquete actual para evitar que UXP cargue
+        // una versión vieja por prioridad o caché.
+        RemoveAllExistingPluginCopies(destinationRoot);
+
         // El destino es fijo y pertenece únicamente a Gota Creator Kit. Al
         // reemplazarlo evitamos que Premiere prefiera una copia anterior.
         if (Directory.Exists(destinationRoot)) Directory.Delete(destinationRoot, true);
@@ -321,6 +326,40 @@ internal static class Program
         }
         File.AppendAllText(LogFile,
             $"Panel {PackageVersion} instalado directamente en {destinationRoot}\n");
+    }
+
+    private static void RemoveAllExistingPluginCopies(string keepPath)
+    {
+        string external = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            "Adobe", "UXP", "Plugins", "External");
+        if (!Directory.Exists(external)) return;
+
+        foreach (string folder in Directory.GetDirectories(external))
+        {
+            if (string.Equals(Path.GetFullPath(folder), Path.GetFullPath(keepPath),
+                    StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            string manifest = Path.Combine(folder, "manifest.json");
+            if (!File.Exists(manifest)) continue;
+            try
+            {
+                using JsonDocument document = JsonDocument.Parse(File.ReadAllText(manifest));
+                if (!document.RootElement.TryGetProperty("id", out JsonElement idElement) ||
+                    !string.Equals(idElement.GetString(), PluginId, StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                Directory.Delete(folder, true);
+                File.AppendAllText(LogFile,
+                    $"Se eliminó copia anterior del panel antes de instalar: {folder}\n");
+            }
+            catch (Exception error)
+            {
+                File.AppendAllText(LogFile,
+                    $"No se pudo limpiar copia anterior {folder}: {error.Message}\n");
+            }
+        }
     }
 
     private static bool IsPremiereRunning()

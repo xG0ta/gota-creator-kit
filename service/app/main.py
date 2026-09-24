@@ -32,7 +32,7 @@ from service.hybrid_license import (
     remove_license,
 )
 
-APP_VERSION = "3.2.90"
+APP_VERSION = "3.2.91"
 app = FastAPI(title="Gota Creator Kit Local Service", version=APP_VERSION)
 app.add_middleware(
     CORSMiddleware,
