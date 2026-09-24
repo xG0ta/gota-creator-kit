@@ -4,7 +4,7 @@ const os = require("os");
 const localFileSystem = storage.localFileSystem;
 
 const SERVICE_URL = "http://127.0.0.1:8765";
-const CURRENT_VERSION = "3.2.92";
+const CURRENT_VERSION = "3.2.93";
 const UPDATE_MANIFEST_URL =
   "https://api.github.com/repos/xG0ta/gota-creator-kit/contents/latest.json?ref=main";
 const OUTPUT_WIDTH = 1080;
@@ -19,16 +19,25 @@ const delay = (milliseconds) => new Promise((resolve) => setTimeout(resolve, mil
  * pueden adelantarse al servidor. Esperar aquí evita mostrar el error técnico
  * "Network request failed" como si hubiera fallado la transcripción.
  */
-async function waitForLocalService({ attempts = 50, delayMs = 600 } = {}) {
+async function waitForLocalService({ attempts = 50, delayMs = 600, onProgress = null } = {}) {
   let lastError = null;
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    if (typeof onProgress === "function") {
+      const ratio = Math.min(0.92, Math.max(0, (attempt - 1) / Math.max(1, attempts - 1)));
+      onProgress(Math.round(ratio * 24), "Iniciando el motor local…");
+    }
     try {
       const response = await fetch(`${SERVICE_URL}/health`);
       if (!response.ok) throw new Error(`Estado ${response.status}`);
       const info = await response.json().catch(() => ({}));
-      if (!/^3\./.test(String(info.version || ""))) {
-        throw new Error(`Versión incompatible del motor: ${info.version || "desconocida"}`);
+      const engineVersion = String(info.version || "").trim();
+      if (engineVersion !== CURRENT_VERSION) {
+        throw new Error(
+          `El motor local es ${engineVersion || "desconocido"} y el panel es ${CURRENT_VERSION}. ` +
+          "Instala el paquete completo de esta misma versión."
+        );
       }
+      if (typeof onProgress === "function") onProgress(25, "Motor local listo.");
       return info;
     } catch (error) {
       lastError = error;
@@ -68,6 +77,27 @@ async function makeCaptionMogrt(templatePath, text, style) {
     throw new Error(payload.detail || "No se pudo preparar este gráfico de subtítulo.");
   }
   return payload.mogrtPath;
+}
+
+// Premiere 2024/2025/2026 no siempre acepta la misma cantidad de argumentos
+// para insertMogrtFromPath.  Mantener los intentos aquí evita que un
+// `bad_any_cast` de una versión detenga toda la colocación de subtítulos.
+async function insertCaptionMogrt(editor, path, start, videoTrackIndex) {
+  let lastError = null;
+  const attempts = [
+    [path, start, videoTrackIndex, -1],
+    [path, start, videoTrackIndex, 0],
+    [path, start, videoTrackIndex]
+  ];
+  for (const args of attempts) {
+    try {
+      const result = await editor.insertMogrtFromPath(...args);
+      if (result) return result;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw lastError || new Error("Premiere no pudo insertar el gráfico de subtítulo.");
 }
 
 async function applySubtitlePosition(project, trackItem, verticalPercent) {
@@ -4572,7 +4602,15 @@ let silenceDiagnosticLogs = [];
     percent.textContent = "0%";
     status.textContent = "Esperando al motor local...";
     try {
-      await waitForLocalService({ attempts: 60, delayMs: 500 });
+      await waitForLocalService({
+        attempts: 60,
+        delayMs: 500,
+        onProgress: (value, label) => {
+          progress.value = value;
+          percent.textContent = `${value}%`;
+          status.textContent = label;
+        }
+      });
       await requireSignedLicense();
       status.textContent = "Leyendo seleccion de Premiere...";
       const project = await ppro.Project.getActiveProject();
@@ -4961,20 +4999,78 @@ let silenceDiagnosticLogs = [];
     const hue = makeElement("div"); hue.style.position = "relative"; hue.style.width = "100%"; hue.style.height = "12px"; hue.style.marginTop = "10px"; hue.style.cursor = "pointer"; hue.style.borderRadius = "5px"; hue.style.background = "linear-gradient(90deg,#f00,#ff0,#0f0,#0ff,#00f,#f0f,#f00)";
     const hueThumb = makeElement("div"); hueThumb.style.position = "absolute"; hueThumb.style.top = "-3px"; hueThumb.style.width = "18px"; hueThumb.style.height = "18px"; hueThumb.style.marginLeft = "-9px"; hueThumb.style.borderRadius = "50%"; hueThumb.style.border = "2px solid white"; hueThumb.style.backgroundColor = "transparent"; hueThumb.style.boxSizing = "border-box"; hueThumb.style.pointerEvents = "none"; hue.appendChild(hueThumb);
     const cursor = makeElement("div"); cursor.style.position = "absolute"; cursor.style.width = "10px"; cursor.style.height = "10px"; cursor.style.borderRadius = "50%"; cursor.style.border = "2px solid white"; cursor.style.boxShadow = "0 0 2px #000"; cursor.style.pointerEvents = "none";
-    const fieldWrap = makeElement("div"); fieldWrap.style.position = "relative"; fieldWrap.appendChild(field); fieldWrap.appendChild(cursor); picker.appendChild(fieldWrap); picker.appendChild(hue); wrap.appendChild(picker);
+    const fieldWrap = makeElement("div"); fieldWrap.style.position = "relative"; fieldWrap.style.touchAction = "none"; fieldWrap.style.userSelect = "none"; fieldWrap.appendChild(field); fieldWrap.appendChild(cursor); picker.appendChild(fieldWrap); picker.appendChild(hue); wrap.appendChild(picker);
     const redraw = () => { field.style.background = `linear-gradient(to top,#000,transparent),linear-gradient(to right,#fff,hsl(${hsv.h},100%,50%))`; cursor.style.left = `${Math.max(0, Math.min(100, hsv.s * 100))}%`; cursor.style.top = `${Math.max(0, Math.min(100, (1 - hsv.v) * 100))}%`; hueThumb.style.left = `${(hsv.h / 360) * 100}%`; swatch.style.backgroundColor = control.value; };
-    const pointRatio = (event, element, vertical = false) => {
-      const rect = element.getBoundingClientRect();
-      const raw = vertical
-        ? (Number.isFinite(event.offsetY) ? event.offsetY : Number(event.clientY) - rect.top)
-        : (Number.isFinite(event.offsetX) ? event.offsetX : Number(event.clientX) - rect.left);
-      const length = Math.max(1, vertical ? (Number(rect.height) || Number(element.offsetHeight)) : (Number(rect.width) || Number(element.offsetWidth)));
-      return Math.max(0, Math.min(1, raw / length));
-    };
-    const commit = (event) => { hsv.s = pointRatio(event, field); hsv.v = 1 - pointRatio(event, field, true); control.value = hsvToHex(hsv.h, hsv.s, hsv.v); redraw(); if (control.onChange) control.onChange(); };
-    const commitHue = (event) => { hsv.h = Math.round(pointRatio(event, hue) * 360) % 360; control.value = hsvToHex(hsv.h, hsv.s, hsv.v); redraw(); if (control.onChange) control.onChange(); };
-    field.addEventListener("pointerdown", (event) => { commit(event); }); field.addEventListener("pointermove", (event) => { if (event.buttons) commit(event); });
-    hue.addEventListener("pointerdown", commitHue); hue.addEventListener("pointermove", (event) => { if (event.buttons) commitHue(event); });
+     // UXP no expone las coordenadas de puntero igual en Premiere 2024, 2025
+     // y 2026. Algunos builds entregan offsetX/offsetY, otros clientX/clientY
+     // y algunos solo pageX/pageY. Normalizar todas evita que el campo vertical
+     // se quede congelado y permite llegar hasta V=0 (negro).
+     const eventCoordinate = (event, axis, rect) => {
+       const touch = event && event.touches && event.touches[0]
+         ? event.touches[0]
+         : event && event.changedTouches && event.changedTouches[0]
+           ? event.changedTouches[0]
+           : event;
+       const direct = axis === "x"
+         ? [touch && touch.clientX, touch && touch.pageX, touch && touch.x]
+         : [touch && touch.clientY, touch && touch.pageY, touch && touch.y];
+       for (const value of direct) if (Number.isFinite(Number(value))) return Number(value);
+       const offset = axis === "x" ? touch && touch.offsetX : touch && touch.offsetY;
+       if (Number.isFinite(Number(offset))) return Number(offset) + (axis === "x" ? rect.left : rect.top);
+       return axis === "x" ? rect.left : rect.top;
+     };
+     const pointRatio = (event, element, vertical = false) => {
+       const rect = element.getBoundingClientRect();
+       const axis = vertical ? "y" : "x";
+       const raw = eventCoordinate(event, axis, rect) - (vertical ? rect.top : rect.left);
+       const length = Math.max(1, Number(vertical ? rect.height : rect.width) || Number(vertical ? element.offsetHeight : element.offsetWidth));
+       return Math.max(0, Math.min(1, raw / length));
+     };
+     const commit = (event) => {
+       hsv.s = pointRatio(event, field);
+       hsv.v = 1 - pointRatio(event, field, true);
+       control.value = hsvToHex(hsv.h, hsv.s, hsv.v);
+       redraw();
+       if (control.onChange) control.onChange();
+     };
+     const commitHue = (event) => {
+       hsv.h = Math.round(pointRatio(event, hue) * 360) % 360;
+       control.value = hsvToHex(hsv.h, hsv.s, hsv.v);
+       redraw();
+       if (control.onChange) control.onChange();
+     };
+     let draggingField = false;
+     let draggingHue = false;
+     const dragMove = (event) => {
+       if (draggingField) commit(event);
+       if (draggingHue) commitHue(event);
+     };
+     const dragEnd = () => { draggingField = false; draggingHue = false; };
+     field.style.touchAction = "none";
+     hue.style.touchAction = "none";
+     const beginFieldDrag = (event) => { draggingField = true; commit(event); };
+     const beginHueDrag = (event) => { draggingHue = true; commitHue(event); };
+     ["pointerdown", "mousedown", "touchstart"].forEach((type) => {
+       fieldWrap.addEventListener(type, beginFieldDrag);
+       hue.addEventListener(type, beginHueDrag);
+     });
+     ["pointermove", "mousemove", "touchmove"].forEach((type) => {
+       fieldWrap.addEventListener(type, dragMove);
+       hue.addEventListener(type, dragMove);
+     });
+     ["pointerup", "pointercancel", "mouseup", "mouseleave", "touchend", "touchcancel"].forEach((type) => {
+       fieldWrap.addEventListener(type, dragEnd);
+       hue.addEventListener(type, dragEnd);
+     });
+     // Premiere/UXP puede dejar de enviar el movimiento al control cuando el
+     // puntero pasa por encima del cursor interno. Escuchar también en window
+     // mantiene el arrastre vertical continuo hasta V=0 (negro).
+     if (typeof window !== "undefined" && window.addEventListener) {
+       window.addEventListener("pointermove", dragMove);
+       window.addEventListener("mousemove", dragMove);
+       window.addEventListener("pointerup", dragEnd);
+       window.addEventListener("mouseup", dragEnd);
+     }
     const close = () => {
       picker.style.display = "none";
       if (openedCaptionPicker === control) openedCaptionPicker = null;
@@ -5325,6 +5421,31 @@ let silenceDiagnosticLogs = [];
   captionsStatus.style.fontSize = "10px";
   captionsStatus.style.color = "#aeb8c4";
   captionsBody.appendChild(captionsStatus);
+  const captionsStartup = makeElement("div");
+  captionsStartup.style.display = "none";
+  captionsStartup.style.marginTop = "7px";
+  captionsStartup.style.padding = "6px 8px";
+  captionsStartup.style.backgroundColor = "#12161b";
+  captionsStartup.style.border = "1px solid #384450";
+  captionsStartup.style.borderRadius = "5px";
+  const captionsStartupLabel = makeElement("div", "Iniciando motor local…");
+  captionsStartupLabel.style.fontSize = "10px";
+  captionsStartupLabel.style.color = "#d8e8f8";
+  const captionsStartupProgress = makeElement("progress");
+  captionsStartupProgress.max = 100;
+  captionsStartupProgress.value = 0;
+  captionsStartupProgress.style.width = "100%";
+  captionsStartupProgress.style.height = "8px";
+  captionsStartupProgress.style.marginTop = "5px";
+  captionsStartup.appendChild(captionsStartupLabel);
+  captionsStartup.appendChild(captionsStartupProgress);
+  captionsBody.appendChild(captionsStartup);
+  const setCaptionsStartupProgress = (value, label) => {
+    const safeValue = Math.max(0, Math.min(100, Math.round(Number(value) || 0)));
+    captionsStartup.style.display = "block";
+    captionsStartupProgress.value = safeValue;
+    captionsStartupLabel.textContent = `${label} ${safeValue}%`;
+  };
   const captionsTranscript = makeElement("div");
   captionsTranscript.style.display = "none";
   captionsTranscript.style.maxHeight = "130px";
@@ -5513,9 +5634,14 @@ let silenceDiagnosticLogs = [];
     createCaptions.style.cursor = "default";
     createCaptions.textContent = "Transcribiendo…";
     captionsTranscript.style.display = "none";
+    let transcriptionTimer = null;
     try {
-      captionsStatus.textContent = "Esperando al motor local de subtítulos…";
-      await waitForLocalService({ attempts: 50, delayMs: 600 });
+      setCaptionsStartupProgress(2, "Iniciando servidor local…");
+      await waitForLocalService({
+        attempts: 50,
+        delayMs: 600,
+        onProgress: (value, label) => setCaptionsStartupProgress(value, label)
+      });
       const project = await ppro.Project.getActiveProject();
       const sequence = await project.getActiveSequence();
       if (!sequence) throw new Error("Abre una secuencia y selecciona un clip o tramo antes de transcribir.");
@@ -5524,7 +5650,13 @@ let silenceDiagnosticLogs = [];
       // La primera selección define el tramo. Así no transcribimos por accidente
       // todo el archivo fuente si el usuario solo montó unos segundos.
       const clip = clips[0];
-      captionsStatus.textContent = "Preparando audio y cargando el modelo local… La primera vez puede tardar unos minutos.";
+      setCaptionsStartupProgress(30, "Preparando audio y cargando el modelo local…");
+      captionsStatus.textContent = "Transcribiendo… La primera vez puede tardar unos minutos.";
+      let shownProgress = 30;
+      transcriptionTimer = setInterval(() => {
+        shownProgress = Math.min(88, shownProgress + 2);
+        setCaptionsStartupProgress(shownProgress, "Cargando modelo local / transcribiendo…");
+      }, 450);
       const response = await fetch(`${SERVICE_URL}/v1/transcribe`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -5536,6 +5668,8 @@ let silenceDiagnosticLogs = [];
           model: "base"
         })
       });
+      if (transcriptionTimer) { clearInterval(transcriptionTimer); transcriptionTimer = null; }
+      setCaptionsStartupProgress(94, "Procesando resultados…");
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload.detail || "No se pudo transcribir el medio seleccionado.");
       const segments = Array.isArray(payload.segments) ? payload.segments : [];
@@ -5583,6 +5717,7 @@ let silenceDiagnosticLogs = [];
       exportCaptions.style.display = "block";
       refreshCaptionPlacementButton();
       captionsStatus.textContent = `Transcripción lista: ${editableCaptionSegments.length} líneas. Corrige lo que quieras y luego colócalas como gráficos editables.`;
+      setCaptionsStartupProgress(100, "Transcripción lista.");
     } catch (error) {
       const message = String(error && error.message ? error.message : error);
       captionsStatus.textContent =
@@ -5590,6 +5725,7 @@ let silenceDiagnosticLogs = [];
           ? "El motor local todavía no responde. Espera unos segundos y vuelve a intentar."
           : `No se pudo transcribir: ${message}`;
     } finally {
+      if (transcriptionTimer) clearInterval(transcriptionTimer);
       createCaptions.dataset.busy = "false";
       createCaptions.style.backgroundColor = "#1473e6";
       createCaptions.style.cursor = "pointer";
@@ -5638,12 +5774,21 @@ let silenceDiagnosticLogs = [];
           verticalPosition: Number(captionsPosition.value),
           durationSeconds: Math.max(0.18, Number(segment.endSeconds) - Number(segment.startSeconds))
         });
-        const inserted = await editor.insertMogrtFromPath(
-          // Premiere exige índices existentes también para la pista de audio,
-          // aun cuando esta MOGRT no tiene audio. 0 evita el Invalid parameter
-          // que produce -1 en algunas versiones.
-          captionMogrtPath, start, videoTrackIndex, 0
-        );
+        let inserted;
+        try {
+          inserted = await insertCaptionMogrt(editor, captionMogrtPath, start, videoTrackIndex);
+        } catch (insertError) {
+          // Algunas compilaciones antiguas de Premiere rechazan una copia de
+          // MOGRT cuando la definición trae un control opcional con un tipo
+          // distinto. Reintentamos con una copia mínima (texto + duración),
+          // conservando la colocación y evitando perder toda la transcripción.
+          const detail = String(insertError && insertError.message || insertError);
+          if (!/any_cast|script object|invalid parameter/i.test(detail)) throw insertError;
+          const safeMogrtPath = await makeCaptionMogrt(mogrtPath, captionText, {
+            durationSeconds: Math.max(0.18, Number(segment.endSeconds) - Number(segment.startSeconds))
+          });
+          inserted = await insertCaptionMogrt(editor, safeMogrtPath, start, videoTrackIndex);
+        }
         const graphic = Array.isArray(inserted) ? inserted[0] : null;
         if (!graphic) continue;
         // El gráfico ya está insertado. Los ajustes secundarios no pueden
