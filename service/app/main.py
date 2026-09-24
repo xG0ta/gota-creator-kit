@@ -32,7 +32,7 @@ from service.hybrid_license import (
     remove_license,
 )
 
-APP_VERSION = "3.2.95"
+APP_VERSION = "3.2.96"
 app = FastAPI(title="Gota Creator Kit Local Service", version=APP_VERSION)
 app.add_middleware(
     CORSMiddleware,
@@ -421,7 +421,12 @@ def transcribe_local_media(request: TranscribeRequest) -> dict:
         )
         segments, info = model.transcribe(
             str(segment_path), language=request.language, vad_filter=True,
-            beam_size=5, condition_on_previous_text=True, word_timestamps=True,
+            beam_size=5, best_of=5, temperature=0.0,
+            condition_on_previous_text=True, word_timestamps=True,
+            initial_prompt=(
+                "Transcripción en español mexicano. Conserva nombres propios, "
+                "muletillas y palabras coloquiales; no traduzcas al inglés."
+            ),
         )
         result_segments = []
         for segment in segments:

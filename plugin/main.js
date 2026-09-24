@@ -4,7 +4,7 @@ const os = require("os");
 const localFileSystem = storage.localFileSystem;
 
 const SERVICE_URL = "http://127.0.0.1:8765";
-const CURRENT_VERSION = "3.2.95";
+const CURRENT_VERSION = "3.2.96";
 const UPDATE_MANIFEST_URL =
   "https://api.github.com/repos/xG0ta/gota-creator-kit/contents/latest.json?ref=main";
 const OUTPUT_WIDTH = 1080;
@@ -89,22 +89,29 @@ async function insertCaptionMogrt(editor, path, start, videoTrackIndex) {
   // negativos o strings con el mensaje "Illegal parameter type".
   const normalizedPath = String(path || "");
   const normalizedTrack = Math.max(0, Math.floor(Number(videoTrackIndex) || 0));
+  // Premiere rejects the track-count value on some builds. Retry on the last
+  // existing track before surfacing the misleading Illegal Parameter type.
+  const trackCandidates = [normalizedTrack];
+  if (normalizedTrack > 0) trackCandidates.push(normalizedTrack - 1);
+  if (!trackCandidates.includes(0)) trackCandidates.push(0);
   // Premiere 2026 documenta cuatro argumentos, pero algunas revisiones de
   // UXP/CEP validan el índice de audio de forma distinta: 0 es válido en
   // unas versiones, -1 en otras y las versiones antiguas aceptan la firma
   // corta. Probamos las firmas compatibles, siempre con tipos normalizados,
   // en vez de abandonar al primer "Invalid parameter".
-  const attempts = [
-    [normalizedPath, start, normalizedTrack, 0],
-    [normalizedPath, start, normalizedTrack, -1],
-    [normalizedPath, start, normalizedTrack]
-  ];
-  for (const args of attempts) {
-    try {
-      const result = await editor.insertMogrtFromPath(...args);
-      if (result) return result;
-    } catch (error) {
-      lastError = error;
+  for (const track of trackCandidates) {
+    const attempts = [
+      [normalizedPath, start, track, 0],
+      [normalizedPath, start, track, -1],
+      [normalizedPath, start, track]
+    ];
+    for (const args of attempts) {
+      try {
+        const result = await editor.insertMogrtFromPath(...args);
+        if (result) return result;
+      } catch (error) {
+        lastError = error;
+      }
     }
   }
   throw lastError || new Error("Premiere no pudo insertar el gráfico de subtítulo.");
@@ -5675,7 +5682,9 @@ let silenceDiagnosticLogs = [];
           startSeconds: clip.inPointSeconds,
           endSeconds: clip.outPointSeconds,
           language: "es",
-          model: "base"
+          // El modelo small mejora bastante la precisión en español y se
+          // descarga una sola vez en la caché local del motor.
+          model: "small"
         })
       });
       if (transcriptionTimer) { clearInterval(transcriptionTimer); transcriptionTimer = null; }
