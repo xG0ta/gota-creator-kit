@@ -32,7 +32,7 @@ from service.hybrid_license import (
     remove_license,
 )
 
-APP_VERSION = "3.2.92"
+APP_VERSION = "3.2.93"
 app = FastAPI(title="Gota Creator Kit Local Service", version=APP_VERSION)
 app.add_middleware(
     CORSMiddleware,
@@ -1050,7 +1050,10 @@ def _caption_style_value(control_name: str, style: dict):
     if "color del glow" in name:
         return style.get("glowColor")
     if "gota pop activo" in name:
-        return 1 if str(style.get("style") or "") == "gota-pop" else 0
+        # Este control está guardado como booleano en la plantilla.  Enviar
+        # 1/0 (y después convertirlo a float) hace que Premiere falle al leer
+        # la copia del MOGRT con `bad_any_cast`.
+        return str(style.get("style") or "") == "gota-pop"
     if "posici" in name and "vertical" in name:
         return style.get("verticalPosition")
     if "tama" in name and "texto" in name:
@@ -1087,9 +1090,18 @@ def _write_essential_default(current, desired):
             return result, result != current
         return rgb, True
     if isinstance(desired, bool):
+        # Conserva exactamente el tipo que espera el control de AE.
+        if isinstance(current, bool):
+            return desired, current != desired
         desired = 1 if desired else 0
     if isinstance(desired, (int, float)):
-        return float(desired), True
+        # Los controles de la plantilla mezclan enteros y flotantes.  Cambiar
+        # un entero a float es otra causa de `bad_any_cast` en Premiere.
+        if isinstance(current, int) and not isinstance(current, bool):
+            value = int(round(desired))
+        else:
+            value = float(desired)
+        return value, value != current
     return current, False
 
 
@@ -1116,8 +1128,10 @@ def _set_caption_text_in_definition(definition: dict, text: str, style: dict) ->
             continue
         control_name = _essential_control_name(control)
         if "duraci" in control_name:
-            control["value"] = duration_seconds
-            changed = True
+            value, was_changed = _write_essential_default(control.get("value"), duration_seconds)
+            if was_changed:
+                control["value"] = value
+                changed = True
             continue
         style_value = _caption_style_value(control_name, style)
         if style_value is not None:
@@ -1157,8 +1171,12 @@ def _set_caption_text_in_definition(definition: dict, text: str, style: dict) ->
                 continue
             name = str(parameter.get("capPropUIName", "")).lower()
             if "duraci" in name:
-                parameter["capPropDefault"] = duration_seconds
-                changed = True
+                value, was_changed = _write_essential_default(
+                    parameter.get("capPropDefault"), duration_seconds
+                )
+                if was_changed:
+                    parameter["capPropDefault"] = value
+                    changed = True
                 continue
             style_value = _caption_style_value(name, style)
             if style_value is not None:
@@ -1226,6 +1244,7 @@ def health():
     return {
         "status": "ok",
         "version": APP_VERSION,
+        "engineVersion": APP_VERSION,
         "silenceDiagnosticsPath": str(SILENCE_DIAGNOSTIC_LOG),
     }
 
