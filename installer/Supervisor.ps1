@@ -1,9 +1,10 @@
-$ErrorActionPreference = "SilentlyContinue"
+$ErrorActionPreference = "Stop"
 
 $installDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $pythonw = Join-Path $installDir "Python\pythonw.exe"
 $serviceScript = Join-Path $installDir "service\run_service.py"
 $supervisorLog = Join-Path $installDir "supervisor.log"
+$supervisorErrorLog = Join-Path $installDir "supervisor-error.log"
 $serviceProcess = $null
 
 @(
@@ -13,6 +14,7 @@ $serviceProcess = $null
     "script_hash=$((Get-FileHash -LiteralPath $MyInvocation.MyCommand.Path -Algorithm SHA256).Hash)"
 ) | Add-Content -LiteralPath $supervisorLog
 
+try {
 while ($true) {
     $premiere = Get-Process -ErrorAction SilentlyContinue |
         Where-Object { $_.ProcessName -like "*Premiere*" }
@@ -46,7 +48,13 @@ while ($true) {
             Add-Content -LiteralPath $supervisorLog
         Stop-Process -Id $serviceProcess.Id -Force -ErrorAction SilentlyContinue
         $serviceProcess = $null
-    }
+}
 
     Start-Sleep -Seconds 2
+}
+}
+catch {
+    "[$(Get-Date -Format o)] version=3.3.0`n$($_ | Out-String)" |
+        Add-Content -LiteralPath $supervisorErrorLog
+    exit 1
 }

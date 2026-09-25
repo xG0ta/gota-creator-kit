@@ -7,6 +7,6 @@
   <key>CFBundleIdentifier</key><string>com.xg0ta.gotacreatorkit.installer</string>
   <key>CFBundleName</key><string>Instalar Gota Creator Kit</string>
   <key>CFBundlePackageType</key><string>APPL</string>
-    <key>CFBundleShortVersionString</key><string>3.2.99</string>
+    <key>CFBundleShortVersionString</key><string>3.3.0</string>
 </dict>
 </plist>

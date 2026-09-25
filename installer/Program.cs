@@ -10,7 +10,7 @@ internal static class Program
 {
     private const string ProductName = "Gota Creator Kit ☔";
     private const string PluginId = "com.autoframe.faces.dev";
-    private const string PackageVersion = "3.2.99";
+    private const string PackageVersion = "3.3.0";
     private static readonly string InstallDir = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "AutoFrameByGota");
@@ -20,6 +20,8 @@ internal static class Program
     private static readonly string ServiceScript = Path.Combine(
         InstallDir, "service", "run_service.py");
     private static readonly string LogFile = Path.Combine(InstallDir, "installer.log");
+    private static readonly string SupervisorLog = Path.Combine(InstallDir, "supervisor.log");
+    private static readonly string SupervisorErrorLog = Path.Combine(InstallDir, "supervisor-error.log");
 
     [STAThread]
     private static async Task Main(string[] args)
@@ -420,31 +422,71 @@ internal static class Program
     private static async Task WatchPremiereAsync()
     {
         Process? service = null;
-        while (true)
+        Directory.CreateDirectory(InstallDir);
+        AppendSupervisorLog($"=== Gota Creator Kit {PackageVersion} watcher ===");
+        AppendSupervisorLog($"started={DateTimeOffset.Now:O}; pid={Environment.ProcessId}");
+        try
         {
-            bool premiereOpen = Process.GetProcesses()
-                .Any(process =>
-                {
-                    try { return process.ProcessName.Contains("Adobe Premiere Pro", StringComparison.OrdinalIgnoreCase); }
-                    catch { return false; }
-                });
-            if (premiereOpen && (service is null || service.HasExited))
+            while (true)
             {
-                service = Process.Start(new ProcessStartInfo(PythonwExe, $"\"{ServiceScript}\"")
+                bool premiereOpen = Process.GetProcesses()
+                    .Any(process =>
+                    {
+                        try { return process.ProcessName.Contains("Premiere", StringComparison.OrdinalIgnoreCase); }
+                        catch { return false; }
+                    });
+                if (premiereOpen && (service is null || service.HasExited))
                 {
-                    WorkingDirectory = InstallDir,
-                    UseShellExecute = false,
-                    CreateNoWindow = true
-                });
+                    AppendSupervisorLog($"Premiere detectado; iniciando motor: {DateTimeOffset.Now:O}");
+                    var start = new ProcessStartInfo(PythonwExe, $"\"{ServiceScript}\"")
+                    {
+                        WorkingDirectory = InstallDir,
+                        UseShellExecute = false,
+                        CreateNoWindow = true
+                    };
+                    start.Environment["GOTA_LOG_DIR"] = InstallDir;
+                    start.Environment["GOTA_RUN_ID"] = $"win-{DateTime.UtcNow:yyyyMMddTHHmmssZ}-{Environment.ProcessId}";
+                    service = Process.Start(start);
+                    if (service is null)
+                        throw new InvalidOperationException("No se pudo iniciar el motor local.");
+                }
+                else if (!premiereOpen && service is { HasExited: false })
+                {
+                    AppendSupervisorLog($"Premiere cerrado; deteniendo motor: {DateTimeOffset.Now:O}");
+                    service.Kill(true);
+                    service.WaitForExit(5000);
+                    service.Dispose();
+                    service = null;
+                }
+                else if (service is { HasExited: true })
+                {
+                    AppendSupervisorLog($"El motor terminó con código {service.ExitCode}: {DateTimeOffset.Now:O}");
+                    service.Dispose();
+                    service = null;
+                }
+                await Task.Delay(2000);
             }
-            else if (!premiereOpen && service is { HasExited: false })
-            {
-                service.Kill(true);
-                service.Dispose();
-                service = null;
-            }
-            await Task.Delay(2000);
         }
+        catch (Exception error)
+        {
+            AppendSupervisorError(error);
+            throw;
+        }
+    }
+
+    private static void AppendSupervisorLog(string message)
+    {
+        try { File.AppendAllText(SupervisorLog, message + Environment.NewLine); } catch { }
+    }
+
+    private static void AppendSupervisorError(Exception error)
+    {
+        try
+        {
+            File.AppendAllText(SupervisorErrorLog,
+                $"[{DateTimeOffset.Now:O}] version={PackageVersion}\n{error}\n");
+        }
+        catch { }
     }
 
     private static void Uninstall()

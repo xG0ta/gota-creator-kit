@@ -14,7 +14,7 @@ from threading import Lock
 from time import time
 from uuid import uuid4
 
-from fastapi import FastAPI, Header, HTTPException
+from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse
 from pydantic import BaseModel, Field
@@ -33,7 +33,7 @@ from service.hybrid_license import (
     remove_license,
 )
 
-APP_VERSION = "3.2.99"
+APP_VERSION = "3.3.0"
 # Increment this whenever the binary contents of generated caption MOGRTs
 # change.  Including it in the cache key prevents an older cached MOGRT (with
 # the placeholder text) from being reused after an update.
@@ -45,6 +45,28 @@ app.add_middleware(
     allow_methods=["GET", "POST", "DELETE"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def diagnostic_http_requests(request: Request, call_next):
+    """Registra solicitudes críticas para distinguir red, motor y edición."""
+    started = time()
+    try:
+        response = await call_next(request)
+        if request.url.path.startswith(("/v3/silence", "/health")):
+            write_silence_diagnostic(
+                "http_request", method=request.method, path=request.url.path,
+                status=response.status_code,
+                durationMs=round((time() - started) * 1000, 1),
+            )
+        return response
+    except Exception as error:
+        write_silence_diagnostic(
+            "http_exception", method=request.method, path=request.url.path,
+            error=type(error).__name__, message=str(error)[:300],
+            durationMs=round((time() - started) * 1000, 1),
+        )
+        raise
 license_store = default_store()
 
 jobs: dict[str, dict] = {}
