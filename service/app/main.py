@@ -1,6 +1,7 @@
 from pathlib import Path
 import base64
 import hashlib
+import io
 import json
 import os
 import sys
@@ -32,7 +33,7 @@ from service.hybrid_license import (
     remove_license,
 )
 
-APP_VERSION = "3.2.96"
+APP_VERSION = "3.2.97"
 app = FastAPI(title="Gota Creator Kit Local Service", version=APP_VERSION)
 app.add_middleware(
     CORSMiddleware,
@@ -1206,6 +1207,39 @@ def _set_caption_text_in_definition(definition: dict, text: str, style: dict) ->
     return changed
 
 
+def _replace_caption_text_in_project_aeggraphic(content: bytes, text: str) -> tuple[bytes, bool]:
+    """Actualiza el texto base dentro del proyecto AEP incluido en la MOGRT.
+
+    Premiere usa el valor del proyecto interno como valor inicial en algunas
+    versiones, aunque ``definition.json`` tenga un ``capPropDefault`` nuevo.
+    La plantilla de Gota contiene el marcador en dos representaciones: una
+    entrada Utf8 con longitud y una cadena PDF UTF-16BE. Actualizamos ambas,
+    manteniendo sus prefijos y longitudes para que el AEP siga siendo válido.
+    """
+    marker = "ESCRIBE TU SUBTITULO"
+    replacement = str(text or "").strip() or marker
+    changed = False
+
+    # Entradas binarias tipo: Utf8 <uint32-be length> <bytes>.
+    old_utf8 = marker.encode("utf-8")
+    new_utf8 = replacement.encode("utf-8")
+    old_len = len(old_utf8).to_bytes(4, "big")
+    needle = old_len + old_utf8
+    if needle in content:
+        content = content.replace(
+            needle, len(new_utf8).to_bytes(4, "big") + new_utf8
+        )
+        changed = True
+
+    # El texto de la capa de After Effects aparece como PDF UTF-16BE con BOM.
+    old_pdf = b"\xfe\xff" + marker.encode("utf-16-be")
+    new_pdf = b"\xfe\xff" + replacement.encode("utf-16-be")
+    if old_pdf in content:
+        content = content.replace(old_pdf, new_pdf)
+        changed = True
+    return content, changed
+
+
 def build_caption_mogrt(template: Path, text: str, style: dict | None = None) -> Path:
     template = template.expanduser().resolve()
     if not template.is_file() or template.suffix.lower() != ".mogrt":
@@ -1234,6 +1268,32 @@ def build_caption_mogrt(template: Path, text: str, style: dict | None = None) ->
                     content = json.dumps(
                         definition, ensure_ascii=False, separators=(",", ":")
                     ).encode("utf-8")
+                elif info.filename == "project.aegraphic":
+                    # ``project.aegraphic`` es un ZIP interno que contiene el
+                    # AEP. Actualizarlo evita que Premiere recupere el
+                    # placeholder del proyecto y descarte el texto real del
+                    # control esencial.
+                    try:
+                        nested_changed = False
+                        nested_source = zipfile.ZipFile(io.BytesIO(content), "r")
+                        nested_buffer = io.BytesIO()
+                        with zipfile.ZipFile(nested_buffer, "w", compression=zipfile.ZIP_DEFLATED) as nested_target:
+                            for nested_info in nested_source.infolist():
+                                nested_content = nested_source.read(nested_info.filename)
+                                if nested_info.filename.endswith(".aep"):
+                                    nested_content, did_change = _replace_caption_text_in_project_aeggraphic(
+                                        nested_content, text
+                                    )
+                                    nested_changed = nested_changed or did_change
+                                nested_target.writestr(nested_info, nested_content)
+                        nested_source.close()
+                        if nested_changed:
+                            content = nested_buffer.getvalue()
+                            modified = True
+                    except (zipfile.BadZipFile, OSError):
+                        # Versiones antiguas pueden omitir el AEP interno;
+                        # definition.json sigue siendo suficiente para ellas.
+                        pass
                 target.writestr(info, content)
         if not modified:
             raise ValueError("La plantilla no expone el campo de texto editable.")
