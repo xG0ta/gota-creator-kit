@@ -6,7 +6,12 @@ $serviceScript = Join-Path $installDir "service\run_service.py"
 $supervisorLog = Join-Path $installDir "supervisor.log"
 $serviceProcess = $null
 
-"Supervisor iniciado: $(Get-Date -Format o)" | Set-Content -LiteralPath $supervisorLog
+@(
+    "=== Gota Creator Kit supervisor ===",
+    "started=$(Get-Date -Format o)",
+    "script=$($MyInvocation.MyCommand.Path)",
+    "script_hash=$((Get-FileHash -LiteralPath $MyInvocation.MyCommand.Path -Algorithm SHA256).Hash)"
+) | Add-Content -LiteralPath $supervisorLog
 
 while ($true) {
     $premiere = Get-Process -ErrorAction SilentlyContinue |

@@ -33,7 +33,7 @@ from service.hybrid_license import (
     remove_license,
 )
 
-APP_VERSION = "3.2.98"
+APP_VERSION = "3.2.99"
 # Increment this whenever the binary contents of generated caption MOGRTs
 # change.  Including it in the cache key prevents an older cached MOGRT (with
 # the placeholder text) from being reused after an update.
@@ -82,7 +82,13 @@ def write_silence_diagnostic(event: str, **details) -> str:
     Este archivo queda junto a autoframe-service.log, tanto en Windows como
     en macOS. Se limita a 1 MB para que el diagnóstico no llene el disco.
     """
-    entry = {"at": round(time(), 3), "event": event, **details}
+    entry = {
+        "at": round(time(), 3),
+        "event": event,
+        "version": APP_VERSION,
+        "runId": os.environ.get("GOTA_RUN_ID", "unknown"),
+        **details,
+    }
     try:
         SILENCE_DIAGNOSTIC_LOG.parent.mkdir(parents=True, exist_ok=True)
         if (
