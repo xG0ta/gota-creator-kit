@@ -33,7 +33,11 @@ from service.hybrid_license import (
     remove_license,
 )
 
-APP_VERSION = "3.2.97"
+APP_VERSION = "3.2.98"
+# Increment this whenever the binary contents of generated caption MOGRTs
+# change.  Including it in the cache key prevents an older cached MOGRT (with
+# the placeholder text) from being reused after an update.
+CAPTION_MOGRT_CACHE_SCHEMA = "text-aep-v2"
 app = FastAPI(title="Gota Creator Kit Local Service", version=APP_VERSION)
 app.add_middleware(
     CORSMiddleware,
@@ -1247,7 +1251,7 @@ def build_caption_mogrt(template: Path, text: str, style: dict | None = None) ->
     style = style or {}
     style_signature = json.dumps(style, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
     key = hashlib.sha256(
-        f"{template}|{template.stat().st_mtime_ns}|{text}|{style_signature}".encode("utf-8")
+        f"{CAPTION_MOGRT_CACHE_SCHEMA}|{APP_VERSION}|{template}|{template.stat().st_mtime_ns}|{text}|{style_signature}".encode("utf-8")
     ).hexdigest()
     destination_dir = preview_cache_dir.parent / "caption-mogrts"
     destination_dir.mkdir(parents=True, exist_ok=True)
