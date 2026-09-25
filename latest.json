@@ -1,9 +1,9 @@
 {
-  "version": "3.3.0",
-  "displayVersion": "3.3.0 — Gota Creator Kit ☔",
-  "downloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.3.0/GotaCreatorKit-3.3.0-Windows.exe",
-  "windowsDownloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.3.0/GotaCreatorKit-3.3.0-Windows.exe",
-  "macDownloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.3.0/GotaCreatorKit-3.3.0-macOS.zip",
-  "legacyDownloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.3.0/GotaCreatorKit-Legacy-Premiere-2021-a-2025.5-3.3.0.zxp",
-  "notes": "Versión unificada para Windows, macOS y Legacy. El motor registra cada arranque, salida y solicitud de diagnóstico con fecha, versión y ejecución."
+  "version": "3.3.1",
+  "displayVersion": "3.3.1 — Gota Creator Kit ☔",
+  "downloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.3.1/GotaCreatorKit-3.3.1-Windows.exe",
+  "windowsDownloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.3.1/GotaCreatorKit-3.3.1-Windows.exe",
+  "macDownloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.3.1/GotaCreatorKit-3.3.1-macOS.zip",
+  "legacyDownloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.3.1/GotaCreatorKit-Legacy-Premiere-2021-a-2025.5-3.3.1.zxp",
+  "notes": "Versión unificada para Windows, macOS y Legacy. La transcripción procesa clips largos por fragmentos y registra errores de memoria para diagnóstico."
 }
