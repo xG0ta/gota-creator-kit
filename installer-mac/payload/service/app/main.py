@@ -33,7 +33,7 @@ from service.hybrid_license import (
     remove_license,
 )
 
-APP_VERSION = "3.3.0"
+APP_VERSION = "3.3.1"
 # Increment this whenever the binary contents of generated caption MOGRTs
 # change.  Including it in the cache key prevents an older cached MOGRT (with
 # the placeholder text) from being reused after an update.
@@ -88,6 +88,8 @@ clipboard_cache_dir = (
     else Path.home() / "Library" / "Caches" / "GotaCreatorKit" / "clipboard-cache"
 )
 system_fonts_cache: list[str] | None = None
+transcription_lock = Lock()
+transcription_models: dict[str, object] = {}
 font_postscript_cache: dict[str, str] | None = None
 font_file_cache: dict[str, Path] | None = None
 SILENCE_DIAGNOSTIC_LOG = (
@@ -430,68 +432,90 @@ def transcribe_local_media(request: TranscribeRequest) -> dict:
 
     cache_root = preview_cache_dir.parent / "whisper-models"
     cache_root.mkdir(parents=True, exist_ok=True)
-    segment_path = cache_root / f"transcribe-{uuid4().hex}.wav"
-    command = [
-        imageio_ffmpeg.get_ffmpeg_exe(), "-y", "-hide_banner", "-loglevel", "error",
-        "-ss", f"{request.startSeconds:.3f}", "-i", str(source),
-    ]
-    if request.endSeconds is not None:
-        duration = max(0.05, request.endSeconds - request.startSeconds)
-        command.extend(["-t", f"{duration:.3f}"])
-    command.extend(["-vn", "-ac", "1", "-ar", "16000", "-c:a", "pcm_s16le", str(segment_path)])
-    completed = subprocess.run(
-        command, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
-        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0), check=False,
-    )
-    if completed.returncode != 0 or not segment_path.is_file():
-        message = completed.stderr.decode("utf-8", errors="replace").strip()
-        raise RuntimeError(message or "No se pudo preparar el audio para los subtítulos.")
-    try:
-        # CPU int8 funciona en Windows y Mac sin requerir GPU ni cuentas externas.
-        model = WhisperModel(
-            request.model, device="cpu", compute_type="int8", download_root=str(cache_root),
-            cpu_threads=max(1, min(8, os.cpu_count() or 1)),
-        )
-        segments, info = model.transcribe(
-            str(segment_path), language=request.language, vad_filter=True,
-            beam_size=5, best_of=5, temperature=0.0,
-            condition_on_previous_text=True, word_timestamps=True,
-            initial_prompt=(
-                "Transcripción en español mexicano. Conserva nombres propios, "
-                "muletillas y palabras coloquiales; no traduzcas al inglés."
-            ),
-        )
-        result_segments = []
-        for segment in segments:
-            text = str(segment.text or "").strip()
-            if not text:
-                continue
-            words = []
-            for word in getattr(segment, "words", None) or []:
-                word_text = str(getattr(word, "word", "") or "").strip()
-                if not word_text:
-                    continue
-                words.append({
-                    "text": word_text,
-                    "startSeconds": round(request.startSeconds + float(word.start), 3),
-                    "endSeconds": round(request.startSeconds + float(word.end), 3),
-                })
-            result_segments.append({
-                "startSeconds": round(request.startSeconds + float(segment.start), 3),
-                "endSeconds": round(request.startSeconds + float(segment.end), 3),
-                "text": text,
-                "words": words,
-            })
-        return {
-            "segments": result_segments,
-            "language": getattr(info, "language", request.language),
-            "model": request.model,
-        }
-    finally:
+    # MKL/CTranslate2 puede intentar reservar varios buffers enormes para una
+    # selección larga.  Un solo trabajo y fragmentos acotados evitan el
+    # ``mkl_malloc: failed to allocate memory`` sin limitar la duración total.
+    os.environ.setdefault("OMP_NUM_THREADS", "1")
+    os.environ.setdefault("MKL_NUM_THREADS", "1")
+    os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
+    clip_end = request.endSeconds
+    total_duration = max(0.05, (clip_end - request.startSeconds) if clip_end is not None else 3600.0)
+    chunk_size = 90.0
+    result_segments = []
+    model = None
+    info_language = request.language
+
+    with transcription_lock:
         try:
-            segment_path.unlink(missing_ok=True)
-        except OSError:
-            pass
+            model = transcription_models.get(request.model)
+            if model is None:
+                model = WhisperModel(
+                    request.model, device="cpu", compute_type="int8",
+                    download_root=str(cache_root), cpu_threads=1, num_workers=1,
+                )
+                transcription_models[request.model] = model
+            for offset in range(0, max(1, int((total_duration + chunk_size - 0.001) // chunk_size))):
+                chunk_start = request.startSeconds + offset * chunk_size
+                if clip_end is not None and chunk_start >= clip_end:
+                    break
+                chunk_duration = min(chunk_size, total_duration - offset * chunk_size)
+                segment_path = cache_root / f"transcribe-{uuid4().hex}.wav"
+                command = [
+                    imageio_ffmpeg.get_ffmpeg_exe(), "-y", "-hide_banner", "-loglevel", "error",
+                    "-ss", f"{chunk_start:.3f}", "-i", str(source), "-t", f"{chunk_duration:.3f}",
+                    "-vn", "-ac", "1", "-ar", "16000", "-c:a", "pcm_s16le", str(segment_path),
+                ]
+                completed = subprocess.run(
+                    command, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
+                    creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0), check=False,
+                )
+                if completed.returncode != 0 or not segment_path.is_file():
+                    message = completed.stderr.decode("utf-8", errors="replace").strip()
+                    raise RuntimeError(message or "No se pudo preparar el audio para los subtítulos.")
+                try:
+                    segments, info = model.transcribe(
+                        str(segment_path), language=request.language, vad_filter=True,
+                        beam_size=1, best_of=1, temperature=0.0,
+                        condition_on_previous_text=False, word_timestamps=True,
+                        initial_prompt=(
+                            "Transcripción en español mexicano. Conserva nombres propios, "
+                            "muletillas y palabras coloquiales; no traduzcas al inglés."
+                        ),
+                    )
+                    info_language = getattr(info, "language", request.language)
+                    for segment in segments:
+                        text = str(segment.text or "").strip()
+                        if not text:
+                            continue
+                        words = []
+                        for word in getattr(segment, "words", None) or []:
+                            word_text = str(getattr(word, "word", "") or "").strip()
+                            if word_text:
+                                words.append({
+                                    "text": word_text,
+                                    "startSeconds": round(chunk_start + float(word.start), 3),
+                                    "endSeconds": round(chunk_start + float(word.end), 3),
+                                })
+                        result_segments.append({
+                            "startSeconds": round(chunk_start + float(segment.start), 3),
+                            "endSeconds": round(chunk_start + float(segment.end), 3),
+                            "text": text,
+                            "words": words,
+                        })
+                finally:
+                    try:
+                        segment_path.unlink(missing_ok=True)
+                    except OSError:
+                        pass
+        except Exception as error:
+            write_silence_diagnostic(
+                "transcription_error", model=request.model, mediaPath=str(source),
+                durationSeconds=round(total_duration, 3), error=type(error).__name__,
+                message=str(error)[:500],
+            )
+            raise
+
+    return {"segments": result_segments, "language": info_language, "model": request.model}
 
 
 def get_system_fonts() -> list[str]:
