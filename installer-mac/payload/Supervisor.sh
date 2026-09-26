@@ -19,10 +19,10 @@ export GOTA_LOG_DIR="$INSTALL_DIR"
 # Así siempre existe una ruta comprobable de diagnóstico en macOS.
 : >> "$INSTALL_DIR/silence-diagnostics.log" 2>/dev/null || true
 {
-  printf '=== Gota Creator Kit 3.3.2 supervisor ===\n'
+  printf '=== Gota Creator Kit 3.3.3 supervisor ===\n'
   printf 'started=%s; pid=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$$"
 } >> "$SUPERVISOR_LOG" 2>/dev/null || true
-trap 'code=$?; printf "[%s] version=3.3.2 exit=%s\n" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$code" >> "$SUPERVISOR_ERROR_LOG" 2>/dev/null || true' EXIT
+trap 'code=$?; printf "[%s] version=3.3.3 exit=%s\n" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$code" >> "$SUPERVISOR_ERROR_LOG" 2>/dev/null || true' EXIT
 
 if [ ! -x "$PYTHON_BIN" ] || [ ! -f "$SERVICE_SCRIPT" ]; then
   echo "El motor de Gota Creator Kit no está instalado correctamente."

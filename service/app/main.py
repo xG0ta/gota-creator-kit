@@ -33,11 +33,11 @@ from service.hybrid_license import (
     remove_license,
 )
 
-APP_VERSION = "3.3.2"
+APP_VERSION = "3.3.3"
 # Increment this whenever the binary contents of generated caption MOGRTs
 # change.  Including it in the cache key prevents an older cached MOGRT (with
 # the placeholder text) from being reused after an update.
-CAPTION_MOGRT_CACHE_SCHEMA = "text-aep-v2"
+CAPTION_MOGRT_CACHE_SCHEMA = "text-aep-v4"
 app = FastAPI(title="Gota Creator Kit Local Service", version=APP_VERSION)
 app.add_middleware(
     CORSMiddleware,
@@ -1277,23 +1277,47 @@ def _replace_caption_text_in_project_aeggraphic(content: bytes, text: str) -> tu
     changed = False
 
     # Entradas binarias tipo: Utf8 <uint32-be length> <bytes>.
+    # Algunas versiones de After Effects escriben el tamaño con la etiqueta
+    # ``Utf8`` inmediatamente antes; el reemplazo debe conservar el prefijo
+    # y actualizar todas las ocurrencias, no solo la primera.
     old_utf8 = marker.encode("utf-8")
     new_utf8 = replacement.encode("utf-8")
     old_len = len(old_utf8).to_bytes(4, "big")
+    new_len = len(new_utf8).to_bytes(4, "big")
     needle = old_len + old_utf8
     if needle in content:
-        content = content.replace(
-            needle, len(new_utf8).to_bytes(4, "big") + new_utf8
-        )
+        content = content.replace(needle, new_len + new_utf8)
         changed = True
 
-    # El texto de la capa de After Effects aparece como PDF UTF-16BE con BOM.
-    old_pdf = b"\xfe\xff" + marker.encode("utf-16-be")
-    new_pdf = b"\xfe\xff" + replacement.encode("utf-16-be")
-    if old_pdf in content:
-        content = content.replace(old_pdf, new_pdf)
-        changed = True
+    # El AEP incrustado en nuestras plantillas contiene además una variante
+    # PDF con BOM FE FF. Las versiones anteriores solo buscaban una de las
+    # representaciones y dejaban el marcador visible detrás del texto real.
+    # Cubrimos ambos órdenes, con y sin BOM, reemplazando todas las copias.
+    for encoding in ("utf-16-le", "utf-16-be"):
+        old_units = marker.encode(encoding)
+        new_units = replacement.encode(encoding)
+        for bom in (b"\xfe\xff", b"\xff\xfe", b""):
+            old_pdf = bom + old_units
+            if old_pdf not in content:
+                continue
+            new_pdf = bom + new_units
+            content = content.replace(old_pdf, new_pdf)
+            changed = True
+        # El exportador PDF suele añadir CR al final de la cadena; no lo
+        # incluimos en el reemplazo para conservarlo intacto.
     return content, changed
+
+
+def _caption_placeholder_present(content: bytes) -> bool:
+    """Indica si queda alguna representación del marcador de la plantilla."""
+    marker = "ESCRIBE TU SUBTITULO"
+    if marker.encode("utf-8") in content:
+        return True
+    for encoding in ("utf-16-le", "utf-16-be"):
+        units = marker.encode(encoding)
+        if units in content or b"\xfe\xff" + units in content or b"\xff\xfe" + units in content:
+            return True
+    return False
 
 
 def build_caption_mogrt(template: Path, text: str, style: dict | None = None) -> Path:
@@ -1324,6 +1348,11 @@ def build_caption_mogrt(template: Path, text: str, style: dict | None = None) ->
                     content = json.dumps(
                         definition, ensure_ascii=False, separators=(",", ":")
                     ).encode("utf-8")
+                    if _caption_placeholder_present(content):
+                        raise ValueError(
+                            "La definición de la plantilla conserva el texto de ejemplo; "
+                            "no se generó un gráfico incompleto."
+                        )
                 elif info.filename == "project.aegraphic":
                     # ``project.aegraphic`` es un ZIP interno que contiene el
                     # AEP. Actualizarlo evita que Premiere recupere el
@@ -1336,16 +1365,31 @@ def build_caption_mogrt(template: Path, text: str, style: dict | None = None) ->
                         with zipfile.ZipFile(nested_buffer, "w", compression=zipfile.ZIP_DEFLATED) as nested_target:
                             for nested_info in nested_source.infolist():
                                 nested_content = nested_source.read(nested_info.filename)
-                                if nested_info.filename.endswith(".aep"):
-                                    nested_content, did_change = _replace_caption_text_in_project_aeggraphic(
-                                        nested_content, text
-                                    )
-                                    nested_changed = nested_changed or did_change
+                                # No dependemos del nombre de la entrada: algunas
+                                # exportaciones de After Effects guardan el AEP
+                                # con una extensión distinta. El reemplazo es
+                                # seguro para los demás archivos porque solo
+                                # modifica bytes que contienen el marcador.
+                                nested_content, did_change = _replace_caption_text_in_project_aeggraphic(
+                                    nested_content, text
+                                )
+                                nested_changed = nested_changed or did_change
                                 nested_target.writestr(nested_info, nested_content)
                         nested_source.close()
                         if nested_changed:
                             content = nested_buffer.getvalue()
                             modified = True
+                        # Evita entregar una MOGRT aparentemente válida que aún
+                        # mostraría el texto de ejemplo en Premiere.
+                        with zipfile.ZipFile(io.BytesIO(content), "r") as check_zip:
+                            if any(
+                                _caption_placeholder_present(check_zip.read(name))
+                                for name in check_zip.namelist()
+                            ):
+                                raise ValueError(
+                                    "La plantilla de subtítulos conserva el texto de ejemplo; "
+                                    "no se generó un gráfico incompleto."
+                                )
                     except (zipfile.BadZipFile, OSError):
                         # Versiones antiguas pueden omitir el AEP interno;
                         # definition.json sigue siendo suficiente para ellas.
