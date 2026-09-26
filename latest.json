@@ -1,9 +1,9 @@
 {
-  "version": "3.3.2",
-  "displayVersion": "3.3.2 — Gota Creator Kit ☔",
-  "downloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.3.2/GotaCreatorKit-3.3.2-Windows.exe",
-  "windowsDownloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.3.2/GotaCreatorKit-3.3.2-Windows.exe",
-  "macDownloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.3.2/GotaCreatorKit-3.3.2-macOS.zip",
-  "legacyDownloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.3.2/GotaCreatorKit-Legacy-Premiere-2021-a-2025.5-3.3.2.zxp",
-  "notes": "Corrección importante: los subtítulos ya no usan la plantilla de ejemplo como respaldo; cada gráfico se coloca únicamente si contiene el texto transcrito real. Versión unificada para Windows, macOS y Legacy."
+  "version": "3.3.3",
+  "displayVersion": "3.3.3 — Gota Creator Kit ☔",
+  "downloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.3.3/GotaCreatorKit-3.3.3-Windows.exe",
+  "windowsDownloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.3.3/GotaCreatorKit-3.3.3-Windows.exe",
+  "macDownloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.3.3/GotaCreatorKit-3.3.3-macOS.zip",
+  "legacyDownloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.3.3/GotaCreatorKit-Legacy-Premiere-2021-a-2025.5-3.3.3.zxp",
+  "notes": "Corrección de subtítulos editables: el texto real se aplica a todas las variantes internas de la plantilla y se invalida la caché anterior. Versión unificada para Windows, macOS y Legacy."
 }
