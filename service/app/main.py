@@ -33,7 +33,7 @@ from service.hybrid_license import (
     remove_license,
 )
 
-APP_VERSION = "3.3.1"
+APP_VERSION = "3.3.2"
 # Increment this whenever the binary contents of generated caption MOGRTs
 # change.  Including it in the cache key prevents an older cached MOGRT (with
 # the placeholder text) from being reused after an update.
