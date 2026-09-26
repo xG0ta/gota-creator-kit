@@ -6,7 +6,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <AssemblyName>Instalar Gota Creator Kit</AssemblyName>
-    <Version>3.3.1</Version>
+    <Version>3.3.2</Version>
     <SelfContained>true</SelfContained>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <PublishSingleFile>true</PublishSingleFile>
@@ -15,6 +15,6 @@
     <DefaultItemExcludes>$(DefaultItemExcludes);obj\**;bin\**</DefaultItemExcludes>
   </PropertyGroup>
   <ItemGroup>
-    <EmbeddedResource Include="payload-3.3.1-clean.zip" LogicalName="AutoFramePayload" />
+    <EmbeddedResource Include="payload-3.3.2-clean.zip" LogicalName="AutoFramePayload" />
   </ItemGroup>
 </Project>

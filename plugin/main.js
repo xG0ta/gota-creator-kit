@@ -4,7 +4,7 @@ const os = require("os");
 const localFileSystem = storage.localFileSystem;
 
 const SERVICE_URL = "http://127.0.0.1:8765";
-const CURRENT_VERSION = "3.3.1";
+const CURRENT_VERSION = "3.3.2";
 const UPDATE_MANIFEST_URL =
   "https://api.github.com/repos/xG0ta/gota-creator-kit/contents/latest.json?ref=main";
 const OUTPUT_WIDTH = 1080;
@@ -5809,15 +5809,20 @@ let silenceDiagnosticLogs = [];
           try {
             inserted = await insertCaptionMogrt(editor, safeMogrtPath, start, videoTrackIndex);
           } catch (safeError) {
-            // Si una versión de Premiere no acepta el paquete temporal
-            // personalizado, usa la plantilla original como último recurso.
-            // Así la transcripción sigue colocándose y el usuario puede
-            // editar el texto desde Propiedades esenciales.
-            inserted = await insertCaptionMogrt(editor, mogrtPath, start, videoTrackIndex);
+            // Nunca insertes la plantilla original como respaldo: contiene
+            // "ESCRIBE TU SUBTÍTULO" y hace parecer que la transcripción no
+            // funcionó. Es mejor detenerse con un diagnóstico claro que
+            // colocar un gráfico cuyo texto no corresponde.
+            const safeDetail = String(safeError && safeError.message || safeError);
+            throw new Error(
+              `Premiere rechazó el gráfico personalizado. No se colocó una plantilla de ejemplo. ${safeDetail}`
+            );
           }
         }
-        const graphic = Array.isArray(inserted) ? inserted[0] : null;
-        if (!graphic) continue;
+        // Las versiones de Premiere no devuelven siempre el mismo tipo:
+        // algunas devuelven [TrackItem] y otras directamente TrackItem.
+        const graphic = Array.isArray(inserted) ? inserted[0] : inserted;
+        if (!graphic) throw new Error("Premiere no devolvió el gráfico con el texto personalizado.");
         // El gráfico ya está insertado. Los ajustes secundarios no pueden
         // impedir que se termine de colocar el resto si Premiere rechaza un
         // parámetro temporalmente en una versión concreta.
