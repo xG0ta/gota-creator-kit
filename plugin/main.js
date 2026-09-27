@@ -4,7 +4,7 @@ const os = require("os");
 const localFileSystem = storage.localFileSystem;
 
 const SERVICE_URL = "http://127.0.0.1:8765";
-const CURRENT_VERSION = "3.3.5";
+const CURRENT_VERSION = "3.3.6";
 const UPDATE_MANIFEST_URL =
   "https://api.github.com/repos/xG0ta/gota-creator-kit/contents/latest.json?ref=main";
 const OUTPUT_WIDTH = 1080;
@@ -14,17 +14,17 @@ const GOTA_CAPTIONS_MOGRT = "Gota_Subtitulos_Editables.mogrt";
 const delay = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 
 /**
- * El supervisor inicia Python justo después de abrir Premiere. En equipos más
+ * El supervisor inicia Python justo despuÃ©s de abrir Premiere. En equipos mÃ¡s
  * lentos (o en la primera apertura tras actualizar) las peticiones del panel
- * pueden adelantarse al servidor. Esperar aquí evita mostrar el error técnico
- * "Network request failed" como si hubiera fallado la transcripción.
+ * pueden adelantarse al servidor. Esperar aquÃ­ evita mostrar el error tÃ©cnico
+ * "Network request failed" como si hubiera fallado la transcripciÃ³n.
  */
 async function waitForLocalService({ attempts = 50, delayMs = 600, onProgress = null } = {}) {
   let lastError = null;
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
     if (typeof onProgress === "function") {
       const ratio = Math.min(0.92, Math.max(0, (attempt - 1) / Math.max(1, attempts - 1)));
-      onProgress(Math.round(ratio * 24), "Iniciando el motor local…");
+      onProgress(Math.round(ratio * 24), "Iniciando el motor localâ€¦");
     }
     try {
       const response = await fetch(`${SERVICE_URL}/health`);
@@ -34,7 +34,7 @@ async function waitForLocalService({ attempts = 50, delayMs = 600, onProgress = 
       if (engineVersion !== CURRENT_VERSION) {
         throw new Error(
           `El motor local es ${engineVersion || "desconocido"} y el panel es ${CURRENT_VERSION}. ` +
-          "Instala el paquete completo de esta misma versión."
+          "Instala el paquete completo de esta misma versiÃ³n."
         );
       }
       if (typeof onProgress === "function") onProgress(25, "Motor local listo.");
@@ -46,8 +46,8 @@ async function waitForLocalService({ attempts = 50, delayMs = 600, onProgress = 
   }
   const detail = lastError && lastError.message ? ` (${lastError.message})` : "";
   throw new Error(
-    `El motor local no respondió después de ${Math.round((attempts * delayMs) / 1000)} segundos${detail}. ` +
-    "Cierra y vuelve a abrir Premiere; si continúa, reinstala la versión más reciente."
+    `El motor local no respondiÃ³ despuÃ©s de ${Math.round((attempts * delayMs) / 1000)} segundos${detail}. ` +
+    "Cierra y vuelve a abrir Premiere; si continÃºa, reinstala la versiÃ³n mÃ¡s reciente."
   );
 }
 
@@ -56,15 +56,15 @@ async function getBundledCaptionsMogrtPath() {
   const templatesFolder = await pluginFolder.getEntry("templates");
   const mogrt = await templatesFolder.getEntry(GOTA_CAPTIONS_MOGRT);
   if (!mogrt || !mogrt.nativePath) {
-    throw new Error("No se encontro la plantilla de subtítulos incluida en Gota Creator Kit.");
+    throw new Error("No se encontro la plantilla de subtÃ­tulos incluida en Gota Creator Kit.");
   }
   return mogrt.nativePath;
 }
 
 async function makeCaptionMogrt(templatePath, text, style) {
   // Premiere no expone de forma consistente los controles de texto de una
-  // MOGRT recién insertada a UXP. El motor crea una copia temporal de la
-  // plantilla con el texto ya establecido, por lo que cada gráfico llega con
+  // MOGRT reciÃ©n insertada a UXP. El motor crea una copia temporal de la
+  // plantilla con el texto ya establecido, por lo que cada grÃ¡fico llega con
   // su frase correcta y sigue siendo editable en Propiedades esenciales.
   await waitForLocalService();
   const response = await fetch(`${SERVICE_URL}/v1/caption-mogrt`, {
@@ -74,7 +74,7 @@ async function makeCaptionMogrt(templatePath, text, style) {
   });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok || !payload.mogrtPath) {
-    throw new Error(payload.detail || "No se pudo preparar este gráfico de subtítulo.");
+    throw new Error(payload.detail || "No se pudo preparar este grÃ¡fico de subtÃ­tulo.");
   }
   return payload.mogrtPath;
 }
@@ -88,7 +88,7 @@ async function makeCaptionSvg(text, style) {
   });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok || !payload.svgPath) {
-    throw new Error(payload.detail || "No se pudo preparar el texto del subtítulo.");
+    throw new Error(payload.detail || "No se pudo preparar el texto del subtÃ­tulo.");
   }
   return String(payload.svgPath);
 }
@@ -115,17 +115,17 @@ async function insertCaptionSvg(project, sequence, svgPath, start, videoTrackInd
   const insertionBin = ppro.FolderItem.cast(await project.getInsertionBin());
   // Premiere devuelve false cuando el mismo SVG ya existe en el proyecto.
   // Eso no es un fallo: reutilizamos el elemento importado para las frases
-  // repetidas y evitamos que el segundo subtítulo se detenga.
+  // repetidas y evitamos que el segundo subtÃ­tulo se detenga.
   let imported = false;
   try {
     imported = await project.importFiles([String(svgPath)], true, insertionBin, false);
   } catch (_) {
-    // Puede fallar únicamente por duplicado; la búsqueda recursiva de abajo
+    // Puede fallar Ãºnicamente por duplicado; la bÃºsqueda recursiva de abajo
     // determina si el recurso ya estaba disponible.
   }
   const projectItem = await findImportedMediaItem(insertionBin, svgPath);
-  if (!projectItem && !imported) throw new Error("Premiere no pudo importar el texto del subtítulo.");
-  if (!projectItem) throw new Error("Premiere importó el texto, pero no pudo prepararlo para la línea de tiempo.");
+  if (!projectItem && !imported) throw new Error("Premiere no pudo importar el texto del subtÃ­tulo.");
+  if (!projectItem) throw new Error("Premiere importÃ³ el texto, pero no pudo prepararlo para la lÃ­nea de tiempo.");
   const editor = ppro.SequenceEditor.getEditor(sequence);
   let inserted = false;
   project.lockedAccess(() => {
@@ -133,7 +133,7 @@ async function insertCaptionSvg(project, sequence, svgPath, start, videoTrackInd
       compoundAction.addAction(editor.createOverwriteProjectItemAction(
         projectItem, start, Math.max(0, Math.floor(Number(videoTrackIndex) || 0)), -1
       ));
-    }, "Gota Creator Kit: colocar subtítulo nativo");
+    }, "Gota Creator Kit: colocar subtÃ­tulo nativo");
   });
   if (!inserted) throw new Error("Premiere no pudo colocar el texto en una pista de video libre.");
   const track = await sequence.getVideoTrack(Math.max(0, Math.floor(Number(videoTrackIndex) || 0)));
@@ -146,9 +146,9 @@ async function insertCaptionSvg(project, sequence, svgPath, start, videoTrackInd
       const itemStart = await item.getStartTime();
       const delta = Math.abs(itemStart.seconds - expected);
       if (delta < distance) { distance = delta; best = item; }
-    } catch (_) { /* Premiere puede invalidar un elemento durante la inserción */ }
+    } catch (_) { /* Premiere puede invalidar un elemento durante la inserciÃ³n */ }
   }
-  if (!best) throw new Error("Premiere no devolvió el clip de texto insertado.");
+  if (!best) throw new Error("Premiere no devolviÃ³ el clip de texto insertado.");
   return best;
 }
 
@@ -157,7 +157,7 @@ async function insertCaptionSvg(project, sequence, svgPath, start, videoTrackInd
 // llamada corta en el error "Illegal parameter type".
 async function insertCaptionMogrt(editor, path, start, videoTrackIndex) {
   let lastError = null;
-  // UXP/CEP entrega a veces el índice de pista como un valor numérico
+  // UXP/CEP entrega a veces el Ã­ndice de pista como un valor numÃ©rico
   // envuelto. Premiere acepta un entero JS normal, pero rechaza valores
   // negativos o strings con el mensaje "Illegal parameter type".
   const normalizedPath = String(path || "");
@@ -168,7 +168,7 @@ async function insertCaptionMogrt(editor, path, start, videoTrackIndex) {
   if (normalizedTrack > 0) trackCandidates.push(normalizedTrack - 1);
   if (!trackCandidates.includes(0)) trackCandidates.push(0);
   // Premiere 2026 documenta cuatro argumentos, pero algunas revisiones de
-  // UXP/CEP validan el índice de audio de forma distinta: 0 es válido en
+  // UXP/CEP validan el Ã­ndice de audio de forma distinta: 0 es vÃ¡lido en
   // unas versiones, -1 en otras y las versiones antiguas aceptan la firma
   // corta. Probamos las firmas compatibles, siempre con tipos normalizados,
   // en vez de abandonar al primer "Invalid parameter".
@@ -187,7 +187,7 @@ async function insertCaptionMogrt(editor, path, start, videoTrackIndex) {
       }
     }
   }
-  throw lastError || new Error("Premiere no pudo insertar el gráfico de subtítulo.");
+  throw lastError || new Error("Premiere no pudo insertar el grÃ¡fico de subtÃ­tulo.");
 }
 
 async function applySubtitlePosition(project, trackItem, verticalPercent) {
@@ -204,15 +204,15 @@ async function applySubtitlePosition(project, trackItem, verticalPercent) {
       compoundAction.addAction(positionParam.createSetValueAction(
         positionParam.createKeyframe(point), true
       ));
-    }, "Gota Creator Kit: ubicar subtítulo");
+    }, "Gota Creator Kit: ubicar subtÃ­tulo");
   });
   return success;
 }
 
 async function applySubtitleEntrance(project, trackItem, style, verticalPercent) {
-  // Desde 3.2.33 la animación viaja dentro de la MOGRT original de Gota.
-  // No añadimos fotogramas Motion aquí: Premiere puede tratar una MOGRT recién
-  // insertada como no animable y eso antes detenía o duplicaba la entrada.
+  // Desde 3.2.33 la animaciÃ³n viaja dentro de la MOGRT original de Gota.
+  // No aÃ±adimos fotogramas Motion aquÃ­: Premiere puede tratar una MOGRT reciÃ©n
+  // insertada como no animable y eso antes detenÃ­a o duplicaba la entrada.
   return false;
 }
 
@@ -226,7 +226,7 @@ async function trimPlacedCaptionItem(project, trackItem, seconds) {
     project.lockedAccess(() => {
       trimmed = project.executeTransaction((compoundAction) => {
         compoundAction.addAction(trackItem.createSetOutPointAction(outPoint));
-      }, "Gota Creator Kit: ajustar duración de subtítulo");
+      }, "Gota Creator Kit: ajustar duraciÃ³n de subtÃ­tulo");
     });
     if (!trimmed) return false;
     const finalStart = await trackItem.getStartTime();
@@ -237,7 +237,7 @@ async function trimPlacedCaptionItem(project, trackItem, seconds) {
       project.lockedAccess(() => {
         project.executeTransaction((compoundAction) => {
           compoundAction.addAction(trackItem.createMoveAction(ppro.TickTime.createWithSeconds(delta)));
-        }, "Gota Creator Kit: alinear subtítulo");
+        }, "Gota Creator Kit: alinear subtÃ­tulo");
       });
     }
     return true;
@@ -405,12 +405,12 @@ async function findMatchingAudioTrackItem(sequence, clip) {
 }
 
 function isPremiereReferenceExpired(error) {
-  return /script object is no longer valid|object is no longer valid|referencia.*v[aá]lid|objeto.*v[aá]lid/i
+  return /script object is no longer valid|object is no longer valid|referencia.*v[aÃ¡]lid|objeto.*v[aÃ¡]lid/i
     .test(String(error?.message || error || ""));
 }
 
 async function recoverSilenceSourcePair(project, sequence, clip, attempts = 10) {
-  // En proyectos largos Premiere renueva sus colecciones mientras se añaden
+  // En proyectos largos Premiere renueva sus colecciones mientras se aÃ±aden
   // los fragmentos. Nunca reutilizamos un TrackItem de una vuelta anterior:
   // recuperamos la pareja fuente justo antes de solicitar el siguiente clon.
   let lastError = null;
@@ -436,7 +436,7 @@ async function recoverSilenceSourcePair(project, sequence, clip, attempts = 10) 
 
 // El modo que compacta silencios no puede volver a buscar los originales en
 // todas las pistas: una vez que Gota crea los nuevos fragmentos, estos usan el
-// mismo archivo y pueden parecerse al clip fuente. Buscamos únicamente en la
+// mismo archivo y pueden parecerse al clip fuente. Buscamos Ãºnicamente en la
 // pista en la que estaba montado el elemento seleccionado.
 async function findOriginalSilenceTrackItem(sequence, clip, mediaKind) {
   const isVideo = mediaKind === "video";
@@ -471,12 +471,12 @@ async function findOriginalSilenceTrackItem(sequence, clip, mediaKind) {
         bestScore = score;
       }
     } catch (_) {
-      // Premiere puede reconstruir la colección de clips mientras editamos.
+      // Premiere puede reconstruir la colecciÃ³n de clips mientras editamos.
     }
   }
-  // Si el clip original ya se retiró puede existir otro uso del mismo archivo
+  // Si el clip original ya se retirÃ³ puede existir otro uso del mismo archivo
   // en esta misma pista. No lo confundimos con la fuente: debe coincidir tanto
-  // su punto de origen como su posición inicial.
+  // su punto de origen como su posiciÃ³n inicial.
   return bestScore <= 6 ? best : null;
 }
 
@@ -501,8 +501,8 @@ async function findTrackItemAt(track, timelineStart, mediaPath) {
 
 // Tras un recorte Premiere puede conservar el nuevo bloque pero asignarle un
 // identificador y un inicio ligeramente distintos. En las pistas reservadas
-// para Gota buscamos además por el punto de origen, que es estable aunque el
-// clip se haya desplazado internamente durante la transacción.
+// para Gota buscamos ademÃ¡s por el punto de origen, que es estable aunque el
+// clip se haya desplazado internamente durante la transacciÃ³n.
 async function findTrackItemBySource(track, mediaPath, sourceStart, expectedStart) {
   if (!track) return null;
   const items = track.getTrackItems(ppro.Constants.TrackItemType.CLIP, false);
@@ -542,7 +542,7 @@ async function waitForSilenceTrackItem(
   project, sequence, kind, trackIndex, timelineStart, mediaPath, sourceStart,
   // Los proyectos cortos suelen devolver el TrackItem en el primer intento.
   // En una secuencia larga Premiere puede reconstruir pistas durante varios
-  // segundos después de un lote de cortes. Preferimos esperar y recuperar el
+  // segundos despuÃ©s de un lote de cortes. Preferimos esperar y recuperar el
   // objeto vivo antes que abortar el trabajo con "object is no longer valid".
   attempts = 18
 ) {
@@ -570,8 +570,8 @@ async function findLowestAvailableTrack(sequence, kind, position) {
   const getTrack = isVideo
     ? (index) => sequence.getVideoTrack(index)
     : (index) => sequence.getAudioTrack(index);
-  // Se recorre desde V1/A1 hacia arriba. Una pista está disponible cuando el
-  // marcador no cae encima de un clip que ya está en la edición.
+  // Se recorre desde V1/A1 hacia arriba. Una pista estÃ¡ disponible cuando el
+  // marcador no cae encima de un clip que ya estÃ¡ en la ediciÃ³n.
   for (let index = 0; index < count; index += 1) {
     const track = await getTrack(index);
     if (!track) continue;
@@ -587,7 +587,7 @@ async function findLowestAvailableTrack(sequence, kind, position) {
     }
     if (!occupied) return index;
   }
-  // Si todas están ocupadas en este instante, Premiere crea solo una nueva.
+  // Si todas estÃ¡n ocupadas en este instante, Premiere crea solo una nueva.
   return count;
 }
 
@@ -621,8 +621,8 @@ async function findFreeTrackForRange(
     }
     if (!overlaps) return index;
   }
-  // La API de Premiere crea una pista nueva cuando la clonación apunta al
-  // siguiente índice. Así conservamos intactas las pistas con edición.
+  // La API de Premiere crea una pista nueva cuando la clonaciÃ³n apunta al
+  // siguiente Ã­ndice. AsÃ­ conservamos intactas las pistas con ediciÃ³n.
   return count;
 }
 
@@ -642,7 +642,7 @@ async function pickSilenceDestinationTracks(
 }
 
 // Premiere invalida con frecuencia los objetos obtenidos antes de una
-// transacción (sobre todo TrackItem y, en algunas versiones, Sequence). No
+// transacciÃ³n (sobre todo TrackItem y, en algunas versiones, Sequence). No
 // debemos conservarlos entre un clon, un recorte y un movimiento: cada fase
 // vuelve a tomar la secuencia viva para que el eliminador no se detenga a
 // mitad del montaje con "The script object is no longer valid".
@@ -656,7 +656,7 @@ async function getLiveSequenceContext(fallbackProject, fallbackSequence) {
       return { project: activeProject, sequence: activeSequence };
     }
   } catch (_) {
-    // Conservamos el contexto recibido solo como último respaldo.
+    // Conservamos el contexto recibido solo como Ãºltimo respaldo.
   }
   return { project: fallbackProject, sequence: fallbackSequence };
 }
@@ -1620,7 +1620,7 @@ async function cloneTrimmedSegmentOnce(
   }
   if (!originalAudio) {
     throw new Error(
-      "No se encontró el audio correspondiente al video seleccionado."
+      "No se encontrÃ³ el audio correspondiente al video seleccionado."
     );
   }
   const originalVideoTrackIndex = await originalVideo.getTrackIndex();
@@ -1629,21 +1629,21 @@ async function cloneTrimmedSegmentOnce(
   const originalAudioStart = await originalAudio.getStartTime();
   const originalAudioInPoint = await originalAudio.getInPoint();
   // Premiere invalida las referencias de origen cuando crea el primer bloque
-  // en una pista. Todo dato del original que usaremos después debe leerse
-  // antes de la clonación; consultar getSpeed() después era la causa de
+  // en una pista. Todo dato del original que usaremos despuÃ©s debe leerse
+  // antes de la clonaciÃ³n; consultar getSpeed() despuÃ©s era la causa de
   // "The script object is no longer valid" y dejaba el original sin retirar.
   const rawSpeed = Math.abs(Number(await originalVideo.getSpeed()) || 1);
   const speedFactor = rawSpeed > 10 ? rawSpeed / 100 : rawSpeed;
-  // Se obtiene antes de clonar: el TrackItem original puede quedar inválido
+  // Se obtiene antes de clonar: el TrackItem original puede quedar invÃ¡lido
   // en cuanto Premiere crea el nuevo bloque.
   const mediaProjectItem = await originalVideo.getProjectItem();
   const media = ppro.ClipProjectItem.cast(mediaProjectItem);
   const mediaPath = await media.getMediaFilePath();
-  // Si Premiere perdió una referencia justo después de crear el bloque, no
+  // Si Premiere perdiÃ³ una referencia justo despuÃ©s de crear el bloque, no
   // volvemos a duplicarlo. Primero recuperamos ese mismo bloque por su pista,
-  // instante y punto de origen y continuamos el recorte desde ahí. En clips
+  // instante y punto de origen y continuamos el recorte desde ahÃ­. En clips
   // largos esto evita duplicados y permite retomar el trabajo tras una
-  // reconstrucción interna de la secuencia.
+  // reconstrucciÃ³n interna de la secuencia.
   const existingVideo = await waitForSilenceTrackItem(
     project, sequence, "video", targetVideoTrackIndex,
     timelineStart, mediaPath, sourceStart, 1
@@ -1674,7 +1674,7 @@ async function cloneTrimmedSegmentOnce(
     let cloned = false;
     project.lockedAccess(() => {
       cloned = project.executeTransaction((compoundAction) => {
-        // Al clonar desde el video, Premiere conserva el vínculo con el audio
+        // Al clonar desde el video, Premiere conserva el vÃ­nculo con el audio
         // cuando ambos elementos provienen del mismo clip. Hacer dos clones
         // independientes era la causa de que se separaran al moverlos.
         compoundAction.addAction(editor.createCloneTrackItemAction(
@@ -1694,7 +1694,7 @@ async function cloneTrimmedSegmentOnce(
     );
     if (!locatedVideo) {
       throw new Error(
-        "Premiere creó el segmento, pero no pudo localizar el video duplicado."
+        "Premiere creÃ³ el segmento, pero no pudo localizar el video duplicado."
       );
     }
     project = locatedVideo.project;
@@ -1710,11 +1710,11 @@ async function cloneTrimmedSegmentOnce(
       sequence = locatedAudio.sequence;
     }
   }
-  // Algunos montajes no conservan el vínculo interno (por ejemplo material
+  // Algunos montajes no conservan el vÃ­nculo interno (por ejemplo material
   // importado con audio separado). En ese caso duplicamos solamente su audio
   // como respaldo, siempre en la pista reservada para el segmento.
   if (!duplicateAudio) {
-    // La clonación de vídeo pudo invalidar el objeto de audio original. Lo
+    // La clonaciÃ³n de vÃ­deo pudo invalidar el objeto de audio original. Lo
     // recuperamos desde la secuencia viva antes de crear el respaldo.
     live = await getLiveSequenceContext(project, sequence);
     project = live.project;
@@ -1757,7 +1757,7 @@ async function cloneTrimmedSegmentOnce(
   }
   if (!duplicateAudio) {
     throw new Error(
-      "Premiere creó el video, pero no pudo emparejar su audio."
+      "Premiere creÃ³ el video, pero no pudo emparejar su audio."
     );
   }
 
@@ -1777,7 +1777,7 @@ async function cloneTrimmedSegmentOnce(
         );
         if (!inAction || !outAction) {
           throw new Error(
-            "Premiere rechazó los límites del video o de su audio."
+            "Premiere rechazÃ³ los lÃ­mites del video o de su audio."
           );
         }
         compoundAction.addAction(inAction);
@@ -1794,7 +1794,7 @@ async function cloneTrimmedSegmentOnce(
   }
 
   // Premiere debe terminar el trim antes de calcular correctamente el nuevo
-  // inicio y final. En clips largos la colección puede tardar varios ciclos.
+  // inicio y final. En clips largos la colecciÃ³n puede tardar varios ciclos.
   const trimmedVideo = await waitForSilenceTrackItem(
     project, sequence, "video", targetVideoTrackIndex,
     timelineStart, mediaPath, sourceStart
@@ -1819,10 +1819,10 @@ async function cloneTrimmedSegmentOnce(
     duplicateAudio = null;
   }
   if (!duplicateVideo || !duplicateAudio) {
-    // El corte sí se aplicó. Algunas ediciones de Premiere todavía no exponen
-    // el TrackItem nuevo al terminar la transacción; abortar aquí dejaba el
-    // resto del diálogo sin procesar. El bloque ya se creó en la pista
-    // reservada y el siguiente segmento volverá a obtener una secuencia viva.
+    // El corte sÃ­ se aplicÃ³. Algunas ediciones de Premiere todavÃ­a no exponen
+    // el TrackItem nuevo al terminar la transacciÃ³n; abortar aquÃ­ dejaba el
+    // resto del diÃ¡logo sin procesar. El bloque ya se creÃ³ en la pista
+    // reservada y el siguiente segmento volverÃ¡ a obtener una secuencia viva.
     return { video: null, audio: null, pendingVerification: true };
   }
   const trimmedVideoStart = await duplicateVideo.getStartTime();
@@ -1845,7 +1845,7 @@ async function cloneTrimmedSegmentOnce(
         );
         if (!moveAction) {
           throw new Error(
-            "Premiere rechazó la posición compactada del fragmento."
+            "Premiere rechazÃ³ la posiciÃ³n compactada del fragmento."
           );
         }
         compoundAction.addAction(moveAction);
@@ -1889,7 +1889,7 @@ async function cloneTrimmedSegmentOnce(
       Math.abs(actualStart.seconds - timelineStart) > 0.05 ||
       Math.abs(actualEnd.seconds - timelineEnd) > 0.05
     ) {
-      // No interrumpimos todo el lote por la confirmación de un solo bloque:
+      // No interrumpimos todo el lote por la confirmaciÃ³n de un solo bloque:
       // Premiere redondea algunos clips a cuadro y puede variar unos ticks.
       return { video: duplicateVideo, audio: duplicateAudio, pendingVerification: true };
     }
@@ -1905,7 +1905,7 @@ async function disableTrackItem(project, item, label) {
   project.lockedAccess(() => {
     disabled = project.executeTransaction((compoundAction) => {
       const action = item.createSetDisabledAction(true);
-      if (!action) throw new Error(`Premiere rechazó desactivar ${label}.`);
+      if (!action) throw new Error(`Premiere rechazÃ³ desactivar ${label}.`);
       compoundAction.addAction(action);
     }, `AutoFrame: desactivar ${label}`);
   });
@@ -1913,8 +1913,8 @@ async function disableTrackItem(project, item, label) {
 }
 
 async function recordSilenceOperation(event, details = {}) {
-  // El registro vive en el motor local, no dentro del proyecto. Así podemos
-  // saber exactamente en qué fase de Premiere falló un montaje sin pedir al
+  // El registro vive en el motor local, no dentro del proyecto. AsÃ­ podemos
+  // saber exactamente en quÃ© fase de Premiere fallÃ³ un montaje sin pedir al
   // usuario que adivine ni exponer la ruta completa de sus medios.
   try {
     const response = await fetch(`${SERVICE_URL}/v3/silence-diagnostics`, {
@@ -1925,7 +1925,7 @@ async function recordSilenceOperation(event, details = {}) {
     const payload = await response.json().catch(() => ({}));
     return payload.diagnosticLogPath || "";
   } catch (_) {
-    // El registro nunca debe detener la edición si el motor acaba de reiniciar.
+    // El registro nunca debe detener la ediciÃ³n si el motor acaba de reiniciar.
     return "";
   }
 }
@@ -1961,7 +1961,7 @@ async function cloneTrimmedAudioSegment(
   timelineStart, targetAudioTrackIndex, name
 ) {
   if (!originalAudio) {
-    throw new Error("No se encontró el audio seleccionado.");
+    throw new Error("No se encontrÃ³ el audio seleccionado.");
   }
   let live = await getLiveSequenceContext(project, sequence);
   project = live.project;
@@ -2001,7 +2001,7 @@ async function cloneTrimmedAudioSegment(
       const outAction = duplicate.createSetOutPointAction(
         ppro.TickTime.createWithSeconds(sourceEnd)
       );
-      if (!inAction || !outAction) throw new Error("Premiere rechazó el recorte de audio.");
+      if (!inAction || !outAction) throw new Error("Premiere rechazÃ³ el recorte de audio.");
       compoundAction.addAction(inAction);
       compoundAction.addAction(outAction);
       if (typeof duplicate.createSetNameAction === "function") {
@@ -2018,7 +2018,7 @@ async function cloneTrimmedAudioSegment(
   project = trimmedAudio ? trimmedAudio.project : project;
   sequence = trimmedAudio ? trimmedAudio.sequence : sequence;
   duplicate = trimmedAudio ? trimmedAudio.item : null;
-  // Al igual que con video, el recorte ya quedó aplicado aunque Premiere no
+  // Al igual que con video, el recorte ya quedÃ³ aplicado aunque Premiere no
   // entregue de inmediato el nuevo TrackItem. No detenemos el resto del lote.
   if (!duplicate) return null;
   const trimmedStart = await duplicate.getStartTime();
@@ -2030,13 +2030,13 @@ async function cloneTrimmedAudioSegment(
         const action = duplicate.createMoveAction(
           ppro.TickTime.createWithSeconds(correction)
         );
-        if (!action) throw new Error("Premiere rechazó mover el audio.");
+        if (!action) throw new Error("Premiere rechazÃ³ mover el audio.");
         compoundAction.addAction(action);
       }, "Gota Kit: cerrar hueco de audio");
     });
     if (!moved) throw new Error("Premiere no pudo compactar el audio.");
   }
-  // No devolvemos una referencia usada dentro de una transacción: para el
+  // No devolvemos una referencia usada dentro de una transacciÃ³n: para el
   // siguiente corte se vuelve a localizar el elemento desde la secuencia viva.
   return null;
 }
@@ -2046,8 +2046,8 @@ async function cloneSilenceKeptSegment(
   reservedDestinations = null
 ) {
   // Cada reintento vuelve a encontrar el video y audio de origen. No basta
-  // con reintentar el clon: si Premiere ya reconstruyó la secuencia, los
-  // TrackItem recibidos en el intento anterior también están vencidos.
+  // con reintentar el clon: si Premiere ya reconstruyÃ³ la secuencia, los
+  // TrackItem recibidos en el intento anterior tambiÃ©n estÃ¡n vencidos.
   let lastError = null;
   for (let attempt = 0; attempt < 5; attempt += 1) {
     try {
@@ -2066,7 +2066,7 @@ async function cloneSilenceKeptSegment(
         await pickSilenceDestinationTracks(
           sequence, originalVideo, originalAudio, timelineStart, timelineEnd
         );
-      const name = `DIÁLOGO ${formatTimecode(timelineStart)}`;
+      const name = `DIÃLOGO ${formatTimecode(timelineStart)}`;
       if (!originalVideo) {
         return await cloneTrimmedAudioSegment(
           project, sequence, originalAudio, sourceStart, sourceEnd,
@@ -2083,15 +2083,15 @@ async function cloneSilenceKeptSegment(
     }
   }
   throw new Error(
-    `Premiere perdió la referencia del segmento ${formatTimecode(timelineStart)} ` +
-    `después de cinco intentos: ${lastError?.message || String(lastError)}`
+    `Premiere perdiÃ³ la referencia del segmento ${formatTimecode(timelineStart)} ` +
+    `despuÃ©s de cinco intentos: ${lastError?.message || String(lastError)}`
   );
 }
 
 async function removeOriginalSilenceComponent(project, sequence, analysis, mediaKind) {
-  // Un TrackItem deja de ser válido cada vez que Premiere reconstruye una
-  // pista. Retiramos vídeo y audio en transacciones independientes y volvemos
-  // a localizar cada uno antes de tocarlo. Esto evita que borrar el vídeo
+  // Un TrackItem deja de ser vÃ¡lido cada vez que Premiere reconstruye una
+  // pista. Retiramos vÃ­deo y audio en transacciones independientes y volvemos
+  // a localizar cada uno antes de tocarlo. Esto evita que borrar el vÃ­deo
   // invalide la referencia de su audio enlazado.
   let lastError = null;
   for (let attempt = 0; attempt < 4; attempt += 1) {
@@ -2104,15 +2104,15 @@ async function removeOriginalSilenceComponent(project, sequence, analysis, media
       if (!item && mediaKind === "audio") {
         item = await findMatchingAudioTrackItem(live.sequence, analysis.clip);
       }
-      // Si el vídeo enlazado ya retiró también su audio, no hay nada pendiente.
+      // Si el vÃ­deo enlazado ya retirÃ³ tambiÃ©n su audio, no hay nada pendiente.
       if (!item) return 0;
       const editor = ppro.SequenceEditor.getEditor(live.sequence);
       if (!editor) throw new Error("Premiere no pudo abrir el editor de la secuencia.");
       let removed = false;
       live.project.lockedAccess(() => {
         removed = live.project.executeTransaction((compoundAction) => {
-          // La selección se crea dentro de la transacción. Premiere puede
-          // invalidarla cuando se crea entre operaciones de edición.
+          // La selecciÃ³n se crea dentro de la transacciÃ³n. Premiere puede
+          // invalidarla cuando se crea entre operaciones de ediciÃ³n.
           const selection = createEmptyTrackSelectionNow();
           if (!selection.addItem(item, false)) {
             throw new Error("Premiere no pudo preparar el original para retirarlo.");
@@ -2120,12 +2120,12 @@ async function removeOriginalSilenceComponent(project, sequence, analysis, media
           const action = editor.createRemoveItemsAction(
             selection, false, ppro.Constants.MediaType.ANY, false
           );
-          if (!action) throw new Error("Premiere no preparó el retiro del original.");
+          if (!action) throw new Error("Premiere no preparÃ³ el retiro del original.");
           compoundAction.addAction(action);
         }, `Gota Kit: retirar ${mediaKind} original tras compactar silencios`);
       });
       if (removed) return 1;
-      lastError = new Error("Premiere rechazó retirar el original.");
+      lastError = new Error("Premiere rechazÃ³ retirar el original.");
     } catch (error) {
       lastError = error;
     }
@@ -2134,11 +2134,11 @@ async function removeOriginalSilenceComponent(project, sequence, analysis, media
 }
 
 async function removeOriginalSilencePair(project, sequence, analysis) {
-  // Premiere maneja vídeo y audio vinculados como una sola unidad. Quitarlos
+  // Premiere maneja vÃ­deo y audio vinculados como una sola unidad. Quitarlos
   // por separado puede invalidar el segundo TrackItem, que era exactamente la
   // causa del mensaje "The script object is no longer valid". Primero
-  // intentamos un único retiro con los dos elementos frescos en una misma
-  // transacción. Si la pareja no está vinculada, el respaldo anterior seguirá
+  // intentamos un Ãºnico retiro con los dos elementos frescos en una misma
+  // transacciÃ³n. Si la pareja no estÃ¡ vinculada, el respaldo anterior seguirÃ¡
   // intentando quitarlos uno por uno.
   let lastError = null;
   for (let attempt = 0; attempt < 4; attempt += 1) {
@@ -2160,7 +2160,7 @@ async function removeOriginalSilencePair(project, sequence, analysis) {
       let selectedCount = 0;
       live.project.lockedAccess(() => {
         removed = live.project.executeTransaction((compoundAction) => {
-          // Selección, elementos y acción nacen en la misma transacción. Así
+          // SelecciÃ³n, elementos y acciÃ³n nacen en la misma transacciÃ³n. AsÃ­
           // no sobreviven referencias de TrackItem de un corte anterior.
           const selection = createEmptyTrackSelectionNow();
           if (video && selection.addItem(video, false)) selectedCount += 1;
@@ -2171,12 +2171,12 @@ async function removeOriginalSilencePair(project, sequence, analysis) {
           const action = editor.createRemoveItemsAction(
             selection, false, ppro.Constants.MediaType.ANY, false
           );
-          if (!action) throw new Error("Premiere no preparó el retiro del material original.");
+          if (!action) throw new Error("Premiere no preparÃ³ el retiro del material original.");
           compoundAction.addAction(action);
         }, "Gota Kit: retirar video y audio originales tras compactar silencios");
       });
       if (removed) return { removed: selectedCount, alreadyGone: false };
-      lastError = new Error("Premiere rechazó retirar el material original.");
+      lastError = new Error("Premiere rechazÃ³ retirar el material original.");
     } catch (error) {
       lastError = error;
     }
@@ -2185,13 +2185,13 @@ async function removeOriginalSilencePair(project, sequence, analysis) {
 }
 
 async function removeOriginalSilenceClip(project, sequence, analysis) {
-  // No eliminamos físicamente el original durante la misma operación que
+  // No eliminamos fÃ­sicamente el original durante la misma operaciÃ³n que
   // crea, recorta y mueve los nuevos bloques. En varias versiones de Premiere
-  // (sobre todo macOS) ese último borrado reconstruye las pistas e invalida los
-  // TrackItem recién creados: el resultado era el aviso "script object is no
-  // longer valid" y una edición a medias. En su lugar lo desactivamos con
+  // (sobre todo macOS) ese Ãºltimo borrado reconstruye las pistas e invalida los
+  // TrackItem reciÃ©n creados: el resultado era el aviso "script object is no
+  // longer valid" y una ediciÃ³n a medias. En su lugar lo desactivamos con
   // referencias frescas; visual y auditivamente equivale a retirarlo, mantiene
-  // el audio/vídeo sincronizados y deja un Deshacer completamente seguro.
+  // el audio/vÃ­deo sincronizados y deja un Deshacer completamente seguro.
   let disabled = 0;
   const failures = [];
   const parts = analysis.clip.mediaKind === "audio" ? ["audio"] : ["video", "audio"];
@@ -2237,11 +2237,11 @@ async function applySilenceEdit(project, sequence, analyses, mode) {
     );
     if ((!audioOnly && !initialOriginal) || !initialOriginalAudio) {
       throw new Error(
-        `No se encontró el audio vinculado de ${analysis.clip.name}.`
+        `No se encontrÃ³ el audio vinculado de ${analysis.clip.name}.`
       );
     }
     // Se reserva una sola pareja de pistas para todo el tramo del clip. De
-    // esta forma todos los cortes permanecen juntos, no pisan la edición que
+    // esta forma todos los cortes permanecen juntos, no pisan la ediciÃ³n que
     // ya exista y los segmentos de video y audio siguen el mismo destino.
     const reservedDestinations = await pickSilenceDestinationTracks(
       sequence,
@@ -2281,10 +2281,10 @@ async function applySilenceEdit(project, sequence, analyses, mode) {
           reservedDestinations
         );
         // Cada bloque de ocho segmentos cedemos un instante a Premiere para
-        // que reconstruya sus colecciones. No es un límite: permite procesar
-        // clips de cualquier duración sin acumular referencias vencidas.
-        // En clips muy largos cedemos el ciclo de interfaz después de cada
-        // bloque. No limita su duración: evita que Premiere acumule objetos
+        // que reconstruya sus colecciones. No es un lÃ­mite: permite procesar
+        // clips de cualquier duraciÃ³n sin acumular referencias vencidas.
+        // En clips muy largos cedemos el ciclo de interfaz despuÃ©s de cada
+        // bloque. No limita su duraciÃ³n: evita que Premiere acumule objetos
         // de pista vencidos mientras recompone la secuencia.
         const longEdit = analysis.result.keptSegments.length > 24;
         if (longEdit || (segmentIndex + 1) % 3 === 0) {
@@ -2313,7 +2313,7 @@ async function applySilenceEdit(project, sequence, analyses, mode) {
       const timeScale = Number(analysis.clip.sourceToTimelineScale || 1);
       if (!analysis.result.keptSegments || !analysis.result.keptSegments.length) {
         throw new Error(
-          `No se encontró diálogo que conservar en ${analysis.clip.name}; el original no se modificó.`
+          `No se encontrÃ³ diÃ¡logo que conservar en ${analysis.clip.name}; el original no se modificÃ³.`
         );
       }
       let compactedStart = analysis.clip.startSeconds;
@@ -2328,9 +2328,9 @@ async function applySilenceEdit(project, sequence, analyses, mode) {
             kept.startSeconds, kept.endSeconds, compactedStart,
             reservedDestinations
           );
-          // Para clips largos guardamos puntos de control útiles, no cientos
+          // Para clips largos guardamos puntos de control Ãºtiles, no cientos
           // de peticiones locales que pueden retrasar a Premiere. El primer,
-          // cada décimo y el último segmento bastan para diagnosticar un fallo.
+          // cada dÃ©cimo y el Ãºltimo segmento bastan para diagnosticar un fallo.
           if (
             segmentIndex === 0 ||
             (segmentIndex + 1) % 10 === 0 ||
@@ -2363,8 +2363,8 @@ async function applySilenceEdit(project, sequence, analyses, mode) {
           await pauseForPremiere(longEdit ? 280 : 220);
         }
       }
-      // Ahora que todos los fragmentos están unidos en pistas nuevas, retiramos
-      // video y audio de la pista fuente. Antes se hacía en un lote global y
+      // Ahora que todos los fragmentos estÃ¡n unidos en pistas nuevas, retiramos
+      // video y audio de la pista fuente. Antes se hacÃ­a en un lote global y
       // una referencia vencida dejaba el original debajo del resultado.
       const removal = await removeOriginalSilenceClip(project, sequence, analysis);
       removalSummary.removed += removal.removed || 0;
@@ -2428,7 +2428,7 @@ function buildPanel() {
   panel.style.overflowY = "scroll";
   panel.style.overflowX = "hidden";
 
-  const title = makeElement("h2", "Gota Creator Kit ☔");
+  const title = makeElement("h2", "Gota Creator Kit â˜”");
   title.style.margin = "0";
   title.style.fontSize = "18px";
   panel.appendChild(title);
@@ -2650,7 +2650,7 @@ function buildPanel() {
 
   const status = makeElement(
     "div",
-    "Gota Creator Kit ☔ listo. Selecciona un clip para comenzar."
+    "Gota Creator Kit â˜” listo. Selecciona un clip para comenzar."
   );
   status.id = "status";
   status.style.padding = "10px";
@@ -2704,7 +2704,7 @@ function buildPanel() {
   }
   const updateReframeCollapsed = () => {
     reframeHeading.textContent =
-      `${reframeCollapsed ? "▶" : "▼"} Reencuadre automático`;
+      `${reframeCollapsed ? "â–¶" : "â–¼"} Reencuadre automÃ¡tico`;
     reframeBody.style.display = reframeCollapsed ? "none" : "flex";
   };
   reframeHeading.addEventListener("click", () => {
@@ -2715,7 +2715,7 @@ function buildPanel() {
         "autoframeReframeCollapsed", String(reframeCollapsed)
       );
     } catch (_) {
-      // El plegado sigue funcionando durante esta sesión.
+      // El plegado sigue funcionando durante esta sesiÃ³n.
     }
   });
   updateReframeCollapsed();
@@ -2750,7 +2750,7 @@ function buildPanel() {
   silencePanel.appendChild(silenceBody);
   const updateSilenceCollapsed = () => {
     silenceHeading.textContent =
-      `${silenceCollapsed ? "▶" : "▼"} Eliminar silencios`;
+      `${silenceCollapsed ? "â–¶" : "â–¼"} Eliminar silencios`;
     silenceBody.style.display = silenceCollapsed ? "none" : "flex";
   };
   silenceHeading.addEventListener("click", () => {
@@ -2761,7 +2761,7 @@ function buildPanel() {
         "autoframeSilenceCollapsed", String(silenceCollapsed)
       );
     } catch (_) {
-      // El plegado sigue funcionando durante esta sesión.
+      // El plegado sigue funcionando durante esta sesiÃ³n.
     }
   });
 
@@ -2834,10 +2834,10 @@ function buildPanel() {
       : "custom";
   });
 
-  const minimumSilenceLabel = makeElement("label", "Duración mínima");
+  const minimumSilenceLabel = makeElement("label", "DuraciÃ³n mÃ­nima");
   const minimumSilence = makeElement("select");
   [
-    ["0.25", "0.25 s (cortes rápidos)"],
+    ["0.25", "0.25 s (cortes rÃ¡pidos)"],
     ["0.4", "0.40 s (recomendado)"],
     ["0.6", "0.60 s"],
     ["1", "1.00 s"],
@@ -2880,7 +2880,7 @@ function buildPanel() {
     minimumSilence.value = option ? option.value : "custom";
   });
 
-  const paddingLabel = makeElement("label", "Protección de palabras");
+  const paddingLabel = makeElement("label", "ProtecciÃ³n de palabras");
   const silencePadding = makeElement("select");
   [
     ["0.05", "Corta (0.05 s)"],
@@ -2925,7 +2925,7 @@ function buildPanel() {
     silencePadding.value = option ? option.value : "custom";
   });
 
-  const silenceModeLabel = makeElement("label", "Qué hacer con los silencios");
+  const silenceModeLabel = makeElement("label", "QuÃ© hacer con los silencios");
   const silenceMode = makeElement("select");
   [
     ["delete", "Cortar silencios y moverlos (sin huecos)"],
@@ -2965,7 +2965,7 @@ function buildPanel() {
   silenceBody.appendChild(applySilence);
 
   const silenceStatus = makeElement(
-    "div", "Selecciona uno o más clips para analizar."
+    "div", "Selecciona uno o mÃ¡s clips para analizar."
   );
   silenceStatus.style.padding = "8px";
   silenceStatus.style.backgroundColor = "#181818";
@@ -2975,8 +2975,8 @@ function buildPanel() {
   updateSilenceCollapsed();
 
   // Copy Paste evita el paso de guardar una imagen manualmente. El motor local
-  // recibe únicamente el bitmap que el usuario ya copió y lo deja en una
-  // caché privada antes de importarlo en la secuencia activa.
+  // recibe Ãºnicamente el bitmap que el usuario ya copiÃ³ y lo deja en una
+  // cachÃ© privada antes de importarlo en la secuencia activa.
   const copyPastePanel = makeElement("div");
   copyPastePanel.style.display = "flex";
   copyPastePanel.style.flexDirection = "column";
@@ -2987,7 +2987,7 @@ function buildPanel() {
   try {
     copyPasteCollapsed = window.localStorage.getItem("gckCopyPasteCollapsed") !== "false";
   } catch (_) {
-    // El panel comienza plegado si el almacenamiento no está disponible.
+    // El panel comienza plegado si el almacenamiento no estÃ¡ disponible.
   }
   const copyPasteHeading = makeElement("div");
   copyPasteHeading.style.fontWeight = "bold";
@@ -3004,7 +3004,7 @@ function buildPanel() {
   copyPastePanel.appendChild(copyPasteBody);
   const copyPasteHelp = makeElement(
     "div",
-    "Copia una imagen desde el navegador o tu PC y pégala justo donde esté el indicador. Se usará la pista de video libre más baja."
+    "Copia una imagen desde el navegador o tu PC y pÃ©gala justo donde estÃ© el indicador. Se usarÃ¡ la pista de video libre mÃ¡s baja."
   );
   copyPasteHelp.style.fontSize = "10px";
   copyPasteHelp.style.lineHeight = "1.35";
@@ -3032,7 +3032,7 @@ function buildPanel() {
   copyPasteStatus.style.whiteSpace = "pre-wrap";
   copyPasteBody.appendChild(copyPasteStatus);
   const updateCopyPasteCollapsed = () => {
-    copyPasteHeading.textContent = `${copyPasteCollapsed ? "▶" : "▼"} Copy Paste`;
+    copyPasteHeading.textContent = `${copyPasteCollapsed ? "â–¶" : "â–¼"} Copy Paste`;
     copyPasteBody.style.display = copyPasteCollapsed ? "none" : "flex";
   };
   copyPasteHeading.addEventListener("click", () => {
@@ -3085,7 +3085,7 @@ function buildPanel() {
     if (!imported) throw new Error("Premiere no pudo importar la imagen copiada.");
     const projectItem = await findImportedClipboardItem(targetBin, mediaPath);
     if (!projectItem) {
-      throw new Error("Premiere importó la imagen, pero aún no la preparó para colocarla. Presiona Pegar otra vez.");
+      throw new Error("Premiere importÃ³ la imagen, pero aÃºn no la preparÃ³ para colocarla. Presiona Pegar otra vez.");
     }
     const marker = await sequence.getPlayerPosition();
     const videoTrackIndex = await findLowestAvailableTrack(sequence, "video", marker);
@@ -3104,11 +3104,11 @@ function buildPanel() {
   };
   pasteImage.addEventListener("click", async () => {
     if (pasteImage.dataset.busy === "true") return;
-    setPasteBusy(true, "Pegando imagen…");
-    copyPasteStatus.textContent = "Leyendo la imagen copiada y colocándola en la secuencia…";
+    setPasteBusy(true, "Pegando imagenâ€¦");
+    copyPasteStatus.textContent = "Leyendo la imagen copiada y colocÃ¡ndola en la secuenciaâ€¦";
     try {
       const result = await pasteClipboardImage();
-      copyPasteStatus.textContent = `${result.filename} se colocó en ${result.sequence.name}, en una pista de video libre.`;
+      copyPasteStatus.textContent = `${result.filename} se colocÃ³ en ${result.sequence.name}, en una pista de video libre.`;
     } catch (error) {
       copyPasteStatus.textContent = `No se pudo pegar: ${error.message || String(error)}`;
     } finally {
@@ -3117,7 +3117,7 @@ function buildPanel() {
   });
 
   const libraryShortcut = makeElement(
-    "div", "📁 Biblioteca Gota ☔ — ábrela desde Ventana > UXP Plugins para explorar y previsualizar recursos."
+    "div", "ðŸ“ Biblioteca Gota â˜” â€” Ã¡brela desde Ventana > UXP Plugins para explorar y previsualizar recursos."
   );
   libraryShortcut.style.padding = "8px";
   libraryShortcut.style.backgroundColor = "#20252b";
@@ -3127,7 +3127,7 @@ function buildPanel() {
   panel.appendChild(libraryShortcut);
 
   // Biblioteca local: guarda referencias persistentes a varias carpetas que el
-  // usuario elige explícitamente. Se exploran bajo demanda, sin imponer límites.
+  // usuario elige explÃ­citamente. Se exploran bajo demanda, sin imponer lÃ­mites.
   const libraryPanel = makeElement("div");
   libraryPanel.style.display = "none";
   libraryPanel.style.flexDirection = "column";
@@ -3160,7 +3160,7 @@ function buildPanel() {
 
   const libraryHelp = makeElement(
     "div",
-    "Añade todas las carpetas raíz que quieras. Tus archivos nunca se copian ni se suben: solo se muestran desde tu PC."
+    "AÃ±ade todas las carpetas raÃ­z que quieras. Tus archivos nunca se copian ni se suben: solo se muestran desde tu PC."
   );
   libraryHelp.style.fontSize = "10px";
   libraryHelp.style.color = "#b8b8b8";
@@ -3170,7 +3170,7 @@ function buildPanel() {
   libraryActions.style.display = "flex";
   libraryActions.style.gap = "7px";
   libraryBody.appendChild(libraryActions);
-  const addLibraryFolder = makeElement("div", "+ Añadir carpeta");
+  const addLibraryFolder = makeElement("div", "+ AÃ±adir carpeta");
   styleAccountButton(addLibraryFolder, "#1473e6");
   addLibraryFolder.style.flex = "1";
   libraryActions.appendChild(addLibraryFolder);
@@ -3179,7 +3179,7 @@ function buildPanel() {
   refreshLibrary.style.flex = "0 0 82px";
   libraryActions.appendChild(refreshLibrary);
 
-  const libraryStatus = makeElement("div", "Aún no hay carpetas enlazadas.");
+  const libraryStatus = makeElement("div", "AÃºn no hay carpetas enlazadas.");
   libraryStatus.style.padding = "7px";
   libraryStatus.style.backgroundColor = "#181818";
   libraryStatus.style.fontSize = "10px";
@@ -3220,7 +3220,7 @@ function buildPanel() {
     try {
       window.localStorage.setItem(libraryRootsKey, JSON.stringify(libraryRoots));
     } catch (_) {
-      libraryStatus.textContent = "La biblioteca funcionará en esta sesión, pero no se pudo guardar la lista de carpetas.";
+      libraryStatus.textContent = "La biblioteca funcionarÃ¡ en esta sesiÃ³n, pero no se pudo guardar la lista de carpetas.";
     }
   };
   const clearElement = (element) => {
@@ -3252,13 +3252,13 @@ function buildPanel() {
       const files = entries.filter((item) => item.isFile)
         .sort((a, b) => folderLabel(a).localeCompare(folderLabel(b)));
       const summary = makeElement(
-        "div", `${folders.length} carpetas · ${files.length} archivos`
+        "div", `${folders.length} carpetas Â· ${files.length} archivos`
       );
       summary.style.fontSize = "10px";
       summary.style.color = "#a8a8a8";
       libraryContents.appendChild(summary);
       if (!entries.length) {
-        const empty = makeElement("div", "Esta carpeta está vacía.");
+        const empty = makeElement("div", "Esta carpeta estÃ¡ vacÃ­a.");
         empty.style.color = "#999999";
         empty.style.fontSize = "10px";
         libraryContents.appendChild(empty);
@@ -3266,7 +3266,7 @@ function buildPanel() {
       }
       for (const child of folders.concat(files)) {
         const card = makeElement(
-          "div", `${child.isFolder ? "📁" : "📄"} ${folderLabel(child)}`
+          "div", `${child.isFolder ? "ðŸ“" : "ðŸ“„"} ${folderLabel(child)}`
         );
         card.style.padding = "6px";
         card.style.backgroundColor = child.isFolder ? "#20252b" : "#151515";
@@ -3292,7 +3292,7 @@ function buildPanel() {
     }
   };
   const appendFolderTree = async (entry, key, depth, container) => {
-    const row = makeLibraryRow(`▸ 📁 ${folderLabel(entry)}`, depth);
+    const row = makeLibraryRow(`â–¸ ðŸ“ ${folderLabel(entry)}`, depth);
     if (activeLibraryKey === key) row.style.backgroundColor = "#1b4f83";
     const children = makeElement("div");
     children.style.display = "none";
@@ -3301,7 +3301,7 @@ function buildPanel() {
       await renderLibraryContents(entry, key);
       if (!loaded) {
         loaded = true;
-        row.textContent = `▾ 📁 ${folderLabel(entry)}`;
+        row.textContent = `â–¾ ðŸ“ ${folderLabel(entry)}`;
         try {
           const subfolders = (await entry.getEntries())
             .filter((child) => child.isFolder)
@@ -3314,7 +3314,7 @@ function buildPanel() {
         }
       }
       children.style.display = children.style.display === "none" ? "block" : "none";
-      row.textContent = `${children.style.display === "none" ? "▸" : "▾"} 📁 ${folderLabel(entry)}`;
+      row.textContent = `${children.style.display === "none" ? "â–¸" : "â–¾"} ðŸ“ ${folderLabel(entry)}`;
     });
     container.appendChild(row);
     container.appendChild(children);
@@ -3327,13 +3327,13 @@ function buildPanel() {
     for (const root of libraryRoots) {
       try {
         const entry = await localFileSystem.getEntryForPersistentToken(root.token);
-        if (!entry || !entry.isFolder) throw new Error("La carpeta ya no está disponible.");
+        if (!entry || !entry.isFolder) throw new Error("La carpeta ya no estÃ¡ disponible.");
         libraryEntries.set(root.id, entry);
         available += 1;
         const rootWrap = makeElement("div");
         rootWrap.style.display = "flex";
         rootWrap.style.alignItems = "center";
-        const remove = makeElement("div", "×");
+        const remove = makeElement("div", "Ã—");
         remove.style.padding = "4px 7px";
         remove.style.color = "#ed8b8b";
         remove.style.cursor = "pointer";
@@ -3348,16 +3348,16 @@ function buildPanel() {
         libraryTree.appendChild(rootWrap);
         await appendFolderTree(entry, root.id, 0, rootWrap);
       } catch (_) {
-        const unavailable = makeLibraryRow(`⚠ ${root.name || "Carpeta"} — vuelve a enlazarla`, 0);
+        const unavailable = makeLibraryRow(`âš  ${root.name || "Carpeta"} â€” vuelve a enlazarla`, 0);
         unavailable.style.color = "#edc36f";
         libraryTree.appendChild(unavailable);
       }
     }
     libraryStatus.textContent = available
-      ? `${available} carpeta${available === 1 ? "" : "s"} raíz disponible${available === 1 ? "" : "s"}.`
-      : "Aún no hay carpetas enlazadas o sus permisos cambiaron.";
+      ? `${available} carpeta${available === 1 ? "" : "s"} raÃ­z disponible${available === 1 ? "" : "s"}.`
+      : "AÃºn no hay carpetas enlazadas o sus permisos cambiaron.";
     if (!available) {
-      libraryContents.appendChild(makeElement("div", "Añade una carpeta para ver aquí sus archivos y subcarpetas."));
+      libraryContents.appendChild(makeElement("div", "AÃ±ade una carpeta para ver aquÃ­ sus archivos y subcarpetas."));
     }
   };
   addLibraryFolder.addEventListener("click", async () => {
@@ -3376,12 +3376,12 @@ function buildPanel() {
       await renderLibrary();
     } catch (error) {
       libraryStatus.textContent =
-        "No se pudo enlazar la carpeta. Acepta el permiso de carpeta de Premiere e inténtalo de nuevo.";
+        "No se pudo enlazar la carpeta. Acepta el permiso de carpeta de Premiere e intÃ©ntalo de nuevo.";
     }
   });
   refreshLibrary.addEventListener("click", () => renderLibrary());
   const updateLibraryCollapsed = () => {
-    libraryHeading.textContent = `${libraryCollapsed ? "▶" : "▼"} Biblioteca local`;
+    libraryHeading.textContent = `${libraryCollapsed ? "â–¶" : "â–¼"} Biblioteca local`;
     libraryBody.style.display = libraryCollapsed ? "none" : "flex";
   };
   libraryHeading.addEventListener("click", () => {
@@ -3573,10 +3573,10 @@ function buildPanel() {
     const months = Math.floor(afterYears / 30);
     const days = afterYears % 30;
     const parts = [];
-    if (years) parts.push(`${years} ${years === 1 ? "año" : "años"}`);
+    if (years) parts.push(`${years} ${years === 1 ? "aÃ±o" : "aÃ±os"}`);
     if (months) parts.push(`${months} ${months === 1 ? "mes" : "meses"}`);
     if (days || parts.length === 0) {
-      parts.push(`${days} ${days === 1 ? "día" : "días"}`);
+      parts.push(`${days} ${days === 1 ? "dÃ­a" : "dÃ­as"}`);
     }
     return parts.join(", ");
   }
@@ -3606,7 +3606,7 @@ function buildPanel() {
     passwordInput.style.display = signedIn ? "none" : "block";
     accountActions.style.display = signedIn ? "none" : "flex";
     giftRow.style.display = signedIn ? "flex" : "none";
-    // Debe estar disponible también antes de registrar una licencia.
+    // Debe estar disponible tambiÃ©n antes de registrar una licencia.
     subscribeButton.style.display = "flex";
     logoutButton.style.display = signedIn ? "flex" : "none";
     if (!signedIn) {
@@ -3712,7 +3712,7 @@ function buildPanel() {
       );
       if (result) throw new Error(String(result));
       accountMessage.textContent =
-        "Instagram se abrió. Envíame un mensaje para comprar tu licencia.";
+        "Instagram se abriÃ³. EnvÃ­ame un mensaje para comprar tu licencia.";
     } catch (error) {
       accountMessage.textContent =
         "No se pudo abrir Instagram: " + (error.message || String(error));
@@ -3854,7 +3854,7 @@ function buildPanel() {
     graceNotice.style.display = grace ? "block" : "none";
     if (grace) {
       graceNotice.textContent =
-        `Bienvenido a Gota Creator Kit ☔\n` +
+        `Bienvenido a Gota Creator Kit â˜”\n` +
         `Tienes una prorroga gratuita de 7 dias para conseguir tu licencia.\n` +
         `Tiempo restante: ${formatLicenseRemaining(license.daysRemaining)}.`;
     }
@@ -3905,7 +3905,7 @@ function buildPanel() {
   updateCodeLicenseCollapsed();
 
   async function signedLicenseRequest(path, method, body) {
-    // El supervisor arranca el motor unos instantes después de Premiere. Al
+    // El supervisor arranca el motor unos instantes despuÃ©s de Premiere. Al
     // reabrir el panel no confundimos ese arranque con una licencia perdida.
     let response;
     let lastError;
@@ -3923,7 +3923,7 @@ function buildPanel() {
       }
     }
     if (!response) {
-      throw new Error("El motor local está iniciando. Espera unos segundos y vuelve a intentarlo.");
+      throw new Error("El motor local estÃ¡ iniciando. Espera unos segundos y vuelve a intentarlo.");
     }
     if (!response.ok) {
       let message = `Error ${response.status}`;
@@ -3982,7 +3982,7 @@ function buildPanel() {
       const result = await shell.openExternal("https://ig.me/m/jahir.emm");
       if (result) throw new Error(String(result));
       codeLicenseStatus.textContent =
-        "Instagram se abrió. Envíame un mensaje para comprar tu licencia.";
+        "Instagram se abriÃ³. EnvÃ­ame un mensaje para comprar tu licencia.";
     } catch (error) {
       codeLicenseStatus.textContent =
         "No se pudo abrir Instagram: " + (error.message || String(error));
@@ -4049,7 +4049,7 @@ function buildPanel() {
   updateNotice.style.textAlign = "center";
   panel.appendChild(updateNotice);
 
-  const footer = makeElement("div", "¡Entérate de las novedades!");
+  const footer = makeElement("div", "Â¡EntÃ©rate de las novedades!");
   footer.style.marginTop = "8px";
   footer.style.paddingTop = "10px";
   footer.style.borderTop = "1px solid #444444";
@@ -4069,7 +4069,7 @@ function buildPanel() {
   instagram.setAttribute("tabindex", "0");
   panel.appendChild(instagram);
 
-  const version = makeElement("div", `Versión ${CURRENT_VERSION}`);
+  const version = makeElement("div", `VersiÃ³n ${CURRENT_VERSION}`);
   version.textContent = `Versi\u00f3n ${CURRENT_VERSION}`;
   version.style.textAlign = "center";
   version.style.color = "#777777";
@@ -4111,7 +4111,7 @@ let silenceDiagnosticLogs = [];
     updateButton.textContent = "Buscando...";
     updateButton.style.opacity = "0.65";
     updateStatus.style.display = "block";
-    updateStatus.textContent = "Consultando la versión más reciente...";
+    updateStatus.textContent = "Consultando la versiÃ³n mÃ¡s reciente...";
     try {
       const separator = UPDATE_MANIFEST_URL.includes("?") ? "&" : "?";
       const response = await fetch(
@@ -4119,54 +4119,54 @@ let silenceDiagnosticLogs = [];
         { headers: { Accept: "application/vnd.github.raw+json" } }
       );
       if (!response.ok) {
-        throw new Error(`GitHub respondió ${response.status}`);
+        throw new Error(`GitHub respondiÃ³ ${response.status}`);
       }
       const release = JSON.parse(await response.text());
       const comparison = compareVersions(release.version, CURRENT_VERSION);
       if (comparison === null) {
-        throw new Error("El archivo de actualización no tiene una versión válida");
+        throw new Error("El archivo de actualizaciÃ³n no tiene una versiÃ³n vÃ¡lida");
       }
       if (comparison > 0) {
         availableDownloadUrl = String(
           // Solo Windows debe recibir el .exe. UXP puede reportar macOS con
-          // nombres distintos según la versión de Premiere.
+          // nombres distintos segÃºn la versiÃ³n de Premiere.
           os.platform() === "win32"
             ? (release.windowsDownloadUrl || release.downloadUrl || "")
             : (release.macDownloadUrl || release.downloadUrl || "")
         );
         updateButton.textContent = availableDownloadUrl
-          ? "Descargar actualización"
-          : "Actualización disponible";
+          ? "Descargar actualizaciÃ³n"
+          : "ActualizaciÃ³n disponible";
         updateButton.style.backgroundColor = "#1473e6";
         updateButton.style.color = "#ffffff";
         updateStatus.textContent =
-          `Nueva versión: ${release.displayVersion || release.version}` +
+          `Nueva versiÃ³n: ${release.displayVersion || release.version}` +
           (release.notes ? `\n${release.notes}` : "");
         showUpdateNotice(
-          `¡Actualización disponible! ${release.displayVersion || release.version}`
+          `Â¡ActualizaciÃ³n disponible! ${release.displayVersion || release.version}`
         );
       } else {
         updateButton.textContent = "Buscar actualizaciones";
         updateButton.style.backgroundColor = "#292929";
         updateStatus.textContent =
           comparison === 0
-            ? "Gota Creator Kit está actualizado."
-            : "Esta instalación es más nueva que la versión publicada.";
+            ? "Gota Creator Kit estÃ¡ actualizado."
+            : "Esta instalaciÃ³n es mÃ¡s nueva que la versiÃ³n publicada.";
         if (!silentWhenCurrent || comparison !== 0) {
           showUpdateNotice(
             comparison === 0
-              ? "Ya tienes la versión más reciente."
-              : "Esta instalación es más nueva que la versión publicada."
+              ? "Ya tienes la versiÃ³n mÃ¡s reciente."
+              : "Esta instalaciÃ³n es mÃ¡s nueva que la versiÃ³n publicada."
           );
         }
       }
     } catch (error) {
-      updateButton.textContent = "Reintentar actualización";
+      updateButton.textContent = "Reintentar actualizaciÃ³n";
       updateButton.style.backgroundColor = "#292929";
       updateStatus.textContent =
-        "No se pudo consultar la actualización.\n" +
-        "Revisa tu conexión a internet e inténtalo de nuevo.";
-      showUpdateNotice("No se pudo buscar la actualización.", true);
+        "No se pudo consultar la actualizaciÃ³n.\n" +
+        "Revisa tu conexiÃ³n a internet e intÃ©ntalo de nuevo.";
+      showUpdateNotice("No se pudo buscar la actualizaciÃ³n.", true);
     } finally {
       checkingUpdates = false;
       updateButton.style.opacity = "1";
@@ -4245,11 +4245,11 @@ let silenceDiagnosticLogs = [];
     }
     silenceAnalyses = [];
     silenceDiagnosticLogs = [];
-    silenceStatus.textContent = "Leyendo la selección de Premiere...";
+    silenceStatus.textContent = "Leyendo la selecciÃ³n de Premiere...";
     try {
       // Registra incluso los fallos que ocurren antes de que el motor pueda
-      // crear el trabajo (por ejemplo, una selección inválida o un ajuste
-      // cambiado). Así Natural deja una pista de diagnóstico verificable.
+      // crear el trabajo (por ejemplo, una selecciÃ³n invÃ¡lida o un ajuste
+      // cambiado). AsÃ­ Natural deja una pista de diagnÃ³stico verificable.
       const analysisDiagnosticPath = await recordSilenceOperation(
         "analysis_requested",
         {
@@ -4265,7 +4265,7 @@ let silenceDiagnosticLogs = [];
       const sequence = await project.getActiveSequence();
       if (!sequence) throw new Error("No hay una secuencia activa.");
       const clips = await collectSelectedSilenceClips(sequence);
-      if (!clips.length) throw new Error("Selecciona uno o más clips de video o audio.");
+      if (!clips.length) throw new Error("Selecciona uno o mÃ¡s clips de video o audio.");
       const manualThreshold = Number(thresholdInput.value);
       const manualMinimum = Number(minimumSilenceInput.value);
       const manualPadding = Number(silencePaddingInput.value);
@@ -4277,10 +4277,10 @@ let silenceDiagnosticLogs = [];
         throw new Error("Escribe un nivel entre -96 y 0 dB.");
       }
       if (!Number.isFinite(manualMinimum) || manualMinimum < 0.1 || manualMinimum > 5) {
-        throw new Error("Escribe una duración entre 0.10 y 5.00 segundos.");
+        throw new Error("Escribe una duraciÃ³n entre 0.10 y 5.00 segundos.");
       }
       if (!Number.isFinite(manualPadding) || manualPadding < 0 || manualPadding > 1) {
-        throw new Error("Escribe una protección entre 0 y 1 segundo.");
+        throw new Error("Escribe una protecciÃ³n entre 0 y 1 segundo.");
       }
 
       for (let index = 0; index < clips.length; index += 1) {
@@ -4309,7 +4309,7 @@ let silenceDiagnosticLogs = [];
           await new Promise((resolve) => setTimeout(resolve, 400));
           const jobResponse = await fetch(`${SERVICE_URL}/v1/jobs/${created.jobId}`);
           if (!jobResponse.ok) {
-            throw new Error("No se pudo consultar el análisis de audio.");
+            throw new Error("No se pudo consultar el anÃ¡lisis de audio.");
           }
           job = await jobResponse.json();
           const remaining = estimateRemainingSeconds(jobStartedAt, job.progress);
@@ -4322,7 +4322,7 @@ let silenceDiagnosticLogs = [];
         } while (job.status === "queued" || job.status === "running");
         if (job.diagnosticLogPath) silenceDiagnosticLogs.push(job.diagnosticLogPath);
         if (job.status !== "completed") {
-          throw new Error(job.error || "El análisis de silencios falló.");
+          throw new Error(job.error || "El anÃ¡lisis de silencios fallÃ³.");
         }
         silenceAnalyses.push({ clip, result: job.result });
         try {
@@ -4330,7 +4330,7 @@ let silenceDiagnosticLogs = [];
             method: "DELETE"
           });
         } catch (_) {
-          // El servicio también limpia trabajos antiguos.
+          // El servicio tambiÃ©n limpia trabajos antiguos.
         }
       }
 
@@ -4351,7 +4351,7 @@ let silenceDiagnosticLogs = [];
             item.clip.startSeconds +
             (silence.startSeconds - item.clip.inPointSeconds) *
             timeScale;
-          return `${formatTimecode(scaledTimelineTime)} — ` +
+          return `${formatTimecode(scaledTimelineTime)} â€” ` +
             `${(silence.durationSeconds * timeScale).toFixed(1)} s`;
         })
       );
@@ -4359,13 +4359,13 @@ let silenceDiagnosticLogs = [];
         (item) => item.result.diagnostics?.thresholdWasLimited
       );
       const diagnosticHint = silenceDiagnosticLogs.length
-        ? `\n\nRegistro de diagnóstico guardado:\n${silenceDiagnosticLogs[0]}`
+        ? `\n\nRegistro de diagnÃ³stico guardado:\n${silenceDiagnosticLogs[0]}`
         : "";
       silenceStatus.textContent =
-        `Análisis listo: ${silenceCount} silencios\n` +
+        `AnÃ¡lisis listo: ${silenceCount} silencios\n` +
         `Tiempo que puede retirarse: ${formatTimecode(savedSeconds)}` +
         (thresholdLimited
-          ? "\nNivel ajustado de forma conservadora para no cortar conversación normal."
+          ? "\nNivel ajustado de forma conservadora para no cortar conversaciÃ³n normal."
           : "") +
         (examples.length
           ? `\n\nPrimeros resultados:\n${examples.join("\n")}`
@@ -4387,7 +4387,7 @@ let silenceDiagnosticLogs = [];
       });
       silenceStatus.textContent =
         `Error: ${error.message || String(error)}\n` +
-        "Registro de diagnóstico: " +
+        "Registro de diagnÃ³stico: " +
         (diagnosticPath || silenceDiagnosticLogs[0] ||
           "vuelve a iniciar Premiere para activar el motor actualizado.");
     } finally {
@@ -4400,17 +4400,17 @@ let silenceDiagnosticLogs = [];
       silenceBusy || !silenceAnalyses.length ||
       !silenceProject || !silenceSequence
     ) return;
-    // El botón verde aplica directamente. La confirmación de dos clics hacía
-    // parecer que el módulo fallaba, porque el primer clic no editaba nada.
-    // Premiere guarda todo dentro de una operación reversible con Deshacer.
+    // El botÃ³n verde aplica directamente. La confirmaciÃ³n de dos clics hacÃ­a
+    // parecer que el mÃ³dulo fallaba, porque el primer clic no editaba nada.
+    // Premiere guarda todo dentro de una operaciÃ³n reversible con Deshacer.
     setSilenceBusy(true);
     setSilenceApplyEnabled(false);
     silenceStatus.textContent =
       silenceMode.value === "delete"
         ? "Cerrando silencios en la secuencia activa..."
-        : "Colocando silencios para revisión en la pista superior...";
+        : "Colocando silencios para revisiÃ³n en la pista superior...";
     try {
-      // El análisis puede durar varios minutos. Antes de editar volvemos a
+      // El anÃ¡lisis puede durar varios minutos. Antes de editar volvemos a
       // tomar el proyecto y la secuencia actual, ya que Premiere invalida el
       // objeto anterior si el usuario hizo cualquier cambio mientras tanto.
       const activeProject = await ppro.Project.getActiveProject();
@@ -4427,7 +4427,7 @@ let silenceDiagnosticLogs = [];
       );
       if (refreshed) {
         silenceStatus.textContent +=
-          `\nSe actualizaron ${refreshed} clips movidos en la línea de tiempo.`;
+          `\nSe actualizaron ${refreshed} clips movidos en la lÃ­nea de tiempo.`;
       }
       const edited = await applySilenceEdit(
         silenceProject, silenceSequence, silenceAnalyses, silenceMode.value
@@ -4435,15 +4435,15 @@ let silenceDiagnosticLogs = [];
       silenceStatus.textContent =
         `Secuencia actualizada: ${edited.sequence.name}\n` +
         (silenceMode.value === "delete"
-          ? "Los fragmentos con diálogo quedaron unidos sin huecos. " +
+          ? "Los fragmentos con diÃ¡logo quedaron unidos sin huecos. " +
             (edited.removalSummary.pendingCleanup
-              ? "Premiere no permitió retirar un original al primer intento; el diálogo nuevo ya quedó creado. Usa Deshacer si ves un duplicado."
+              ? "Premiere no permitiÃ³ retirar un original al primer intento; el diÃ¡logo nuevo ya quedÃ³ creado. Usa Deshacer si ves un duplicado."
               : edited.removalSummary.disabled
-              ? "Premiere protegió el borrado de un original; quedó desactivado para que no se duplique."
+              ? "Premiere protegiÃ³ el borrado de un original; quedÃ³ desactivado para que no se duplique."
               : "Los clips originales se retiraron.") +
-            " Si quieres volver atrás, usa Deshacer en Premiere."
-          : "La pista superior muestra los diálogos conservados y el video " +
-            "original quedó desactivado.");
+            " Si quieres volver atrÃ¡s, usa Deshacer en Premiere."
+          : "La pista superior muestra los diÃ¡logos conservados y el video " +
+            "original quedÃ³ desactivado.");
     } catch (error) {
       const diagnosticPath = await recordSilenceOperation("apply_failed", {
         mode: silenceMode.value,
@@ -4452,8 +4452,8 @@ let silenceDiagnosticLogs = [];
       });
       silenceStatus.textContent =
         `No se pudo aplicar: ${error.message || String(error)}\n` +
-        "Revisa la secuencia y usa Deshacer si Premiere alcanzó a crear algún bloque." +
-        (diagnosticPath ? `\nRegistro para diagnóstico: ${diagnosticPath}` : "");
+        "Revisa la secuencia y usa Deshacer si Premiere alcanzÃ³ a crear algÃºn bloque." +
+        (diagnosticPath ? `\nRegistro para diagnÃ³stico: ${diagnosticPath}` : "");
       setSilenceApplyEnabled(true);
     } finally {
       setSilenceBusy(false);
@@ -4512,7 +4512,7 @@ let silenceDiagnosticLogs = [];
 
     const updateCollapsedState = () => {
       heading.textContent =
-        `${previewCollapsed ? "▶" : "▼"} Vista previa de planos`;
+        `${previewCollapsed ? "â–¶" : "â–¼"} Vista previa de planos`;
       shotList.style.display = previewCollapsed ? "none" : "flex";
     };
     heading.addEventListener("click", () => {
@@ -4559,7 +4559,7 @@ let silenceDiagnosticLogs = [];
         );
         const timeButton = makeElement(
           "div",
-          `Plano ${shotIndex + 1} · ${formatTimecode(timelineSeconds)}`
+          `Plano ${shotIndex + 1} Â· ${formatTimecode(timelineSeconds)}`
         );
         timeButton.style.color = "#6eb6ff";
         timeButton.style.cursor = "pointer";
@@ -4865,7 +4865,7 @@ let silenceDiagnosticLogs = [];
       const refreshed = await refreshAnalysisLocations(lastSequence, lastAnalyses);
       if (refreshed) {
         status.textContent +=
-          `\nSe actualizaron ${refreshed} clips movidos en la línea de tiempo.`;
+          `\nSe actualizaron ${refreshed} clips movidos en la lÃ­nea de tiempo.`;
       }
       const isMulticam = lastAnalyses.every(
         (analysis) => Boolean(analysis.clip.multicam)
@@ -4901,8 +4901,8 @@ let silenceDiagnosticLogs = [];
     }
   });
 
-  // Primera base visual de subtítulos: los estilos se pueden elegir y
-  // previsualizar desde ahora. El motor de transcripción local se conecta en
+  // Primera base visual de subtÃ­tulos: los estilos se pueden elegir y
+  // previsualizar desde ahora. El motor de transcripciÃ³n local se conecta en
   // la siguiente etapa, sin obligar al usuario a contratar una API externa.
   const captionsPanel = makeElement("div");
   captionsPanel.style.display = "flex";
@@ -4929,11 +4929,11 @@ let silenceDiagnosticLogs = [];
   captionsBody.style.border = "1px solid #3a424c";
   captionsBody.style.borderRadius = "7px";
   captionsPanel.appendChild(captionsBody);
-  const captionsHelp = makeElement("div", "Personaliza el estilo antes de generar los subtítulos.");
+  const captionsHelp = makeElement("div", "Personaliza el estilo antes de generar los subtÃ­tulos.");
   captionsHelp.style.fontSize = "10px";
   captionsHelp.style.color = "#bdc7d3";
   captionsBody.appendChild(captionsHelp);
-  const captionsStyleLabel = makeElement("label", "Estilo de animación");
+  const captionsStyleLabel = makeElement("label", "Estilo de animaciÃ³n");
   captionsStyleLabel.style.display = "flex";
   captionsStyleLabel.style.justifyContent = "space-between";
   captionsStyleLabel.style.alignItems = "center";
@@ -4944,7 +4944,7 @@ let silenceDiagnosticLogs = [];
   captionsStyle.style.width = "58%";
   captionsStyleLabel.appendChild(captionsStyle);
   captionsBody.appendChild(captionsStyleLabel);
-  const captionPresetLabel = makeElement("div", "Estilos rápidos");
+  const captionPresetLabel = makeElement("div", "Estilos rÃ¡pidos");
   captionPresetLabel.style.fontSize = "11px";
   captionsBody.appendChild(captionPresetLabel);
   const captionPresetRow = makeElement("div");
@@ -4968,23 +4968,23 @@ let silenceDiagnosticLogs = [];
       captionPresetRow.appendChild(button);
     });
   // Los controles nativos de rango de UXP han tenido comportamientos distintos
-  // según la versión de Premiere (en algunos equipos saltan de mínimo a máximo).
-  // Este control mide directamente la posición dentro de su propia barra.
+  // segÃºn la versiÃ³n de Premiere (en algunos equipos saltan de mÃ­nimo a mÃ¡ximo).
+  // Este control mide directamente la posiciÃ³n dentro de su propia barra.
   const makePrecisionSlider = (minimum, maximum, initial, step = 1) => {
     const control = { value: String(initial), onChange: null };
     const wrap = makeElement("div"); wrap.style.display = "flex"; wrap.style.width = "100%"; wrap.style.minWidth = "0"; wrap.style.alignItems = "center"; wrap.style.gap = "10px";
     const track = makeElement("div"); track.style.position = "relative"; track.style.height = "4px"; track.style.minWidth = "86px"; track.style.flex = "1 1 86px"; track.style.backgroundColor = "#59616c"; track.style.borderRadius = "3px"; track.style.cursor = "pointer";
     const fill = makeElement("div"); fill.style.position = "absolute"; fill.style.left = "0"; fill.style.top = "0"; fill.style.height = "100%"; fill.style.backgroundColor = "#4a94e6"; fill.style.borderRadius = "3px";
     const thumb = makeElement("div"); thumb.style.position = "absolute"; thumb.style.top = "50%"; thumb.style.width = "13px"; thumb.style.height = "13px"; thumb.style.marginTop = "-6.5px"; thumb.style.marginLeft = "-6.5px"; thumb.style.borderRadius = "50%"; thumb.style.backgroundColor = "#d9e2ec"; thumb.style.border = "2px solid #303842"; thumb.style.boxSizing = "border-box"; thumb.style.pointerEvents = "none";
-    // El número también es un campo editable: escribir 17.1 es más cómodo
+    // El nÃºmero tambiÃ©n es un campo editable: escribir 17.1 es mÃ¡s cÃ³modo
     // que arrastrar cuando se busca una medida exacta.
     const readout = makeElement("input"); readout.type = "text"; readout.value = String(initial); readout.style.width = "48px"; readout.style.padding = "3px 4px"; readout.style.boxSizing = "border-box"; readout.style.textAlign = "right"; readout.style.color = "#9dc6f5"; readout.style.fontSize = "11px"; readout.style.backgroundColor = "#11151a"; readout.style.border = "1px solid #4c5866"; readout.style.borderRadius = "3px";
     track.appendChild(fill); track.appendChild(thumb); wrap.appendChild(track); wrap.appendChild(readout);
     const refresh = () => { const raw = Number(control.value); const ratio = Math.max(0, Math.min(1, (raw - minimum) / (maximum - minimum))); fill.style.width = `${ratio * 100}%`; thumb.style.left = `${ratio * 100}%`; readout.value = Number(raw.toFixed(step < 1 ? 1 : 0)).toString(); };
     const setFromEvent = (event) => {
       const rect = track.getBoundingClientRect();
-      // offsetX suele ser el dato más preciso en UXP. Si no existe, usamos
-      // clientX; nunca dividimos por un ancho 0 cuando Premiere aún acomoda el panel.
+      // offsetX suele ser el dato mÃ¡s preciso en UXP. Si no existe, usamos
+      // clientX; nunca dividimos por un ancho 0 cuando Premiere aÃºn acomoda el panel.
       const localX = Number.isFinite(event.offsetX) ? event.offsetX : Number(event.clientX) - rect.left;
       const width = Math.max(1, Number(rect.width) || Number(track.offsetWidth) || 1);
       const ratio = Math.max(0, Math.min(1, localX / width));
@@ -5005,7 +5005,7 @@ let silenceDiagnosticLogs = [];
     readout.addEventListener("input", applyEnteredValue);
     readout.addEventListener("change", applyEnteredValue);
     // Los presets usan el mismo camino que un arrastre o un valor escrito;
-    // así la vista previa no queda desfasada al cambiar de estilo.
+    // asÃ­ la vista previa no queda desfasada al cambiar de estilo.
     control.setValue = (nextValue, notify = false) => {
       const numeric = Number(nextValue);
       if (!Number.isFinite(numeric)) return;
@@ -5016,7 +5016,7 @@ let silenceDiagnosticLogs = [];
     };
     refresh(); control.element = wrap; return control;
   };
-  const captionsSizeLabel = makeElement("div", "Tamaño del texto");
+  const captionsSizeLabel = makeElement("div", "TamaÃ±o del texto");
   captionsSizeLabel.style.fontSize = "11px";
   captionsSizeLabel.style.display = "flex";
   captionsSizeLabel.style.flexDirection = "column";
@@ -5024,7 +5024,7 @@ let silenceDiagnosticLogs = [];
   const captionsSize = makePrecisionSlider(12, 180, 42, 1);
   captionsSizeLabel.appendChild(captionsSize.element);
   captionsBody.appendChild(captionsSizeLabel);
-  const captionsWordsLabel = makeElement("div", "Máximo de palabras por subtítulo");
+  const captionsWordsLabel = makeElement("div", "MÃ¡ximo de palabras por subtÃ­tulo");
   captionsWordsLabel.style.fontSize = "11px";
   captionsWordsLabel.style.display = "flex";
   captionsWordsLabel.style.flexDirection = "column";
@@ -5032,28 +5032,28 @@ let silenceDiagnosticLogs = [];
   const captionsWords = makePrecisionSlider(2, 16, 6, 1);
   captionsWordsLabel.appendChild(captionsWords.element);
   captionsBody.appendChild(captionsWordsLabel);
-  const captionsPositionLabel = makeElement("div", "Posición vertical (entre guías)");
+  const captionsPositionLabel = makeElement("div", "PosiciÃ³n vertical (entre guÃ­as)");
   captionsPositionLabel.style.fontSize = "11px";
   captionsPositionLabel.style.display = "flex";
   captionsPositionLabel.style.flexDirection = "column";
   captionsPositionLabel.style.gap = "6px";
-  // La MOGRT ya contiene una composición horizontal; 70% la alinea con la
-  // guía blanca inferior de Premiere sin pegarla al borde del cuadro.
+  // La MOGRT ya contiene una composiciÃ³n horizontal; 70% la alinea con la
+  // guÃ­a blanca inferior de Premiere sin pegarla al borde del cuadro.
   const captionsPosition = makePrecisionSlider(45, 88, 70, 1);
   captionsPositionLabel.appendChild(captionsPosition.element);
   captionsBody.appendChild(captionsPositionLabel);
-  const captionsFontLabel = makeElement("label", "Tipografía instalada");
+  const captionsFontLabel = makeElement("label", "TipografÃ­a instalada");
   captionsFontLabel.style.fontSize = "11px";
   const captionsFont = makeElement("select");
-  const initialFont = makeElement("option", "Cargando fuentes de este equipo…");
+  const initialFont = makeElement("option", "Cargando fuentes de este equipoâ€¦");
   initialFont.value = "Arial";
   captionsFont.appendChild(initialFont);
   captionsFontLabel.appendChild(captionsFont);
   captionsBody.appendChild(captionsFontLabel);
-  const captionsCaseLabel = makeElement("label", "Mayúsculas / minúsculas");
+  const captionsCaseLabel = makeElement("label", "MayÃºsculas / minÃºsculas");
   captionsCaseLabel.style.fontSize = "11px";
   const captionsCase = makeElement("select");
-  [["upper", "MAYÚSCULAS"], ["normal", "Normal"], ["lower", "minúsculas"], ["title", "Tipo Título"]]
+  [["upper", "MAYÃšSCULAS"], ["normal", "Normal"], ["lower", "minÃºsculas"], ["title", "Tipo TÃ­tulo"]]
     .forEach(([value, text]) => { const option = makeElement("option", text); option.value = value; captionsCase.appendChild(option); });
   captionsCaseLabel.appendChild(captionsCase);
   captionsBody.appendChild(captionsCaseLabel);
@@ -5079,9 +5079,9 @@ let silenceDiagnosticLogs = [];
     const row = makeElement("div"); row.style.display = "flex"; row.style.alignItems = "center"; row.style.gap = "8px";
     const name = makeElement("div", label); name.style.fontSize = "11px"; name.style.flex = "1";
     const swatch = makeElement("div"); swatch.setAttribute("role", "button"); swatch.style.width = "28px"; swatch.style.height = "20px"; swatch.style.borderRadius = "4px"; swatch.style.border = "1px solid #9099a5"; swatch.style.cursor = "pointer"; swatch.style.backgroundColor = control.value;
-    const arrow = makeElement("div", "⌄"); arrow.style.color = "#b9c6d6"; arrow.style.cursor = "pointer";
+    const arrow = makeElement("div", "âŒ„"); arrow.style.color = "#b9c6d6"; arrow.style.cursor = "pointer";
     row.appendChild(name); row.appendChild(swatch); row.appendChild(arrow); wrap.appendChild(row);
-    // En flujo normal: al abrirse empuja los demás ajustes en lugar de
+    // En flujo normal: al abrirse empuja los demÃ¡s ajustes en lugar de
     // taparlos como una ventana flotante.
     const picker = makeElement("div"); picker.style.display = "none"; picker.style.position = "relative"; picker.style.marginTop = "7px"; picker.style.width = "calc(100% - 18px)"; picker.style.padding = "9px"; picker.style.backgroundColor = "#292f37"; picker.style.border = "1px solid #637184"; picker.style.borderRadius = "6px"; picker.style.boxShadow = "0 6px 18px rgba(0,0,0,.55)";
     const hsv = hexToHsv(control.value);
@@ -5153,7 +5153,7 @@ let silenceDiagnosticLogs = [];
        hue.addEventListener(type, dragEnd);
      });
      // Premiere/UXP puede dejar de enviar el movimiento al control cuando el
-     // puntero pasa por encima del cursor interno. Escuchar también en window
+     // puntero pasa por encima del cursor interno. Escuchar tambiÃ©n en window
      // mantiene el arrastre vertical continuo hasta V=0 (negro).
      if (typeof window !== "undefined" && window.addEventListener) {
        window.addEventListener("pointermove", dragMove);
@@ -5200,16 +5200,16 @@ let silenceDiagnosticLogs = [];
   const captionsShadowOffset = makePrecisionSlider(-20, 20, 2, 0.1); captionsBody.appendChild(captionsShadowOffset.element);
   captionsBody.appendChild(captionsGlowControl.element);
   captionsBody.appendChild(captionsImpactControl.element);
-  const captionsAlignLabel = makeElement("div", "Alineación");
+  const captionsAlignLabel = makeElement("div", "AlineaciÃ³n");
   captionsAlignLabel.style.fontSize = "11px";
   const captionsAlignRow = makeElement("div");
   captionsAlignRow.style.display = "flex";
   captionsAlignRow.style.gap = "5px";
   const captionsAlign = { value: "center" };
   [
-    ["left", "≡", "Izquierda"],
-    ["center", "☰", "Centro"],
-    ["right", "≣", "Derecha"],
+    ["left", "â‰¡", "Izquierda"],
+    ["center", "â˜°", "Centro"],
+    ["right", "â‰£", "Derecha"],
   ].forEach(([value, icon, title]) => {
     const button = makeElement("div", icon);
     button.setAttribute("role", "button");
@@ -5231,7 +5231,7 @@ let silenceDiagnosticLogs = [];
   });
   captionsBody.appendChild(captionsAlignLabel);
   captionsBody.appendChild(captionsAlignRow);
-  // Vista previa de subtítulos. Se dibuja en un lienzo propio: no comparte
+  // Vista previa de subtÃ­tulos. Se dibuja en un lienzo propio: no comparte
   // estilos con el resto de UXP, por lo que color, trazo, sombra y glow se
   // reflejan siempre aunque Premiere ignore propiedades CSS del texto.
   const captionsPreview = makeElement("div");
@@ -5243,7 +5243,7 @@ let silenceDiagnosticLogs = [];
   captionsPreview.style.border = "1px solid #4a5562";
   captionsPreview.style.overflow = "hidden";
   // No usamos canvas para esta muestra. Algunas versiones de Premiere/UXP
-  // devuelven un contexto 2D incompleto y dejan el recuadro vacío. Una
+  // devuelven un contexto 2D incompleto y dejan el recuadro vacÃ­o. Una
   // superficie HTML responde igual en Premiere 2024, 2025 y 2026.
   const captionPreviewSurface = makeElement("div");
   captionPreviewSurface.style.height = "140px";
@@ -5259,7 +5259,7 @@ let silenceDiagnosticLogs = [];
   captionsBody.addEventListener("pointerdown", (event) => {
     if (openedCaptionPicker && !openedCaptionPicker.element.contains(event.target)) openedCaptionPicker.close();
   });
-  const captionPreviewWords = ["Esto", "se verá", "increíble"];
+  const captionPreviewWords = ["Esto", "se verÃ¡", "increÃ­ble"];
   const captionPreviewFonts = Object.create(null);
   let captionPreviewFontFamily = "Arial, sans-serif";
   let captionPreviewFontRequest = 0;
@@ -5462,7 +5462,7 @@ let silenceDiagnosticLogs = [];
   refreshCaptionPreviewUi();
   updateCaptionPreview();
   setInterval(animateCaptionPreview, 620);
-  const createCaptions = makeElement("div", "Generar subtítulos");
+  const createCaptions = makeElement("div", "Generar subtÃ­tulos");
   createCaptions.setAttribute("role", "button");
   createCaptions.style.padding = "9px";
   createCaptions.style.textAlign = "center";
@@ -5472,7 +5472,7 @@ let silenceDiagnosticLogs = [];
   createCaptions.style.fontWeight = "600";
   createCaptions.style.marginTop = "14px";
   captionsBody.appendChild(createCaptions);
-  const exportCaptions = makeElement("div", "Colocar texto en la línea");
+  const exportCaptions = makeElement("div", "Colocar texto en la lÃ­nea");
   exportCaptions.setAttribute("role", "button");
   exportCaptions.style.padding = "8px";
   exportCaptions.style.textAlign = "center";
@@ -5482,7 +5482,7 @@ let silenceDiagnosticLogs = [];
   exportCaptions.style.display = "none";
   exportCaptions.style.marginTop = "8px";
   captionsBody.appendChild(exportCaptions);
-  const captionsStatus = makeElement("div", "Selecciona un clip o un tramo en la línea de tiempo y genera su transcripción local.");
+  const captionsStatus = makeElement("div", "Selecciona un clip o un tramo en la lÃ­nea de tiempo y genera su transcripciÃ³n local.");
   captionsStatus.style.fontSize = "10px";
   captionsStatus.style.color = "#aeb8c4";
   captionsBody.appendChild(captionsStatus);
@@ -5493,7 +5493,7 @@ let silenceDiagnosticLogs = [];
   captionsStartup.style.backgroundColor = "#12161b";
   captionsStartup.style.border = "1px solid #384450";
   captionsStartup.style.borderRadius = "5px";
-  const captionsStartupLabel = makeElement("div", "Iniciando motor local…");
+  const captionsStartupLabel = makeElement("div", "Iniciando motor localâ€¦");
   captionsStartupLabel.style.fontSize = "10px";
   captionsStartupLabel.style.color = "#d8e8f8";
   const captionsStartupProgress = makeElement("progress");
@@ -5524,7 +5524,7 @@ let silenceDiagnosticLogs = [];
   captionsBody.appendChild(captionsTranscript);
   // Sugerencias para el paquete BONUS SFX autorizado por el creador. Los
   // audios siguen siendo locales: el editor enlaza esa carpeta desde
-  // Biblioteca Gota y el plugin nunca los sube ni descarga durante una edición.
+  // Biblioteca Gota y el plugin nunca los sube ni descarga durante una ediciÃ³n.
   const sfxSuggestions = makeElement("div");
   sfxSuggestions.style.display = "none";
   sfxSuggestions.style.padding = "8px";
@@ -5538,19 +5538,19 @@ let silenceDiagnosticLogs = [];
     heading.style.fontSize = "11px";
     heading.style.fontWeight = "bold";
     sfxSuggestions.appendChild(heading);
-    const note = makeElement("div", "Enlaza BONUS SFX en Biblioteca Gota para colocar estos sonidos desde tu disco. No se suben ni se descargan durante la edición.");
+    const note = makeElement("div", "Enlaza BONUS SFX en Biblioteca Gota para colocar estos sonidos desde tu disco. No se suben ni se descargan durante la ediciÃ³n.");
     note.style.fontSize = "9px";
     note.style.color = "#aeb8c4";
     note.style.marginTop = "3px";
     sfxSuggestions.appendChild(note);
     const triggers = [
-      { words: /\b(risa|risas|jaja|ja ja)\b/i, label: "BONUS SFX / SMV SFX · risa o reacción" },
-      { words: /\b(aplauso|aplausos|bravo)\b/i, label: "BONUS SFX / Pack de Contenido · aplauso" },
-      { words: /\b(golpe|boom|pum|impacto)\b/i, label: "BONUS SFX / Subdrop Low+Hi · impacto" },
-      { words: /\b(sorpresa|incre[ií]ble|wow|impresionante)\b/i, label: "BONUS SFX / Risers Default · whoosh" },
-      { words: /\b(error|fall[oó]|no funciona)\b/i, label: "BONUS SFX / App Social Sounds · glitch" },
-      { words: /\b(teclado|escribe|escribir|mensaje)\b/i, label: "BONUS SFX / Keyboard · tecleo" },
-      { words: /\b(iphone|tel[eé]fono|llamada|celular)\b/i, label: "BONUS SFX / iPhone · notificación" },
+      { words: /\b(risa|risas|jaja|ja ja)\b/i, label: "BONUS SFX / SMV SFX Â· risa o reacciÃ³n" },
+      { words: /\b(aplauso|aplausos|bravo)\b/i, label: "BONUS SFX / Pack de Contenido Â· aplauso" },
+      { words: /\b(golpe|boom|pum|impacto)\b/i, label: "BONUS SFX / Subdrop Low+Hi Â· impacto" },
+      { words: /\b(sorpresa|incre[iÃ­]ble|wow|impresionante)\b/i, label: "BONUS SFX / Risers Default Â· whoosh" },
+      { words: /\b(error|fall[oÃ³]|no funciona)\b/i, label: "BONUS SFX / App Social Sounds Â· glitch" },
+      { words: /\b(teclado|escribe|escribir|mensaje)\b/i, label: "BONUS SFX / Keyboard Â· tecleo" },
+      { words: /\b(iphone|tel[eÃ©]fono|llamada|celular)\b/i, label: "BONUS SFX / iPhone Â· notificaciÃ³n" },
     ];
     const found = [];
     (segments || []).forEach((segment) => triggers.forEach((trigger) => {
@@ -5560,14 +5560,14 @@ let silenceDiagnosticLogs = [];
       }
     }));
     if (!found.length) {
-      const empty = makeElement("div", "No encontré palabras que sugieran un efecto. Puedes seguir eligiendo cualquier audio desde Biblioteca Gota.");
+      const empty = makeElement("div", "No encontrÃ© palabras que sugieran un efecto. Puedes seguir eligiendo cualquier audio desde Biblioteca Gota.");
       empty.style.fontSize = "10px";
       empty.style.marginTop = "7px";
       empty.style.color = "#b8c2cd";
       sfxSuggestions.appendChild(empty);
     } else {
       found.slice(0, 8).forEach((item) => {
-        const row = makeElement("div", `${formatCaptionTime(item.at)}  ·  ${item.label}`);
+        const row = makeElement("div", `${formatCaptionTime(item.at)}  Â·  ${item.label}`);
         row.style.marginTop = "5px";
         row.style.padding = "5px 6px";
         row.style.backgroundColor = "#25313e";
@@ -5587,10 +5587,10 @@ let silenceDiagnosticLogs = [];
     exportCaptions.style.backgroundColor = captionsPlaced ? "#56616c" : "#18a866";
     exportCaptions.style.cursor = captionsPlaced ? "default" : "pointer";
     exportCaptions.textContent = captionsPlaced
-      ? "Gráficos colocados"
+      ? "GrÃ¡ficos colocados"
       : captionsNeedReapply
-        ? "Aplicar cambios a gráficos"
-        : "Colocar texto en la línea";
+        ? "Aplicar cambios a grÃ¡ficos"
+        : "Colocar texto en la lÃ­nea";
   };
   function markCaptionSettingsChanged() {
     if (!editableCaptionSegments.length) return;
@@ -5614,14 +5614,14 @@ let silenceDiagnosticLogs = [];
           compoundAction.addAction(editor.createRemoveItemsAction(
             selection, false, ppro.Constants.MediaType.ANY, false
           ));
-        }, "Gota Creator Kit: reemplazar gráficos de subtítulos");
+        }, "Gota Creator Kit: reemplazar grÃ¡ficos de subtÃ­tulos");
       });
     } catch (_) {
       removed = false;
     }
-    // Si el usuario ya los eliminó desde Premiere, las referencias UXP dejan
-    // de ser válidas. No frenamos la nueva colocación: simplemente limpiamos
-    // la memoria del panel y continuamos con los gráficos nuevos.
+    // Si el usuario ya los eliminÃ³ desde Premiere, las referencias UXP dejan
+    // de ser vÃ¡lidas. No frenamos la nueva colocaciÃ³n: simplemente limpiamos
+    // la memoria del panel y continuamos con los grÃ¡ficos nuevos.
     if (!removed) {
       placedCaptionGraphics = [];
       return false;
@@ -5632,7 +5632,7 @@ let silenceDiagnosticLogs = [];
   captionsPosition.onChange = updateCaptionStyle;
   let fontsRetryCount = 0;
   const loadSystemFonts = async () => {
-    captionsStatus.textContent = "Conectando el motor local para leer las tipografías…";
+    captionsStatus.textContent = "Conectando el motor local para leer las tipografÃ­asâ€¦";
     try {
       await waitForLocalService({ attempts: 50, delayMs: 600 });
       const response = await fetch(`${SERVICE_URL}/v1/system-fonts`);
@@ -5649,11 +5649,11 @@ let silenceDiagnosticLogs = [];
       captionsFont.value = ordered.includes("Arial") ? "Arial" : ordered[0];
       updateCaptionPreview();
       void loadCaptionPreviewFont(captionsFont.value);
-      captionsStatus.textContent = "Tipografías instaladas listas para la vista previa.";
+      captionsStatus.textContent = "TipografÃ­as instaladas listas para la vista previa.";
     } catch (_) {
       initialFont.textContent = "Arial (no se pudo cargar la lista)";
-      captionsStatus.textContent = "El motor local sigue iniciando. Las fuentes se volverán a intentar automáticamente.";
-      // No dejamos el panel permanentemente en Arial si Python tardó más de
+      captionsStatus.textContent = "El motor local sigue iniciando. Las fuentes se volverÃ¡n a intentar automÃ¡ticamente.";
+      // No dejamos el panel permanentemente en Arial si Python tardÃ³ mÃ¡s de
       // lo normal al encender. El siguiente intento es silencioso y conserva
       // cualquier estilo que el usuario ya haya elegido.
       if (fontsRetryCount < 2) {
@@ -5697,11 +5697,11 @@ let silenceDiagnosticLogs = [];
     createCaptions.dataset.busy = "true";
     createCaptions.style.backgroundColor = "#56616c";
     createCaptions.style.cursor = "default";
-    createCaptions.textContent = "Transcribiendo…";
+    createCaptions.textContent = "Transcribiendoâ€¦";
     captionsTranscript.style.display = "none";
     let transcriptionTimer = null;
     try {
-      setCaptionsStartupProgress(2, "Iniciando servidor local…");
+      setCaptionsStartupProgress(2, "Iniciando servidor localâ€¦");
       await waitForLocalService({
         attempts: 50,
         delayMs: 600,
@@ -5711,16 +5711,16 @@ let silenceDiagnosticLogs = [];
       const sequence = await project.getActiveSequence();
       if (!sequence) throw new Error("Abre una secuencia y selecciona un clip o tramo antes de transcribir.");
       const clips = await collectSelectedSilenceClips(sequence);
-      if (!clips.length) throw new Error("Selecciona un clip de video o audio en la línea de tiempo.");
-      // La primera selección define el tramo. Así no transcribimos por accidente
-      // todo el archivo fuente si el usuario solo montó unos segundos.
+      if (!clips.length) throw new Error("Selecciona un clip de video o audio en la lÃ­nea de tiempo.");
+      // La primera selecciÃ³n define el tramo. AsÃ­ no transcribimos por accidente
+      // todo el archivo fuente si el usuario solo montÃ³ unos segundos.
       const clip = clips[0];
-      setCaptionsStartupProgress(30, "Preparando audio y cargando el modelo local…");
-      captionsStatus.textContent = "Transcribiendo… La primera vez puede tardar unos minutos.";
+      setCaptionsStartupProgress(30, "Preparando audio y cargando el modelo localâ€¦");
+      captionsStatus.textContent = "Transcribiendoâ€¦ La primera vez puede tardar unos minutos.";
       let shownProgress = 30;
       transcriptionTimer = setInterval(() => {
         shownProgress = Math.min(88, shownProgress + 2);
-        setCaptionsStartupProgress(shownProgress, "Cargando modelo local / transcribiendo…");
+        setCaptionsStartupProgress(shownProgress, "Cargando modelo local / transcribiendoâ€¦");
       }, 450);
       const response = await fetch(`${SERVICE_URL}/v1/transcribe`, {
         method: "POST",
@@ -5730,23 +5730,23 @@ let silenceDiagnosticLogs = [];
           startSeconds: clip.inPointSeconds,
           endSeconds: clip.outPointSeconds,
           language: "es",
-          // El modelo small mejora bastante la precisión en español y se
-          // descarga una sola vez en la caché local del motor.
+          // El modelo small mejora bastante la precisiÃ³n en espaÃ±ol y se
+          // descarga una sola vez en la cachÃ© local del motor.
           model: "small"
         })
       });
       if (transcriptionTimer) { clearInterval(transcriptionTimer); transcriptionTimer = null; }
-      setCaptionsStartupProgress(94, "Procesando resultados…");
+      setCaptionsStartupProgress(94, "Procesando resultadosâ€¦");
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload.detail || "No se pudo transcribir el medio seleccionado.");
       const segments = Array.isArray(payload.segments) ? payload.segments : [];
       if (!segments.length) {
-        captionsStatus.textContent = "No detecté diálogo en este tramo. Prueba con otro clip o revisa que su audio no esté silenciado.";
+        captionsStatus.textContent = "No detectÃ© diÃ¡logo en este tramo. Prueba con otro clip o revisa que su audio no estÃ© silenciado.";
         return;
       }
       editableCaptionSegments = splitCaptionByWords(segments.map((segment) => ({
-        // Conversión de tiempo fuente a tiempo de la secuencia; evita que un
-        // SRT del tramo seleccionado se desplace al inicio de la edición.
+        // ConversiÃ³n de tiempo fuente a tiempo de la secuencia; evita que un
+        // SRT del tramo seleccionado se desplace al inicio de la ediciÃ³n.
         startSeconds: clip.startSeconds + (segment.startSeconds - clip.inPointSeconds) * (clip.sourceToTimelineScale || 1),
         endSeconds: clip.startSeconds + (segment.endSeconds - clip.inPointSeconds) * (clip.sourceToTimelineScale || 1),
         text: String(segment.text || ""),
@@ -5783,38 +5783,38 @@ let silenceDiagnosticLogs = [];
       captionsNeedReapply = placedCaptionGraphics.length > 0;
       exportCaptions.style.display = "block";
       refreshCaptionPlacementButton();
-      captionsStatus.textContent = `Transcripción lista: ${editableCaptionSegments.length} líneas. Corrige lo que quieras y luego colócalas como texto.`;
-      setCaptionsStartupProgress(100, "Transcripción lista.");
+      captionsStatus.textContent = `TranscripciÃ³n lista: ${editableCaptionSegments.length} lÃ­neas. Corrige lo que quieras y luego colÃ³calas como texto.`;
+      setCaptionsStartupProgress(100, "TranscripciÃ³n lista.");
     } catch (error) {
       const message = String(error && error.message ? error.message : error);
       captionsStatus.textContent =
         message === "Network request failed"
-          ? "El motor local todavía no responde. Espera unos segundos y vuelve a intentar."
+          ? "El motor local todavÃ­a no responde. Espera unos segundos y vuelve a intentar."
           : `No se pudo transcribir: ${message}`;
     } finally {
       if (transcriptionTimer) clearInterval(transcriptionTimer);
       createCaptions.dataset.busy = "false";
       createCaptions.style.backgroundColor = "#1473e6";
       createCaptions.style.cursor = "pointer";
-      createCaptions.textContent = "Generar subtítulos";
+      createCaptions.textContent = "Generar subtÃ­tulos";
     }
   });
   exportCaptions.addEventListener("click", async () => {
-    // Permitir volver a aplicar después de editar una línea o un ajuste. La
-    // colocación anterior se retira antes de insertar la versión actualizada.
+    // Permitir volver a aplicar despuÃ©s de editar una lÃ­nea o un ajuste. La
+    // colocaciÃ³n anterior se retira antes de insertar la versiÃ³n actualizada.
     if (!editableCaptionSegments.length) return;
     if (exportCaptions.dataset.busy === "true") return;
     exportCaptions.dataset.busy = "true";
     exportCaptions.style.backgroundColor = "#56616c";
     exportCaptions.style.cursor = "default";
-    exportCaptions.textContent = "Colocando texto…";
+    exportCaptions.textContent = "Colocando textoâ€¦";
     try {
       const project = await ppro.Project.getActiveProject();
       const sequence = await project.getActiveSequence();
-      if (!sequence) throw new Error("Abre la secuencia donde quieres colocar los subtítulos.");
+      if (!sequence) throw new Error("Abre la secuencia donde quieres colocar los subtÃ­tulos.");
       let placed = 0;
       if (placedCaptionGraphics.length) {
-        captionsStatus.textContent = "Reemplazando los gráficos anteriores…";
+        captionsStatus.textContent = "Reemplazando los grÃ¡ficos anterioresâ€¦";
         await removePlacedCaptionGraphics(project, sequence);
       }
       for (let index = 0; index < editableCaptionSegments.length; index += 1) {
@@ -5842,7 +5842,7 @@ let silenceDiagnosticLogs = [];
           durationSeconds: Math.max(0.18, Number(segment.endSeconds) - Number(segment.startSeconds))
         };
         // SVG import is not supported by every Premiere/UXP build (it shows
-        // “Formato de archivo no admitido”). Keep the SVG path for builds that
+        // â€œFormato de archivo no admitidoâ€). Keep the SVG path for builds that
         // support it, but transparently fall back to the bundled editable
         // graphic instead of aborting the whole batch.
         let graphic;
@@ -5858,21 +5858,21 @@ let silenceDiagnosticLogs = [];
         try { await trimPlacedCaptionItem(project, graphic, segment.endSeconds - segment.startSeconds); } catch (_) {}
         placedCaptionGraphics.push(graphic);
         placed += 1;
-        captionsStatus.textContent = `Colocando texto nativo: ${placed}/${editableCaptionSegments.length}…`;
+        captionsStatus.textContent = `Colocando texto nativo: ${placed}/${editableCaptionSegments.length}â€¦`;
       }
-      if (!placed) throw new Error("Premiere no pudo insertar el texto del subtítulo.");
+      if (!placed) throw new Error("Premiere no pudo insertar el texto del subtÃ­tulo.");
       captionsPlaced = true;
       captionsNeedReapply = false;
       captionsStatus.textContent = `Listo: ${placed} clips de texto colocados en pistas de video libres. No se usaron MOGRTs.`;
     } catch (error) {
-      captionsStatus.textContent = `No se pudieron colocar los gráficos: ${error.message || error}`;
+      captionsStatus.textContent = `No se pudieron colocar los grÃ¡ficos: ${error.message || error}`;
     } finally {
       exportCaptions.dataset.busy = "false";
       refreshCaptionPlacementButton();
     }
   });
   const updateCaptionsCollapsed = () => {
-    captionsHeading.textContent = `${captionsCollapsed ? "▶" : "▼"} Subtítulos automáticos (beta)`;
+    captionsHeading.textContent = `${captionsCollapsed ? "â–¶" : "â–¼"} SubtÃ­tulos automÃ¡ticos (beta)`;
     captionsBody.style.display = captionsCollapsed ? "none" : "flex";
   };
   captionsHeading.addEventListener("click", () => {
@@ -5907,12 +5907,12 @@ let silenceDiagnosticLogs = [];
   ];
   mainToolAccordions.forEach((current) => {
     current.heading.addEventListener("click", () => {
-      // Este listener corre después del clic original que abre/cierra.
+      // Este listener corre despuÃ©s del clic original que abre/cierra.
       if (!current.isOpen()) return;
       mainToolAccordions.forEach((other) => { if (other !== current) other.close(); });
     });
   });
-  // Subtítulos es una herramienta principal: se coloca junto a Reencuadre y
+  // SubtÃ­tulos es una herramienta principal: se coloca junto a Reencuadre y
   // Eliminar silencios, antes de Biblioteca y Licencia.
   panel.insertBefore(captionsPanel, libraryShortcut);
 
@@ -5925,7 +5925,7 @@ let silenceDiagnosticLogs = [];
 // Panel independiente de Biblioteca. Mantiene su propia vista, pero comparte
 // las mismas carpetas enlazadas con el panel principal mediante localStorage.
 // Las entradas se recorren solo al abrirlas para que bibliotecas grandes sigan
-// siendo ágiles y no haya un límite artificial de carpetas ni archivos.
+// siendo Ã¡giles y no haya un lÃ­mite artificial de carpetas ni archivos.
 function buildLibraryPanel() {
   const panel = makeElement("div");
   panel.style.padding = "12px";
@@ -5937,13 +5937,13 @@ function buildLibraryPanel() {
   panel.style.boxSizing = "border-box";
   panel.style.overflow = "auto";
 
-  const title = makeElement("h2", "Biblioteca Gota ☔");
+  const title = makeElement("h2", "Biblioteca Gota â˜”");
   title.style.margin = "0";
   title.style.fontSize = "18px";
   panel.appendChild(title);
   const help = makeElement(
     "div",
-    "Enlaza todas las carpetas raíz que quieras. Los archivos se quedan en tu PC: solo se muestran aquí."
+    "Enlaza todas las carpetas raÃ­z que quieras. Los archivos se quedan en tu PC: solo se muestran aquÃ­."
   );
   help.style.fontSize = "10px";
   help.style.color = "#b8b8b8";
@@ -5953,7 +5953,7 @@ function buildLibraryPanel() {
   actions.style.display = "flex";
   actions.style.gap = "7px";
   panel.appendChild(actions);
-  const add = makeElement("div", "+ Añadir carpeta");
+  const add = makeElement("div", "+ AÃ±adir carpeta");
   const refresh = makeElement("div", "Actualizar");
   [add, refresh].forEach((button) => {
     button.setAttribute("role", "button");
@@ -5973,7 +5973,7 @@ function buildLibraryPanel() {
 
   const search = makeElement("input");
   search.type = "search";
-  search.placeholder = "Buscar en todas las carpetas…";
+  search.placeholder = "Buscar en todas las carpetasâ€¦";
   search.setAttribute("aria-label", "Buscar archivo o carpeta en Biblioteca Gota");
   search.style.boxSizing = "border-box";
   search.style.width = "100%";
@@ -5989,7 +5989,7 @@ function buildLibraryPanel() {
   search.style.outline = "none";
   panel.appendChild(search);
 
-  const status = makeElement("div", "Cargando biblioteca…");
+  const status = makeElement("div", "Cargando bibliotecaâ€¦");
   status.style.fontSize = "10px";
   status.style.padding = "7px";
   status.style.backgroundColor = "#181818";
@@ -5997,14 +5997,14 @@ function buildLibraryPanel() {
 
   const browser = makeElement("div");
   // UXP/Premiere no siempre calcula CSS Grid correctamente en un panel
-  // acoplado. Flex conserva las tres columnas aun cuando cambia el tamaño.
+  // acoplado. Flex conserva las tres columnas aun cuando cambia el tamaÃ±o.
   browser.style.display = "flex";
   browser.style.alignItems = "stretch";
   browser.style.gap = "8px";
   browser.style.minHeight = "0";
   browser.style.width = "100%";
   // Premiere permite acoplar el panel en zonas angostas. No imponemos un
-  // ancho mínimo que esconda los elementos; el panel conserva desplazamiento
+  // ancho mÃ­nimo que esconda los elementos; el panel conserva desplazamiento
   // horizontal si el usuario lo deja muy estrecho.
   browser.style.minWidth = "0";
   browser.style.overflowX = "auto";
@@ -6070,9 +6070,9 @@ function buildLibraryPanel() {
   enlargePreview.style.cursor = "pointer";
   enlargePreview.style.fontSize = "10px";
   preview.appendChild(enlargePreview);
-  const backFive = makeElement("div", "← 5 s");
+  const backFive = makeElement("div", "â† 5 s");
   const playPause = makeElement("div", "Reproducir");
-  const forwardFive = makeElement("div", "5 s →");
+  const forwardFive = makeElement("div", "5 s â†’");
   [backFive, playPause, forwardFive].forEach((button) => {
     button.setAttribute("role", "button");
     button.style.padding = "7px";
@@ -6106,7 +6106,7 @@ function buildLibraryPanel() {
   preview.appendChild(place);
   const placeHint = makeElement(
     "div",
-    "Se añadirá al marcador en pistas nuevas, para no sobrescribir ningún clip ni audio existente."
+    "Se aÃ±adirÃ¡ al marcador en pistas nuevas, para no sobrescribir ningÃºn clip ni audio existente."
   );
   placeHint.style.fontSize = "9px";
   placeHint.style.color = "#999999";
@@ -6144,7 +6144,7 @@ function buildLibraryPanel() {
     return element;
   };
   const normalizeSearch = (value) => String(value || "").trim().toLocaleLowerCase();
-  const pathLabel = (path) => path.filter(Boolean).join(" › ");
+  const pathLabel = (path) => path.filter(Boolean).join(" â€º ");
   const fileUrl = (file) => {
     const path = String(file && file.nativePath ? file.nativePath : "");
     if (!path) return "";
@@ -6227,7 +6227,7 @@ function buildLibraryPanel() {
         for (let bar = 0; bar < 56; bar += 1) values.push(Math.abs((bytes[Math.floor((bar * bytes.length) / 56)] || 128) - 128) / 128);
       }
     } catch (_) {
-      // Se muestra una onda neutral si el códec no se puede decodificar en UXP.
+      // Se muestra una onda neutral si el cÃ³dec no se puede decodificar en UXP.
       values = Array.from({ length: 56 }, (_, index) => 0.18 + ((index * 17) % 25) / 100);
     }
     values.forEach((value) => {
@@ -6241,7 +6241,7 @@ function buildLibraryPanel() {
     });
   };
   const setPlaceEnabled = (enabled) => {
-    place.textContent = enabled ? "Añadir en línea de tiempo" : "Selecciona un archivo para colocar";
+    place.textContent = enabled ? "AÃ±adir en lÃ­nea de tiempo" : "Selecciona un archivo para colocar";
     place.style.backgroundColor = enabled ? "#20a464" : "#555555";
     place.style.opacity = enabled ? "1" : "0.55";
     place.style.cursor = enabled ? "pointer" : "default";
@@ -6260,7 +6260,7 @@ function buildLibraryPanel() {
       throw new Error(detail);
     }
     const data = await response.json();
-    if (!data || !data.url) throw new Error("El motor local no devolvió una URL de vista previa.");
+    if (!data || !data.url) throw new Error("El motor local no devolviÃ³ una URL de vista previa.");
     return data;
   };
   const cachePreviewForPanel = async (file, preview) => {
@@ -6276,7 +6276,7 @@ function buildLibraryPanel() {
     const cachedFile = await temporaryFolder.createFile(fileName, { overwrite: true });
     await cachedFile.write(binary, { format: storage.formats.binary });
     const url = String(cachedFile.url || "");
-    if (!url) throw new Error("UXP no devolvió una URL para el caché de vista previa.");
+    if (!url) throw new Error("UXP no devolviÃ³ una URL para el cachÃ© de vista previa.");
     previewCache.set(key, url);
     return url;
   };
@@ -6286,9 +6286,9 @@ function buildLibraryPanel() {
     setPlaceEnabled(true);
     const name = nameOf(file);
     const extension = (name.split(".").pop() || "").toLowerCase();
-    previewInfo.textContent = `${name}${extension ? ` · ${extension.toUpperCase()}` : ""}`;
-    previewStage.appendChild(makeElement("div", "Preparando vista previa…"));
-    // El motor local entrega una URL HTTP temporal del archivo elegido. Así el
+    previewInfo.textContent = `${name}${extension ? ` Â· ${extension.toUpperCase()}` : ""}`;
+    previewStage.appendChild(makeElement("div", "Preparando vista previaâ€¦"));
+    // El motor local entrega una URL HTTP temporal del archivo elegido. AsÃ­ el
     // reproductor HTML del propio panel funciona sin pedirle a Premiere que lo
     // abra en el Monitor de origen.
     let source = "";
@@ -6296,16 +6296,16 @@ function buildLibraryPanel() {
     try {
       const preview = await requestPreviewUrl(file);
       // WebView utiliza el reproductor multimedia aislado de UXP. La copia
-      // convertida queda únicamente en caché temporal del motor local y se
+      // convertida queda Ãºnicamente en cachÃ© temporal del motor local y se
       // elimina sola; no toca las carpetas del usuario.
       playerSource = `${SERVICE_URL}${preview.playerUrl || preview.url}`;
       source = `${SERVICE_URL}${preview.url}`;
     } catch (serviceError) {
-      // Si el motor aún no se inició, se intenta la URL con permiso de UXP.
-      // Es una alternativa limitada, pero preserva imágenes en instalaciones
-      // antiguas mientras se muestra una explicación clara al usuario.
+      // Si el motor aÃºn no se iniciÃ³, se intenta la URL con permiso de UXP.
+      // Es una alternativa limitada, pero preserva imÃ¡genes en instalaciones
+      // antiguas mientras se muestra una explicaciÃ³n clara al usuario.
       source = String(file && file.url ? file.url : fileUrl(file));
-      previewInfo.textContent = `${name} · Vista previa local limitada: ${serviceError.message || String(serviceError)}`;
+      previewInfo.textContent = `${name} Â· Vista previa local limitada: ${serviceError.message || String(serviceError)}`;
     }
     if (!source && window.URL && typeof window.URL.createObjectURL === "function") {
       try {
@@ -6315,17 +6315,17 @@ function buildLibraryPanel() {
       } catch (_) { /* El aviso inferior explica el caso sin acceso. */ }
     }
     if (!source) {
-      previewInfo.textContent = `${name} · No se pudo obtener la ruta del archivo.`;
+      previewInfo.textContent = `${name} Â· No se pudo obtener la ruta del archivo.`;
       return;
     }
     const imageExtensions = ["png", "jpg", "jpeg", "gif", "webp", "bmp", "svg"];
     const audioExtensions = ["mp3", "wav", "m4a", "aac", "aif", "aiff", "ogg", "flac"];
     const isImage = imageExtensions.includes(extension);
     const isAudio = audioExtensions.includes(extension);
-    // Para vídeo y audio usamos WebView: es el reproductor que Adobe expone
+    // Para vÃ­deo y audio usamos WebView: es el reproductor que Adobe expone
     // para contenidos embebidos y evita la pantalla negra de HTMLVideoElement
     // en determinados paneles acoplados de Premiere.
-    // El audio directo conserva los controles de reproducción del panel. En
+    // El audio directo conserva los controles de reproducciÃ³n del panel. En
     // algunas versiones de UXP un WebView de audio no dibuja sus controles y
     // parece una vista previa muda.
     const useWebView = Boolean(playerSource) && !isImage && !isAudio;
@@ -6357,7 +6357,7 @@ function buildLibraryPanel() {
       media.addEventListener("pause", () => { playPause.textContent = "Reproducir"; });
     }
     media.addEventListener("error", () => {
-      previewInfo.textContent = `${name} · La vista previa integrada no está disponible para este formato. Usa “Abrir en monitor de origen”.`;
+      previewInfo.textContent = `${name} Â· La vista previa integrada no estÃ¡ disponible para este formato. Usa â€œAbrir en monitor de origenâ€.`;
     });
     previewMedia = media.tagName === "WEBVIEW" ? null : media;
     clear(previewStage);
@@ -6365,15 +6365,15 @@ function buildLibraryPanel() {
     previewStage.appendChild(media);
     if (media.tagName === "WEBVIEW") {
       previewControls.style.display = "none";
-      previewInfo.textContent = `${name} · Vista previa lista. Usa los controles del reproductor.`;
+      previewInfo.textContent = `${name} Â· Vista previa lista. Usa los controles del reproductor.`;
     } else {
       previewControls.style.display = "flex";
       media.addEventListener("loadeddata", () => {
-        previewInfo.textContent = `${name} · Vista previa lista.`;
+        previewInfo.textContent = `${name} Â· Vista previa lista.`;
       });
     }
     media.addEventListener("error", () => {
-      previewInfo.textContent = `${name} · No se pudo reproducir este archivo en el panel.`;
+      previewInfo.textContent = `${name} Â· No se pudo reproducir este archivo en el panel.`;
     });
     if (typeof media.load === "function") media.load();
   };
@@ -6406,12 +6406,12 @@ function buildLibraryPanel() {
     if (!sequence) throw new Error("Abre una secuencia y coloca el marcador donde quieras insertar el archivo.");
     const insertionBin = await project.getInsertionBin();
     // Project#getInsertionBin devuelve un ProjectItem; para recorrer sus
-    // hijos hay que convertirlo explícitamente a FolderItem.
+    // hijos hay que convertirlo explÃ­citamente a FolderItem.
     const targetBin = ppro.FolderItem.cast(insertionBin);
     const imported = await project.importFiles([nativePath], true, targetBin, false);
     if (!imported) throw new Error("Premiere no pudo importar este archivo.");
     const projectItem = await findProjectItem(targetBin, nativePath, nameOf(selectedFile));
-    if (!projectItem) throw new Error("El archivo se importó, pero Premiere aún no lo entregó para colocarlo. Inténtalo una vez más.");
+    if (!projectItem) throw new Error("El archivo se importÃ³, pero Premiere aÃºn no lo entregÃ³ para colocarlo. IntÃ©ntalo una vez mÃ¡s.");
     const marker = await sequence.getPlayerPosition();
     const extension = String(nameOf(selectedFile)).split(".").pop().toLowerCase();
     const audioOnly = ["mp3", "wav", "m4a", "aac", "aif", "aiff", "ogg", "flac"].includes(extension);
@@ -6421,12 +6421,12 @@ function buildLibraryPanel() {
     let inserted = false;
     project.lockedAccess(() => {
       inserted = project.executeTransaction((compoundAction) => {
-        // Insertar desplaza y puede partir clips largos en las demás pistas.
-        // Overwrite únicamente coloca el recurso sobre la pista libre elegida.
+        // Insertar desplaza y puede partir clips largos en las demÃ¡s pistas.
+        // Overwrite Ãºnicamente coloca el recurso sobre la pista libre elegida.
         compoundAction.addAction(editor.createOverwriteProjectItemAction(
           projectItem, marker, videoTrackIndex, audioTrackIndex
         ));
-      }, "Biblioteca Gota: colocar archivo sin desplazar la edición");
+      }, "Biblioteca Gota: colocar archivo sin desplazar la ediciÃ³n");
     });
     if (!inserted) throw new Error("Premiere no pudo colocar el archivo en la primera pista disponible.");
     return sequence;
@@ -6442,7 +6442,7 @@ function buildLibraryPanel() {
     try {
       if (previewMedia.paused) await previewMedia.play(); else previewMedia.pause();
     } catch (error) {
-      previewInfo.textContent = `No se pudo iniciar la reproducción: ${error.message || String(error)}`;
+      previewInfo.textContent = `No se pudo iniciar la reproducciÃ³n: ${error.message || String(error)}`;
     }
   });
   sourceMonitor.addEventListener("click", async () => {
@@ -6455,14 +6455,14 @@ function buildLibraryPanel() {
   });
   place.addEventListener("click", async () => {
     if (!selectedFile || place.style.opacity !== "1") return;
-    place.textContent = "Añadiendo…";
+    place.textContent = "AÃ±adiendoâ€¦";
     place.style.opacity = "0.7";
     place.style.cursor = "default";
     try {
       const sequence = await placeSelectedFile();
-      previewInfo.textContent = `${nameOf(selectedFile)} · Añadido en ${sequence.name}, en pistas nuevas y sin sobrescribir tu edición.`;
+      previewInfo.textContent = `${nameOf(selectedFile)} Â· AÃ±adido en ${sequence.name}, en pistas nuevas y sin sobrescribir tu ediciÃ³n.`;
     } catch (error) {
-      previewInfo.textContent = `No se pudo añadir: ${error.message || String(error)}`;
+      previewInfo.textContent = `No se pudo aÃ±adir: ${error.message || String(error)}`;
     } finally {
       setPlaceEnabled(Boolean(selectedFile));
     }
@@ -6476,11 +6476,11 @@ function buildLibraryPanel() {
     setPlaceEnabled(false);
     previewInfo.textContent = "Selecciona un archivo para previsualizarlo.";
     clear(contents);
-    const heading = makeElement("div", `Resultados para: “${query.trim()}”`);
+    const heading = makeElement("div", `Resultados para: â€œ${query.trim()}â€`);
     heading.style.fontWeight = "bold";
     heading.style.marginBottom = "7px";
     contents.appendChild(heading);
-    const searching = makeElement("div", "Buscando en todas las carpetas enlazadas…");
+    const searching = makeElement("div", "Buscando en todas las carpetas enlazadasâ€¦");
     searching.style.fontSize = "10px";
     searching.style.color = "#a8b8c7";
     contents.appendChild(searching);
@@ -6503,7 +6503,7 @@ function buildLibraryPanel() {
       try {
         const folder = await localFileSystem.getEntryForPersistentToken(root.token);
         if (folder && folder.isFolder) await walk(folder, nameOf(folder), []);
-      } catch (_) { /* Una raíz desconectada no impide buscar en las demás. */ }
+      } catch (_) { /* Una raÃ­z desconectada no impide buscar en las demÃ¡s. */ }
     }
     if (generation !== searchGeneration) return true;
     clear(contents);
@@ -6514,12 +6514,12 @@ function buildLibraryPanel() {
     count.style.marginBottom = "7px";
     contents.appendChild(count);
     if (!results.length) {
-      contents.appendChild(makeElement("div", "No encontré archivos ni carpetas con ese nombre."));
+      contents.appendChild(makeElement("div", "No encontrÃ© archivos ni carpetas con ese nombre."));
       return true;
     }
     results.sort((a, b) => pathLabel(a.path).localeCompare(pathLabel(b.path)));
     for (const result of results) {
-      const item = makeElement("div", `${result.entry.isFolder ? "📁" : "📄"} ${nameOf(result.entry)}`);
+      const item = makeElement("div", `${result.entry.isFolder ? "ðŸ“" : "ðŸ“„"} ${nameOf(result.entry)}`);
       item.style.padding = "6px";
       item.style.marginBottom = "5px";
       item.style.borderRadius = "4px";
@@ -6560,14 +6560,14 @@ function buildLibraryPanel() {
         .sort((a, b) => nameOf(a).localeCompare(nameOf(b)));
       const files = entries.filter((entry) => entry.isFile)
         .sort((a, b) => nameOf(a).localeCompare(nameOf(b)));
-      const count = makeElement("div", `${folders.length} carpetas · ${files.length} archivos`);
+      const count = makeElement("div", `${folders.length} carpetas Â· ${files.length} archivos`);
       count.style.fontSize = "10px";
       count.style.color = "#a8a8a8";
       count.style.marginBottom = "7px";
       contents.appendChild(count);
-      if (!entries.length) contents.appendChild(makeElement("div", "Esta carpeta está vacía."));
+      if (!entries.length) contents.appendChild(makeElement("div", "Esta carpeta estÃ¡ vacÃ­a."));
       for (const entry of folders.concat(files)) {
-        const item = makeElement("div", `${entry.isFolder ? "📁" : "📄"} ${nameOf(entry)}`);
+        const item = makeElement("div", `${entry.isFolder ? "ðŸ“" : "ðŸ“„"} ${nameOf(entry)}`);
         item.style.padding = "6px";
         item.style.marginBottom = "5px";
         item.style.fontSize = "10px";
@@ -6593,13 +6593,13 @@ function buildLibraryPanel() {
         contents.appendChild(item);
       }
     } catch (_) {
-      const error = makeElement("div", "No se pudo leer esta carpeta. Revisa que siga conectada y vuelve a enlazarla si cambió el permiso.");
+      const error = makeElement("div", "No se pudo leer esta carpeta. Revisa que siga conectada y vuelve a enlazarla si cambiÃ³ el permiso.");
       error.style.color = "#ed8b8b";
       contents.appendChild(error);
     }
   };
   const appendTree = async (folder, key, depth, parent) => {
-    const item = row(`▸ 📁 ${nameOf(folder)}`, depth);
+    const item = row(`â–¸ ðŸ“ ${nameOf(folder)}`, depth);
     const children = makeElement("div");
     children.style.display = "none";
     let loaded = false;
@@ -6617,7 +6617,7 @@ function buildLibraryPanel() {
       }
       const open = children.style.display === "none";
       children.style.display = open ? "block" : "none";
-      item.textContent = `${open ? "▾" : "▸"} 📁 ${nameOf(folder)}`;
+      item.textContent = `${open ? "â–¾" : "â–¸"} ðŸ“ ${nameOf(folder)}`;
     });
     parent.appendChild(item);
     parent.appendChild(children);
@@ -6625,7 +6625,7 @@ function buildLibraryPanel() {
   const render = async () => {
     clear(tree); clear(contents);
     // El contenido se vuelve a leer desde las rutas persistentes. Restablecer
-    // la selección permite que Actualizar siempre deje una carpeta visible.
+    // la selecciÃ³n permite que Actualizar siempre deje una carpeta visible.
     activeKey = "";
     let available = 0;
     for (const root of roots) {
@@ -6637,7 +6637,7 @@ function buildLibraryPanel() {
         wrapper.style.position = "relative";
         wrapper.style.display = "block";
         wrapper.style.minHeight = "27px";
-        const remove = makeElement("div", "×");
+        const remove = makeElement("div", "Ã—");
         remove.style.position = "absolute";
         remove.style.top = "1px";
         remove.style.left = "0";
@@ -6652,10 +6652,10 @@ function buildLibraryPanel() {
           saveRoots(); render();
         });
         tree.appendChild(wrapper);
-        // La raíz se crea con una fila directa y visible. Las subcarpetas se
-        // cargan al pulsar la raíz; así una biblioteca grande no bloquea el
-        // panel ni deja una zona vacía mientras Premiere obtiene entradas.
-        const rootRow = row(`▸ 📁 ${nameOf(folder)}`, 0);
+        // La raÃ­z se crea con una fila directa y visible. Las subcarpetas se
+        // cargan al pulsar la raÃ­z; asÃ­ una biblioteca grande no bloquea el
+        // panel ni deja una zona vacÃ­a mientras Premiere obtiene entradas.
+        const rootRow = row(`â–¸ ðŸ“ ${nameOf(folder)}`, 0);
         rootRow.style.paddingLeft = "25px";
         rootRow.addEventListener("click", async () => {
           await showContents(folder, root.id);
@@ -6664,7 +6664,7 @@ function buildLibraryPanel() {
           if (alreadyExpanded) {
             if (childHolder) childHolder.style.display = "none";
             wrapper.dataset.expanded = "false";
-            rootRow.textContent = `▸ 📁 ${nameOf(folder)}`;
+            rootRow.textContent = `â–¸ ðŸ“ ${nameOf(folder)}`;
             return;
           }
           let children = childHolder;
@@ -6683,27 +6683,27 @@ function buildLibraryPanel() {
           }
           children.style.display = "block";
           wrapper.dataset.expanded = "true";
-          rootRow.textContent = `▾ 📁 ${nameOf(folder)}`;
+          rootRow.textContent = `â–¾ ðŸ“ ${nameOf(folder)}`;
         });
         wrapper.appendChild(rootRow);
         wrapper.appendChild(remove);
         // Al abrir la Biblioteca por primera vez se muestra el contenido de
-        // la primera raíz automáticamente; no obliga al usuario a adivinar
+        // la primera raÃ­z automÃ¡ticamente; no obliga al usuario a adivinar
         // que debe pulsar el nombre de la carpeta.
         if (!activeKey) await showContents(folder, root.id);
       } catch (_) {
-        const unavailable = row(`⚠ ${root.name || "Carpeta"} — vuelve a enlazarla`);
+        const unavailable = row(`âš  ${root.name || "Carpeta"} â€” vuelve a enlazarla`);
         unavailable.style.color = "#edc36f";
         tree.appendChild(unavailable);
       }
     }
     status.textContent = available
-      ? `${available} carpeta${available === 1 ? "" : "s"} raíz disponible${available === 1 ? "" : "s"}.`
-      : "Aún no hay carpetas enlazadas. Usa + Añadir carpeta.";
+      ? `${available} carpeta${available === 1 ? "" : "s"} raÃ­z disponible${available === 1 ? "" : "s"}.`
+      : "AÃºn no hay carpetas enlazadas. Usa + AÃ±adir carpeta.";
     if (normalizeSearch(search.value)) {
       await showSearchResults(search.value);
     } else if (!available) {
-      contents.appendChild(makeElement("div", "Aquí aparecerán tus archivos y subcarpetas."));
+      contents.appendChild(makeElement("div", "AquÃ­ aparecerÃ¡n tus archivos y subcarpetas."));
     }
   };
   add.addEventListener("click", async () => {
@@ -6717,7 +6717,7 @@ function buildLibraryPanel() {
       }
       await render();
     } catch (_) {
-      status.textContent = "No se pudo enlazar la carpeta. Acepta el permiso de Premiere e inténtalo otra vez.";
+      status.textContent = "No se pudo enlazar la carpeta. Acepta el permiso de Premiere e intÃ©ntalo otra vez.";
     }
   });
   search.addEventListener("input", () => {
