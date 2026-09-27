@@ -5825,7 +5825,7 @@ let silenceDiagnosticLogs = [];
           : captionsCase.value === "lower" ? segment.text.toLowerCase()
             : captionsCase.value === "title" ? segment.text.replace(/\b\w/g, (letter) => letter.toUpperCase())
               : segment.text;
-        const svgPath = await makeCaptionSvg(captionText, {
+        const captionStyle = {
           font: captionsFont.value,
           fontSize: Number(captionsSize.value),
           case: captionsCase.value,
@@ -5840,8 +5840,21 @@ let silenceDiagnosticLogs = [];
           alignment: captionsAlign.value,
           verticalPosition: Number(captionsPosition.value),
           durationSeconds: Math.max(0.18, Number(segment.endSeconds) - Number(segment.startSeconds))
-        });
-        const graphic = await insertCaptionSvg(project, sequence, svgPath, start, videoTrackIndex);
+        };
+        // SVG import is not supported by every Premiere/UXP build (it shows
+        // “Formato de archivo no admitido”). Keep the SVG path for builds that
+        // support it, but transparently fall back to the bundled editable
+        // graphic instead of aborting the whole batch.
+        let graphic;
+        try {
+          const svgPath = await makeCaptionSvg(captionText, captionStyle);
+          graphic = await insertCaptionSvg(project, sequence, svgPath, start, videoTrackIndex);
+        } catch (svgError) {
+          const templatePath = await getBundledCaptionsMogrtPath();
+          const mogrtPath = await makeCaptionMogrt(templatePath, captionText, captionStyle);
+          const editor = ppro.SequenceEditor.getEditor(sequence);
+          graphic = await insertCaptionMogrt(editor, mogrtPath, start, videoTrackIndex);
+        }
         try { await trimPlacedCaptionItem(project, graphic, segment.endSeconds - segment.startSeconds); } catch (_) {}
         placedCaptionGraphics.push(graphic);
         placed += 1;
