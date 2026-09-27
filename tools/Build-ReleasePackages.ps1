@@ -75,6 +75,24 @@ function Get-CleanTreeEntries {
   }
 }
 
+function Assert-ZipEngineVersion {
+  param([string]$ArchivePath, [string]$EntryName, [string]$ExpectedVersion)
+  $zip = [System.IO.Compression.ZipFile]::OpenRead($ArchivePath)
+  try {
+    $entry = $zip.Entries | Where-Object { $_.FullName -eq $EntryName } | Select-Object -First 1
+    if (-not $entry) { throw "El paquete no contiene $EntryName" }
+    $reader = [IO.StreamReader]::new($entry.Open())
+    try { $content = $reader.ReadToEnd() } finally { $reader.Dispose() }
+    $match = [regex]::Match($content, 'APP_VERSION\s*=\s*"([^"]+)"')
+    if (-not $match.Success -or $match.Groups[1].Value -ne $ExpectedVersion) {
+      throw "El paquete $ArchivePath contiene motor $($match.Groups[1].Value), no $ExpectedVersion. Publicación bloqueada."
+    }
+  } finally {
+    $zip.Dispose()
+  }
+}
+
+& (Join-Path $PSScriptRoot 'Set-ReleaseVersion.ps1') -Version $Version -Root $Root
 & (Join-Path $PSScriptRoot 'Sync-MacPayload.ps1') -Root $Root
 & (Join-Path $PSScriptRoot 'Assert-ReleaseVersions.ps1') -ExpectedVersion $Version
 
@@ -96,6 +114,7 @@ $windowsEntries = @(
 $windowsEntries += Get-CleanTreeEntries -Folder (Join-Path $Root 'service') -Prefix 'service'
 $windowsEntries += Get-CleanTreeEntries -Folder (Join-Path $Root 'service_v2') -Prefix 'service_v2'
 Add-FilesToZip -Output $windowsPayload -Files $windowsEntries
+Assert-ZipEngineVersion -ArchivePath $windowsPayload -EntryName 'service/app/main.py' -ExpectedVersion $Version
 
 $macEntries = @(
   [pscustomobject]@{
@@ -127,6 +146,7 @@ $macEntries += [pscustomobject]@{
 $macEntries += Get-CleanTreeEntries -Folder $macPayload -Prefix 'Instalar Gota Creator Kit.app/Contents/Resources/payload'
 $macOutput = Join-Path $Root "outputs\GotaCreatorKit-$Version-macOS.zip"
 Add-FilesToZip -Output $macOutput -Files $macEntries -UnixPermissions
+Assert-ZipEngineVersion -ArchivePath $macOutput -EntryName 'payload/service/app/main.py' -ExpectedVersion $Version
 
 Write-Output "Paquetes listos: $windowsPayload"
 Write-Output "Paquete macOS listo: $macOutput"
