@@ -33,11 +33,14 @@ from service.hybrid_license import (
     remove_license,
 )
 
-APP_VERSION = "3.3.3"
+APP_VERSION = "3.3.4"
 # Increment this whenever the binary contents of generated caption MOGRTs
 # change.  Including it in the cache key prevents an older cached MOGRT (with
 # the placeholder text) from being reused after an update.
-CAPTION_MOGRT_CACHE_SCHEMA = "text-aep-v4"
+# Bump this whenever the embedded AEP replacement logic changes.  Older
+# cached MOGRTs can contain the example text even when definition.json was
+# updated, so they must never be reused after this fix.
+CAPTION_MOGRT_CACHE_SCHEMA = "text-aep-v5"
 app = FastAPI(title="Gota Creator Kit Local Service", version=APP_VERSION)
 app.add_middleware(
     CORSMiddleware,
@@ -211,6 +214,12 @@ class TranscribeRequest(BaseModel):
 class CaptionMogrtRequest(BaseModel):
     """Una MOGRT incluida por el propio panel y el texto que debe contener."""
     templatePath: str = Field(min_length=1, max_length=4096)
+    text: str = Field(min_length=1, max_length=600)
+    style: dict = Field(default_factory=dict)
+
+
+class CaptionSvgRequest(BaseModel):
+    """Gráfico de texto autónomo; no depende de una plantilla MOGRT."""
     text: str = Field(min_length=1, max_length=600)
     style: dict = Field(default_factory=dict)
 
@@ -1289,6 +1298,15 @@ def _replace_caption_text_in_project_aeggraphic(content: bytes, text: str) -> tu
         content = content.replace(needle, new_len + new_utf8)
         changed = True
 
+    # Some Premiere/After Effects exports keep a second, plain UTF-8 copy of
+    # the source text in the embedded AEP.  The previous implementation only
+    # handled the length-prefixed form, which left "ESCRIBE TU SUBTITULO"
+    # visible behind the generated caption (and made style changes appear to
+    # do nothing).  Replace every raw copy as well.
+    if old_utf8 in content:
+        content = content.replace(old_utf8, new_utf8)
+        changed = True
+
     # El AEP incrustado en nuestras plantillas contiene además una variante
     # PDF con BOM FE FF. Las versiones anteriores solo buscaban una de las
     # representaciones y dejaban el marcador visible detrás del texto real.
@@ -1450,6 +1468,93 @@ def caption_mogrt(request: CaptionMogrtRequest):
         )
         return {"mogrtPath": str(output)}
     except (ValueError, OSError, zipfile.BadZipFile, json.JSONDecodeError) as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+
+
+def _svg_escape(value: object) -> str:
+    text = str(value or "")
+    return (text.replace("&", "&amp;").replace("<", "&lt;")
+            .replace(">", "&gt;").replace('"', "&quot;")
+            .replace("'", "&apos;"))
+
+
+def _svg_color(value: object, fallback: str) -> str:
+    raw = str(value or "").strip()
+    if not raw:
+        return fallback
+    if raw.startswith("#") and len(raw) in (4, 7, 9):
+        allowed = all(char in "0123456789abcdefABCDEF#" for char in raw)
+        if allowed:
+            return raw
+    return fallback
+
+
+def build_caption_svg(text: str, style: dict | None = None) -> Path:
+    """Crea un SVG transparente para importar como clip nativo en Premiere.
+
+    Esta ruta es deliberadamente independiente de MOGRT/Essential Graphics:
+    Premiere lo trata como un medio normal, por lo que no hay controles que
+    puedan quedar inválidos entre versiones del host.
+    """
+    style = style or {}
+    font = _svg_escape(style.get("font") or "Arial")
+    size = max(8.0, min(260.0, float(style.get("fontSize") or 42)))
+    stroke_size = max(0.0, min(40.0, float(style.get("strokeSize") or 0)))
+    shadow_blur = max(0.0, min(80.0, float(style.get("shadowBlur") or 0)))
+    shadow_offset = max(-80.0, min(80.0, float(style.get("shadowOffset") or 0)))
+    text_color = _svg_color(style.get("textColor"), "#ffffff")
+    stroke_color = _svg_color(style.get("strokeColor"), "#000000")
+    shadow_color = _svg_color(style.get("shadowColor"), "#000000")
+    glow_color = _svg_color(style.get("glowColor"), "#18a8ff")
+    align = str(style.get("alignment") or "center").lower()
+    anchor = "start" if align in ("left", "start") else "end" if align in ("right", "end") else "middle"
+    x = 80 if anchor == "start" else 540 if anchor == "middle" else 1000
+    y_percent = max(5.0, min(95.0, float(style.get("verticalPosition") or 82)))
+    y = round(1920 * y_percent / 100.0)
+    case = str(style.get("case") or "")
+    if case == "upper": text = text.upper()
+    elif case == "lower": text = text.lower()
+    elif case == "title": text = " ".join(word[:1].upper() + word[1:] for word in text.split(" "))
+    # The SVG is imported as a normal media clip. This intentionally avoids
+    # Essential Graphics/MOGRT controls, which are the source of the invalid
+    # script-object errors across Premiere versions.
+    lines = str(text).splitlines() or [str(text)]
+    line_height = size * 1.12
+    first_y = y - (len(lines) - 1) * line_height / 2
+    tspans = "".join(
+        f'<tspan x="{x}" y="{round(first_y + index * line_height)}">{_svg_escape(line)}</tspan>'
+        for index, line in enumerate(lines)
+    )
+    shadow = ""
+    if shadow_blur > 0 or shadow_offset:
+        shadow = (f'<text x="{x}" y="{y + shadow_offset}" text-anchor="{anchor}" '
+                  f'font-family="{font}" font-size="{size}" font-weight="700" '
+                  f'fill="{shadow_color}" opacity="0.78" filter="url(#shadow)">{_svg_escape(text)}</text>')
+    glow = ""
+    if str(style.get("style") or "").lower().startswith("gota"):
+        glow = (f'<text x="{x}" y="{y}" text-anchor="{anchor}" font-family="{font}" '
+                f'font-size="{size}" font-weight="700" fill="none" stroke="{glow_color}" '
+                f'stroke-width="{max(1, stroke_size / 2)}" opacity="0.32" filter="url(#glow)">{_svg_escape(text)}</text>')
+    svg = f'''<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1920" viewBox="0 0 1080 1920">
+<defs><filter id="shadow" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="{shadow_blur / 2:.2f}"/></filter>
+<filter id="glow" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="6"/></filter></defs>
+<g>{shadow}{glow}<text text-anchor="{anchor}" font-family="{font}" font-size="{size}" font-weight="700" fill="{text_color}" {'stroke="' + stroke_color + '" stroke-width="' + str(stroke_size) + '" paint-order="stroke"' if stroke_size > 0 else ''}>{tspans}</text></g></svg>'''
+    cache_dir = preview_cache_dir.parent / "caption-svgs"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    signature = json.dumps({"text": text, "style": style}, sort_keys=True, ensure_ascii=False)
+    key = hashlib.sha256(signature.encode("utf-8")).hexdigest()
+    destination = cache_dir / f"{key}.svg"
+    if not destination.exists():
+        destination.write_text(svg, encoding="utf-8")
+    return destination
+
+
+@app.post("/v1/caption-svg")
+def caption_svg(request: CaptionSvgRequest):
+    try:
+        return {"svgPath": str(build_caption_svg(request.text.strip(), request.style))}
+    except (ValueError, OSError) as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
 
 

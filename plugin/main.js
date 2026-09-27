@@ -4,7 +4,7 @@ const os = require("os");
 const localFileSystem = storage.localFileSystem;
 
 const SERVICE_URL = "http://127.0.0.1:8765";
-const CURRENT_VERSION = "3.3.3";
+const CURRENT_VERSION = "3.3.4";
 const UPDATE_MANIFEST_URL =
   "https://api.github.com/repos/xG0ta/gota-creator-kit/contents/latest.json?ref=main";
 const OUTPUT_WIDTH = 1080;
@@ -79,6 +79,79 @@ async function makeCaptionMogrt(templatePath, text, style) {
   return payload.mogrtPath;
 }
 
+async function makeCaptionSvg(text, style) {
+  await waitForLocalService();
+  const response = await fetch(`${SERVICE_URL}/v1/caption-svg`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text: String(text || ""), style: style || {} })
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok || !payload.svgPath) {
+    throw new Error(payload.detail || "No se pudo preparar el texto del subtítulo.");
+  }
+  return String(payload.svgPath);
+}
+
+async function findImportedMediaItem(folder, nativePath) {
+  const items = await folder.getItems();
+  for (const item of items) {
+    try {
+      const clip = ppro.ClipProjectItem.cast(item);
+      const mediaPath = await clip.getMediaFilePath();
+      if (String(mediaPath).toLowerCase() === String(nativePath).toLowerCase()) return item;
+    } catch (_) {
+      try {
+        const subfolder = ppro.FolderItem.cast(item);
+        const found = await findImportedMediaItem(subfolder, nativePath);
+        if (found) return found;
+      } catch (_) { /* elemento de proyecto no recorrible */ }
+    }
+  }
+  return null;
+}
+
+async function insertCaptionSvg(project, sequence, svgPath, start, videoTrackIndex) {
+  const insertionBin = ppro.FolderItem.cast(await project.getInsertionBin());
+  // Premiere devuelve false cuando el mismo SVG ya existe en el proyecto.
+  // Eso no es un fallo: reutilizamos el elemento importado para las frases
+  // repetidas y evitamos que el segundo subtítulo se detenga.
+  let imported = false;
+  try {
+    imported = await project.importFiles([String(svgPath)], true, insertionBin, false);
+  } catch (_) {
+    // Puede fallar únicamente por duplicado; la búsqueda recursiva de abajo
+    // determina si el recurso ya estaba disponible.
+  }
+  const projectItem = await findImportedMediaItem(insertionBin, svgPath);
+  if (!projectItem && !imported) throw new Error("Premiere no pudo importar el texto del subtítulo.");
+  if (!projectItem) throw new Error("Premiere importó el texto, pero no pudo prepararlo para la línea de tiempo.");
+  const editor = ppro.SequenceEditor.getEditor(sequence);
+  let inserted = false;
+  project.lockedAccess(() => {
+    inserted = project.executeTransaction((compoundAction) => {
+      compoundAction.addAction(editor.createOverwriteProjectItemAction(
+        projectItem, start, Math.max(0, Math.floor(Number(videoTrackIndex) || 0)), -1
+      ));
+    }, "Gota Creator Kit: colocar subtítulo nativo");
+  });
+  if (!inserted) throw new Error("Premiere no pudo colocar el texto en una pista de video libre.");
+  const track = await sequence.getVideoTrack(Math.max(0, Math.floor(Number(videoTrackIndex) || 0)));
+  const items = track.getTrackItems(ppro.Constants.TrackItemType.CLIP, false);
+  const expected = Number(start.seconds || 0);
+  let best = null;
+  let distance = Infinity;
+  for (const item of items) {
+    try {
+      const itemStart = await item.getStartTime();
+      const delta = Math.abs(itemStart.seconds - expected);
+      if (delta < distance) { distance = delta; best = item; }
+    } catch (_) { /* Premiere puede invalidar un elemento durante la inserción */ }
+  }
+  if (!best) throw new Error("Premiere no devolvió el clip de texto insertado.");
+  return best;
+}
+
 // La API de Premiere define cuatro argumentos para insertMogrtFromPath.
 // Mantener solo firmas de cuatro argumentos evita que UXP/CEP convierta una
 // llamada corta en el error "Illegal parameter type".
@@ -143,7 +216,7 @@ async function applySubtitleEntrance(project, trackItem, style, verticalPercent)
   return false;
 }
 
-async function trimMogrtToCaption(project, trackItem, seconds) {
+async function trimPlacedCaptionItem(project, trackItem, seconds) {
   const duration = Math.max(0.12, Number(seconds) || 0.12);
   try {
     const start = await trackItem.getStartTime();
@@ -5214,11 +5287,10 @@ let silenceDiagnosticLogs = [];
     return word;
   };
   const renderCaptionPreview = () => {
-    // Esta vista se compone de capas HTML independientes y no de text-shadow
-    // ni de canvas. UXP trata esos dos recursos de manera diferente entre
-    // Premiere 2024–2026; con capas reales cada cambio de trazo, sombra, glow
-    // o fuente se puede ver siempre antes de generar los gráficos.
-    const style = captionsStyle.value;
+    // UXP cambia su soporte de capas y filtros entre versiones. Una sola
+    // superficie flex con spans independientes es estable en Premiere 2024,
+    // 2025 y 2026 y permite reflejar cada ajuste inmediatamente.
+    const style = captionsStyle.value || "minimal";
     const paint = captionPaint();
     const background = style === "gota-pop" ? "#173e71" : style === "impact" ? "#5c1b6d" : "#101216";
     captionPreviewSurface.style.backgroundColor = background;
@@ -5230,7 +5302,6 @@ let silenceDiagnosticLogs = [];
     const fontSize = Math.round(Math.max(18, Math.min(86, requestedSize * 1.03)));
     const family = captionPreviewFontFamily || "Arial, sans-serif";
     const line = makeElement("div");
-    line.style.position = "relative";
     line.style.display = "flex";
     line.style.alignItems = "center";
     line.style.justifyContent = "inherit";
@@ -5243,57 +5314,34 @@ let silenceDiagnosticLogs = [];
     line.style.lineHeight = "1.12";
     line.style.textAlign = captionsAlign.value;
     line.style.wordBreak = "keep-all";
-    const outlineDistance = Math.max(0, Math.min(12, Math.round(paint.strokeWidth)));
-    const outlineOffsets = outlineDistance ? [
-      [-1, -1], [0, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [0, 1], [1, 1]
-    ] : [];
-    const makeLayer = (word, color, left, top, opacity = 1) => {
-      const layer = makeElement("span", word);
-      layer.style.position = "absolute";
-      layer.style.left = `${left}px`;
-      layer.style.top = `${top}px`;
-      layer.style.color = color;
-      layer.style.opacity = String(opacity);
-      layer.style.whiteSpace = "pre";
-      layer.style.pointerEvents = "none";
-      return layer;
-    };
+    const outlineDistance = Math.max(0, Math.min(12, Number(paint.strokeWidth) || 0));
+    const outline = outlineDistance > 0
+      ? `${outlineDistance}px ${outlineDistance}px 0 ${paint.strokeColor}, -${outlineDistance}px ${outlineDistance}px 0 ${paint.strokeColor}, ${outlineDistance}px -${outlineDistance}px 0 ${paint.strokeColor}, -${outlineDistance}px -${outlineDistance}px 0 ${paint.strokeColor}`
+      : "none";
+    const shadow = (paint.shadowBlur > 0 || paint.shadowOffset !== 0)
+      ? `${paint.shadowOffset}px ${paint.shadowOffset}px ${Math.max(0, paint.shadowBlur)}px ${paint.shadowColor}`
+      : "none";
     words.forEach((word, index) => {
       const active = index === captionPreviewStep;
-      const token = makeElement("span");
-      token.style.position = "relative";
+      const token = makeElement("span", word);
       token.style.display = "inline-block";
       token.style.whiteSpace = "pre";
-      token.style.transition = "transform 130ms ease-out";
-      // Sombra: capa real, visible aun cuando CSS filter/text-shadow falle.
-      if (paint.shadowBlur > 0 || paint.shadowOffset !== 0) {
-        const shadow = makeLayer(word, paint.shadowColor, paint.shadowOffset, paint.shadowOffset, Math.max(.22, Math.min(.82, .28 + paint.shadowBlur / 55)));
-        shadow.style.filter = `blur(${Math.min(8, Math.max(0, paint.shadowBlur / 3))}px)`;
-        token.appendChild(shadow);
-      }
-      outlineOffsets.forEach(([x, y]) => token.appendChild(makeLayer(
-        word, paint.strokeColor, x * outlineDistance, y * outlineDistance
-      )));
-      const face = makeElement("span", word);
-      face.style.position = "relative";
-      face.style.display = "inline-block";
-      face.style.color = paint.baseColor;
-      face.style.whiteSpace = "pre";
+      token.style.transition = "transform 130ms ease-out, color 130ms ease-out";
+      token.style.color = paint.baseColor;
+      token.style.textShadow = `${outline}${outline !== "none" && shadow !== "none" ? ", " : ""}${shadow}`;
       if (style === "gota-pop" && active) {
         const glow = captionsGlowControl.value || "#20B7FF";
-        const glowLayer = makeLayer(word, glow, 0, 0, .82);
-        glowLayer.style.filter = "blur(6px)";
-        token.insertBefore(glowLayer, token.firstChild);
-        face.style.color = glow;
+        token.style.color = glow;
+        token.style.textShadow = `${outline !== "none" ? `${outline}, ` : ""}0 0 8px ${glow}${shadow !== "none" ? `, ${shadow}` : ""}`;
         token.style.transform = "translateY(-4px) scale(1.08)";
       }
       if (style === "impact" && active) {
-        face.style.color = "#101216";
-        face.style.backgroundColor = captionsImpactControl.value || "#F5CC38";
-        face.style.padding = "2px 7px";
+        token.style.color = "#101216";
+        token.style.backgroundColor = captionsImpactControl.value || "#F5CC38";
+        token.style.padding = "2px 7px";
+        token.style.textShadow = shadow;
         token.style.transform = "scale(1.06)";
       }
-      token.appendChild(face);
       line.appendChild(token);
     });
     captionPreviewSurface.appendChild(line);
@@ -5424,7 +5472,7 @@ let silenceDiagnosticLogs = [];
   createCaptions.style.fontWeight = "600";
   createCaptions.style.marginTop = "14px";
   captionsBody.appendChild(createCaptions);
-  const exportCaptions = makeElement("div", "Colocar gráficos editables en la línea");
+  const exportCaptions = makeElement("div", "Colocar texto en la línea");
   exportCaptions.setAttribute("role", "button");
   exportCaptions.style.padding = "8px";
   exportCaptions.style.textAlign = "center";
@@ -5542,7 +5590,7 @@ let silenceDiagnosticLogs = [];
       ? "Gráficos colocados"
       : captionsNeedReapply
         ? "Aplicar cambios a gráficos"
-        : "Colocar gráficos editables en la línea";
+        : "Colocar texto en la línea";
   };
   function markCaptionSettingsChanged() {
     if (!editableCaptionSegments.length) return;
@@ -5735,7 +5783,7 @@ let silenceDiagnosticLogs = [];
       captionsNeedReapply = placedCaptionGraphics.length > 0;
       exportCaptions.style.display = "block";
       refreshCaptionPlacementButton();
-      captionsStatus.textContent = `Transcripción lista: ${editableCaptionSegments.length} líneas. Corrige lo que quieras y luego colócalas como gráficos editables.`;
+      captionsStatus.textContent = `Transcripción lista: ${editableCaptionSegments.length} líneas. Corrige lo que quieras y luego colócalas como texto.`;
       setCaptionsStartupProgress(100, "Transcripción lista.");
     } catch (error) {
       const message = String(error && error.message ? error.message : error);
@@ -5752,18 +5800,18 @@ let silenceDiagnosticLogs = [];
     }
   });
   exportCaptions.addEventListener("click", async () => {
-    if (!editableCaptionSegments.length || captionsPlaced) return;
+    // Permitir volver a aplicar después de editar una línea o un ajuste. La
+    // colocación anterior se retira antes de insertar la versión actualizada.
+    if (!editableCaptionSegments.length) return;
     if (exportCaptions.dataset.busy === "true") return;
     exportCaptions.dataset.busy = "true";
     exportCaptions.style.backgroundColor = "#56616c";
     exportCaptions.style.cursor = "default";
-    exportCaptions.textContent = "Colocando gráficos…";
+    exportCaptions.textContent = "Colocando texto…";
     try {
       const project = await ppro.Project.getActiveProject();
       const sequence = await project.getActiveSequence();
       if (!sequence) throw new Error("Abre la secuencia donde quieres colocar los subtítulos.");
-      const mogrtPath = await getBundledCaptionsMogrtPath();
-      const editor = ppro.SequenceEditor.getEditor(sequence);
       let placed = 0;
       if (placedCaptionGraphics.length) {
         captionsStatus.textContent = "Reemplazando los gráficos anteriores…";
@@ -5777,10 +5825,10 @@ let silenceDiagnosticLogs = [];
           : captionsCase.value === "lower" ? segment.text.toLowerCase()
             : captionsCase.value === "title" ? segment.text.replace(/\b\w/g, (letter) => letter.toUpperCase())
               : segment.text;
-        const captionMogrtPath = await makeCaptionMogrt(mogrtPath, captionText, {
+        const svgPath = await makeCaptionSvg(captionText, {
           font: captionsFont.value,
           fontSize: Number(captionsSize.value),
-          allCaps: captionsCase.value === "upper",
+          case: captionsCase.value,
           textColor: captionsColorControl.value,
           strokeColor: captionsStrokeControl.value,
           strokeSize: Number(captionsStrokeSize.value),
@@ -5793,50 +5841,16 @@ let silenceDiagnosticLogs = [];
           verticalPosition: Number(captionsPosition.value),
           durationSeconds: Math.max(0.18, Number(segment.endSeconds) - Number(segment.startSeconds))
         });
-        let inserted;
-        try {
-          inserted = await insertCaptionMogrt(editor, captionMogrtPath, start, videoTrackIndex);
-        } catch (insertError) {
-          // Algunas compilaciones antiguas de Premiere rechazan una copia de
-          // MOGRT cuando la definición trae un control opcional con un tipo
-          // distinto. Reintentamos con una copia mínima (texto + duración),
-          // conservando la colocación y evitando perder toda la transcripción.
-          const detail = String(insertError && insertError.message || insertError);
-          if (!/any_cast|script object|invalid parameter|illegal parameter type/i.test(detail)) throw insertError;
-          const safeMogrtPath = await makeCaptionMogrt(mogrtPath, captionText, {
-            durationSeconds: Math.max(0.18, Number(segment.endSeconds) - Number(segment.startSeconds))
-          });
-          try {
-            inserted = await insertCaptionMogrt(editor, safeMogrtPath, start, videoTrackIndex);
-          } catch (safeError) {
-            // Nunca insertes la plantilla original como respaldo: contiene
-            // "ESCRIBE TU SUBTÍTULO" y hace parecer que la transcripción no
-            // funcionó. Es mejor detenerse con un diagnóstico claro que
-            // colocar un gráfico cuyo texto no corresponde.
-            const safeDetail = String(safeError && safeError.message || safeError);
-            throw new Error(
-              `Premiere rechazó el gráfico personalizado. No se colocó una plantilla de ejemplo. ${safeDetail}`
-            );
-          }
-        }
-        // Las versiones de Premiere no devuelven siempre el mismo tipo:
-        // algunas devuelven [TrackItem] y otras directamente TrackItem.
-        const graphic = Array.isArray(inserted) ? inserted[0] : inserted;
-        if (!graphic) throw new Error("Premiere no devolvió el gráfico con el texto personalizado.");
-        // El gráfico ya está insertado. Los ajustes secundarios no pueden
-        // impedir que se termine de colocar el resto si Premiere rechaza un
-        // parámetro temporalmente en una versión concreta.
-        try { await trimMogrtToCaption(project, graphic, segment.endSeconds - segment.startSeconds); } catch (_) {}
-        try { await applySubtitlePosition(project, graphic, captionsPosition.value); } catch (_) {}
-        await applySubtitleEntrance(project, graphic, captionsStyle.value, captionsPosition.value);
+        const graphic = await insertCaptionSvg(project, sequence, svgPath, start, videoTrackIndex);
+        try { await trimPlacedCaptionItem(project, graphic, segment.endSeconds - segment.startSeconds); } catch (_) {}
         placedCaptionGraphics.push(graphic);
         placed += 1;
-        captionsStatus.textContent = `Colocando gráficos editables: ${placed}/${editableCaptionSegments.length}…`;
+        captionsStatus.textContent = `Colocando texto nativo: ${placed}/${editableCaptionSegments.length}…`;
       }
-      if (!placed) throw new Error("Premiere no pudo insertar la plantilla de texto.");
+      if (!placed) throw new Error("Premiere no pudo insertar el texto del subtítulo.");
       captionsPlaced = true;
       captionsNeedReapply = false;
-      captionsStatus.textContent = `Listo: ${placed} gráficos editables con su texto real, en pistas de video libres.`;
+      captionsStatus.textContent = `Listo: ${placed} clips de texto colocados en pistas de video libres. No se usaron MOGRTs.`;
     } catch (error) {
       captionsStatus.textContent = `No se pudieron colocar los gráficos: ${error.message || error}`;
     } finally {
