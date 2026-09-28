@@ -33,7 +33,7 @@ from service.hybrid_license import (
     remove_license,
 )
 
-APP_VERSION = "3.3.6"
+APP_VERSION = "3.3.8"
 # Increment this whenever the binary contents of generated caption MOGRTs
 # change.  Including it in the cache key prevents an older cached MOGRT (with
 # the placeholder text) from being reused after an update.
@@ -52,7 +52,7 @@ app.add_middleware(
 
 @app.middleware("http")
 async def diagnostic_http_requests(request: Request, call_next):
-    """Registra solicitudes crÃ­ticas para distinguir red, motor y ediciÃ³n."""
+    """Registra solicitudes críticas para distinguir red, motor y edición."""
     started = time()
     try:
         response = await call_next(request)
@@ -104,10 +104,10 @@ SILENCE_DIAGNOSTIC_MAX_BYTES = 1_000_000
 
 
 def write_silence_diagnostic(event: str, **details) -> str:
-    """Guarda un resumen legible del anÃ¡lisis sin exponer rutas completas.
+    """Guarda un resumen legible del análisis sin exponer rutas completas.
 
     Este archivo queda junto a autoframe-service.log, tanto en Windows como
-    en macOS. Se limita a 1 MB para que el diagnÃ³stico no llene el disco.
+    en macOS. Se limita a 1 MB para que el diagnóstico no llene el disco.
     """
     entry = {
         "at": round(time(), 3),
@@ -136,8 +136,8 @@ def write_silence_diagnostic(event: str, **details) -> str:
 @app.on_event("startup")
 def record_silence_engine_start() -> None:
     # Hace visible desde el inicio la ruta correcta del registro. Si este
-    # archivo no aparece, se sabe que se estÃ¡ revisando el ZIP descargado y no
-    # la instalaciÃ³n activa del motor local.
+    # archivo no aparece, se sabe que se está revisando el ZIP descargado y no
+    # la instalación activa del motor local.
     write_silence_diagnostic(
         "service_started",
         version=APP_VERSION,
@@ -219,7 +219,7 @@ class CaptionMogrtRequest(BaseModel):
 
 
 class CaptionSvgRequest(BaseModel):
-    """GrÃ¡fico de texto autÃ³nomo; no depende de una plantilla MOGRT."""
+    """Gráfico de texto autónomo; no depende de una plantilla MOGRT."""
     text: str = Field(min_length=1, max_length=600)
     style: dict = Field(default_factory=dict)
 
@@ -264,15 +264,15 @@ def cleanup_expired_previews():
         ]
         for token in expired:
             item = preview_items.pop(token)
-            # El medio convertido se conserva en la cachÃ© privada para que la
-            # prÃ³xima apertura sea inmediata. Solo caduca el enlace temporal.
+            # El medio convertido se conserva en la caché privada para que la
+            # próxima apertura sea inmediata. Solo caduca el enlace temporal.
 
 
 def cleanup_expired_clipboard_images() -> None:
     """El portapapeles es una comodidad temporal, no una biblioteca oculta.
 
-    Conservamos sus copias diez dÃ­as para que Premiere pueda seguir usando el
-    elemento ya colocado, pero impedimos que el cachÃ© crezca con cada pegado.
+    Conservamos sus copias diez días para que Premiere pueda seguir usando el
+    elemento ya colocado, pero impedimos que el caché crezca con cada pegado.
     """
     cutoff = time() - CLIPBOARD_IMAGE_TTL_SECONDS
     try:
@@ -292,9 +292,9 @@ def cleanup_expired_clipboard_images() -> None:
 
 
 def capture_windows_clipboard_image(destination: Path) -> None:
-    """Guarda el bitmap del portapapeles de Windows sin aÃ±adir dependencias.
+    """Guarda el bitmap del portapapeles de Windows sin añadir dependencias.
 
-    El servicio corre bajo la sesiÃ³n del editor, por eso PowerShell en modo
+    El servicio corre bajo la sesión del editor, por eso PowerShell en modo
     STA puede leer el mismo portapapeles que usa Ctrl+C en el navegador.
     """
     encoded_destination = base64.b64encode(
@@ -318,7 +318,7 @@ def capture_windows_clipboard_image(destination: Path) -> None:
     )
     if completed.returncode != 0 or not destination.is_file():
         raise RuntimeError(
-            "No encontrÃ© una imagen en el portapapeles. Copia una imagen y vuelve a presionar Pegar."
+            "No encontré una imagen en el portapapeles. Copia una imagen y vuelve a presionar Pegar."
         )
 
 
@@ -351,7 +351,7 @@ function run(argv) {
     )
     if completed.returncode != 0:
         raise RuntimeError(
-            "No encontrÃ© una imagen en el portapapeles. Copia una imagen y vuelve a presionar Pegar."
+            "No encontré una imagen en el portapapeles. Copia una imagen y vuelve a presionar Pegar."
         )
     path = Path(completed.stdout.strip())
     if not path.is_file():
@@ -371,14 +371,14 @@ def capture_clipboard_image() -> Path:
         return image_path
     if sys.platform == "darwin":
         return capture_macos_clipboard_image(stem)
-    raise RuntimeError("Pegar imÃ¡genes estÃ¡ disponible en Windows y macOS.")
+    raise RuntimeError("Pegar imágenes está disponible en Windows y macOS.")
 
 
 def make_uxp_preview(source: Path, token: str) -> tuple[Path, str]:
-    """Convierte medios a cÃ³decs que el reproductor UXP de Premiere soporta.
+    """Convierte medios a códecs que el reproductor UXP de Premiere soporta.
 
     No modifica el archivo original. La copia de vista previa se guarda solo en
-    temporal y se elimina automÃ¡ticamente una hora despuÃ©s.
+    temporal y se elimina automáticamente una hora después.
     """
     try:
         import imageio_ffmpeg
@@ -424,9 +424,9 @@ def make_uxp_preview(source: Path, token: str) -> tuple[Path, str]:
 def transcribe_local_media(request: TranscribeRequest) -> dict:
     """Transcribe con Whisper local solo el tramo montado en la secuencia.
 
-    El modelo se descarga una vez a la cachÃ© privada de Gota Creator Kit. La
-    extracciÃ³n temporal de audio evita analizar el archivo completo cuando el
-    usuario eligiÃ³ Ãºnicamente una parte de su clip en la lÃ­nea de tiempo.
+    El modelo se descarga una vez a la caché privada de Gota Creator Kit. La
+    extracción temporal de audio evita analizar el archivo completo cuando el
+    usuario eligió únicamente una parte de su clip en la línea de tiempo.
     """
     source = Path(request.mediaPath).expanduser().resolve()
     if not source.is_file():
@@ -436,14 +436,14 @@ def transcribe_local_media(request: TranscribeRequest) -> dict:
         from faster_whisper import WhisperModel
     except ImportError as error:
         raise RuntimeError(
-            "El motor de subtÃ­tulos no terminÃ³ de instalarse. Actualiza Gota Creator Kit y reinicia Premiere."
+            "El motor de subtítulos no terminó de instalarse. Actualiza Gota Creator Kit y reinicia Premiere."
         ) from error
 
     cache_root = preview_cache_dir.parent / "whisper-models"
     cache_root.mkdir(parents=True, exist_ok=True)
     # MKL/CTranslate2 puede intentar reservar varios buffers enormes para una
-    # selecciÃ³n larga.  Un solo trabajo y fragmentos acotados evitan el
-    # ``mkl_malloc: failed to allocate memory`` sin limitar la duraciÃ³n total.
+    # selección larga.  Un solo trabajo y fragmentos acotados evitan el
+    # ``mkl_malloc: failed to allocate memory`` sin limitar la duración total.
     os.environ.setdefault("OMP_NUM_THREADS", "1")
     os.environ.setdefault("MKL_NUM_THREADS", "1")
     os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
@@ -480,15 +480,15 @@ def transcribe_local_media(request: TranscribeRequest) -> dict:
                 )
                 if completed.returncode != 0 or not segment_path.is_file():
                     message = completed.stderr.decode("utf-8", errors="replace").strip()
-                    raise RuntimeError(message or "No se pudo preparar el audio para los subtÃ­tulos.")
+                    raise RuntimeError(message or "No se pudo preparar el audio para los subtítulos.")
                 try:
                     segments, info = model.transcribe(
                         str(segment_path), language=request.language, vad_filter=True,
                         beam_size=1, best_of=1, temperature=0.0,
                         condition_on_previous_text=False, word_timestamps=True,
                         initial_prompt=(
-                            "TranscripciÃ³n en espaÃ±ol mexicano. Conserva nombres propios, "
-                            "muletillas y palabras coloquiales; no traduzcas al inglÃ©s."
+                            "Transcripción en español mexicano. Conserva nombres propios, "
+                            "muletillas y palabras coloquiales; no traduzcas al inglés."
                         ),
                     )
                     info_language = getattr(info, "language", request.language)
@@ -572,7 +572,7 @@ def get_system_fonts() -> list[str]:
             for line in result.stdout.splitlines():
                 fonts.update(part.strip() for part in line.split(",") if part.strip())
     except Exception:
-        # El panel continÃºa funcionando aunque el sistema no permita enumerar.
+        # El panel continúa funcionando aunque el sistema no permita enumerar.
         pass
     system_fonts_cache = sorted(font for font in fonts if font)[:1500]
     return system_fonts_cache
@@ -665,7 +665,7 @@ def _font_key(value: str) -> str:
 def find_system_font_file(display_name: str) -> Path | None:
     """Devuelve el archivo real de una fuente instalada para la vista previa UXP.
 
-    UXP no siempre hereda fuentes que el usuario instalÃ³ despuÃ©s de Premiere.
+    UXP no siempre hereda fuentes que el usuario instaló después de Premiere.
     Servir el TTF/OTF local permite que el panel use exactamente esa familia sin
     subirla ni copiarla fuera del equipo.
     """
@@ -828,7 +828,7 @@ def build_v2_result(request: AnalyzeV2Request, progress_callback=None):
         layout_subjects = []
         is_two_person_view = len(ordered) >= 2
         for subject in ordered[:2]:
-            # El plano doble necesita bastante mÃ¡s aire que un punch-in:
+            # El plano doble necesita bastante más aire que un punch-in:
             # cada rostro ocupa aproximadamente 35-45% del ancho de su mitad.
             width_factor = 3.6 if is_two_person_view else 2.0
             height_factor = 4.0 if is_two_person_view else 2.5
@@ -934,7 +934,7 @@ def build_v2_result(request: AnalyzeV2Request, progress_callback=None):
         warnings.append({
             "type": "missing_second_person",
             "timeSeconds": request.startSeconds,
-            "message": "Se pidieron dos personas, pero no se confirmÃ³ la segunda.",
+            "message": "Se pidieron dos personas, pero no se confirmó la segunda.",
         })
     mean_confidence = (
         sum(frame["confidence"] for frame in keyframes) / len(keyframes)
@@ -1009,7 +1009,7 @@ def run_silence_job(job_id: str, request: SilenceRequest):
     def update_progress(value: float):
         with jobs_lock:
             if jobs.get(job_id, {}).get("cancelRequested"):
-                raise RuntimeError("AnÃ¡lisis cancelado por el usuario")
+                raise RuntimeError("Análisis cancelado por el usuario")
             jobs[job_id]["progress"] = round(value * 100)
             jobs[job_id]["status"] = "running"
 
@@ -1101,8 +1101,8 @@ def _essential_control_name(control: dict) -> str:
 def _caption_style_value(control_name: str, style: dict):
     """Relaciona los controles de nuestra MOGRT original con el panel UXP.
 
-    La funciÃ³n ignora controles que no existan. De ese modo las instalaciones
-    que aÃºn tienen la plantilla anterior siguen funcionando, mientras que la
+    La función ignora controles que no existan. De ese modo las instalaciones
+    que aún tienen la plantilla anterior siguen funcionando, mientras que la
     plantilla v2 recibe todos los valores de estilo al ser preparada.
     """
     name = str(control_name or "").casefold()
@@ -1121,8 +1121,8 @@ def _caption_style_value(control_name: str, style: dict):
     if "color del glow" in name:
         return style.get("glowColor")
     if "gota pop activo" in name:
-        # Este control estÃ¡ guardado como booleano en la plantilla.  Enviar
-        # 1/0 (y despuÃ©s convertirlo a float) hace que Premiere falle al leer
+        # Este control está guardado como booleano en la plantilla.  Enviar
+        # 1/0 (y después convertirlo a float) hace que Premiere falle al leer
         # la copia del MOGRT con `bad_any_cast`.
         return str(style.get("style") or "") == "gota-pop"
     if "posici" in name and "vertical" in name:
@@ -1144,7 +1144,7 @@ def _caption_rgb(value) -> list[float] | None:
 
 
 def _write_essential_default(current, desired):
-    """Escribe nÃºmeros y colores conservando el formato de definition.json."""
+    """Escribe números y colores conservando el formato de definition.json."""
     if isinstance(desired, str) and desired.startswith("#"):
         rgb = _caption_rgb(desired)
         if rgb is None:
@@ -1179,8 +1179,8 @@ def _write_essential_default(current, desired):
 def _set_caption_text_in_definition(definition: dict, text: str, style: dict) -> bool:
     """Actualiza la propiedad esencial y el valor inicial de la MOGRT.
 
-    Premiere lee este JSON al importar la plantilla. Prepararlo aquÃ­ es mÃ¡s
-    fiable que intentar escribir el parÃ¡metro de una MOGRT reciÃ©n insertada,
+    Premiere lee este JSON al importar la plantilla. Prepararlo aquí es más
+    fiable que intentar escribir el parámetro de una MOGRT recién insertada,
     API que cambia entre ediciones de Premiere.
     """
     changed = False
@@ -1220,8 +1220,8 @@ def _set_caption_text_in_definition(definition: dict, text: str, style: dict) ->
             if isinstance(item, dict):
                 item["str"] = text
                 changed = True
-        # Adobe guarda la ediciÃ³n de fuente/tamaÃ±o en la definiciÃ³n de la
-        # propiedad de texto. Activarlo por copia permite que cada grÃ¡fico
+        # Adobe guarda la edición de fuente/tamaño en la definición de la
+        # propiedad de texto. Activarlo por copia permite que cada gráfico
         # conserve las elecciones del panel al llegar a Premiere.
         edit_info = control.setdefault("fonteditinfo", {})
         edit_info.update({
@@ -1279,14 +1279,14 @@ def _replace_caption_text_in_project_aeggraphic(content: bytes, text: str) -> tu
     versiones, aunque ``definition.json`` tenga un ``capPropDefault`` nuevo.
     La plantilla de Gota contiene el marcador en dos representaciones: una
     entrada Utf8 con longitud y una cadena PDF UTF-16BE. Actualizamos ambas,
-    manteniendo sus prefijos y longitudes para que el AEP siga siendo vÃ¡lido.
+    manteniendo sus prefijos y longitudes para que el AEP siga siendo válido.
     """
     marker = "ESCRIBE TU SUBTITULO"
     replacement = str(text or "").strip() or marker
     changed = False
 
     # Entradas binarias tipo: Utf8 <uint32-be length> <bytes>.
-    # Algunas versiones de After Effects escriben el tamaÃ±o con la etiqueta
+    # Algunas versiones de After Effects escriben el tamaño con la etiqueta
     # ``Utf8`` inmediatamente antes; el reemplazo debe conservar el prefijo
     # y actualizar todas las ocurrencias, no solo la primera.
     old_utf8 = marker.encode("utf-8")
@@ -1307,10 +1307,10 @@ def _replace_caption_text_in_project_aeggraphic(content: bytes, text: str) -> tu
         content = content.replace(old_utf8, new_utf8)
         changed = True
 
-    # El AEP incrustado en nuestras plantillas contiene ademÃ¡s una variante
+    # El AEP incrustado en nuestras plantillas contiene además una variante
     # PDF con BOM FE FF. Las versiones anteriores solo buscaban una de las
-    # representaciones y dejaban el marcador visible detrÃ¡s del texto real.
-    # Cubrimos ambos Ã³rdenes, con y sin BOM, reemplazando todas las copias.
+    # representaciones y dejaban el marcador visible detrás del texto real.
+    # Cubrimos ambos órdenes, con y sin BOM, reemplazando todas las copias.
     for encoding in ("utf-16-le", "utf-16-be"):
         old_units = marker.encode(encoding)
         new_units = replacement.encode(encoding)
@@ -1321,13 +1321,13 @@ def _replace_caption_text_in_project_aeggraphic(content: bytes, text: str) -> tu
             new_pdf = bom + new_units
             content = content.replace(old_pdf, new_pdf)
             changed = True
-        # El exportador PDF suele aÃ±adir CR al final de la cadena; no lo
+        # El exportador PDF suele añadir CR al final de la cadena; no lo
         # incluimos en el reemplazo para conservarlo intacto.
     return content, changed
 
 
 def _caption_placeholder_present(content: bytes) -> bool:
-    """Indica si queda alguna representaciÃ³n del marcador de la plantilla."""
+    """Indica si queda alguna representación del marcador de la plantilla."""
     marker = "ESCRIBE TU SUBTITULO"
     if marker.encode("utf-8") in content:
         return True
@@ -1341,7 +1341,7 @@ def _caption_placeholder_present(content: bytes) -> bool:
 def build_caption_mogrt(template: Path, text: str, style: dict | None = None) -> Path:
     template = template.expanduser().resolve()
     if not template.is_file() or template.suffix.lower() != ".mogrt":
-        raise ValueError("No se encontrÃ³ la plantilla editable de subtÃ­tulos.")
+        raise ValueError("No se encontró la plantilla editable de subtítulos.")
     style = style or {}
     style_signature = json.dumps(style, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
     key = hashlib.sha256(
@@ -1368,8 +1368,8 @@ def build_caption_mogrt(template: Path, text: str, style: dict | None = None) ->
                     ).encode("utf-8")
                     if _caption_placeholder_present(content):
                         raise ValueError(
-                            "La definiciÃ³n de la plantilla conserva el texto de ejemplo; "
-                            "no se generÃ³ un grÃ¡fico incompleto."
+                            "La definición de la plantilla conserva el texto de ejemplo; "
+                            "no se generó un gráfico incompleto."
                         )
                 elif info.filename == "project.aegraphic":
                     # ``project.aegraphic`` es un ZIP interno que contiene el
@@ -1385,8 +1385,8 @@ def build_caption_mogrt(template: Path, text: str, style: dict | None = None) ->
                                 nested_content = nested_source.read(nested_info.filename)
                                 # No dependemos del nombre de la entrada: algunas
                                 # exportaciones de After Effects guardan el AEP
-                                # con una extensiÃ³n distinta. El reemplazo es
-                                # seguro para los demÃ¡s archivos porque solo
+                                # con una extensión distinta. El reemplazo es
+                                # seguro para los demás archivos porque solo
                                 # modifica bytes que contienen el marcador.
                                 nested_content, did_change = _replace_caption_text_in_project_aeggraphic(
                                     nested_content, text
@@ -1397,16 +1397,16 @@ def build_caption_mogrt(template: Path, text: str, style: dict | None = None) ->
                         if nested_changed:
                             content = nested_buffer.getvalue()
                             modified = True
-                        # Evita entregar una MOGRT aparentemente vÃ¡lida que aÃºn
-                        # mostrarÃ­a el texto de ejemplo en Premiere.
+                        # Evita entregar una MOGRT aparentemente válida que aún
+                        # mostraría el texto de ejemplo en Premiere.
                         with zipfile.ZipFile(io.BytesIO(content), "r") as check_zip:
                             if any(
                                 _caption_placeholder_present(check_zip.read(name))
                                 for name in check_zip.namelist()
                             ):
                                 raise ValueError(
-                                    "La plantilla de subtÃ­tulos conserva el texto de ejemplo; "
-                                    "no se generÃ³ un grÃ¡fico incompleto."
+                                    "La plantilla de subtítulos conserva el texto de ejemplo; "
+                                    "no se generó un gráfico incompleto."
                                 )
                     except (zipfile.BadZipFile, OSError):
                         # Versiones antiguas pueden omitir el AEP interno;
@@ -1439,10 +1439,10 @@ def system_fonts():
 
 @app.get("/v1/font-file")
 def system_font_file(fontName: str):
-    """Expone Ãºnicamente una fuente instalada al panel local de Premiere."""
+    """Expone únicamente una fuente instalada al panel local de Premiere."""
     path = find_system_font_file(fontName)
     if path is None or not path.is_file():
-        raise HTTPException(status_code=404, detail="No se encontrÃ³ el archivo de la fuente")
+        raise HTTPException(status_code=404, detail="No se encontró el archivo de la fuente")
     media_type = "font/otf" if path.suffix.casefold() == ".otf" else "font/ttf"
     return FileResponse(
         path,
@@ -1489,15 +1489,38 @@ def _svg_color(value: object, fallback: str) -> str:
     return fallback
 
 
-def build_caption_svg(text: str, style: dict | None = None) -> Path:
-    """Crea un SVG transparente para importar como clip nativo en Premiere.
+def _caption_font_path(requested: object) -> str | None:
+    """Localiza una fuente instalada sin depender de After Effects."""
+    wanted = str(requested or "Arial").strip().lower().replace(" ", "")
+    roots = []
+    if os.name == "nt":
+        roots.append(Path(os.environ.get("WINDIR", r"C:\Windows")) / "Fonts")
+    else:
+        roots.extend([Path("/Library/Fonts"), Path.home() / "Library/Fonts", Path("/System/Library/Fonts")])
+    candidates: list[Path] = []
+    for root in roots:
+        if root.is_dir():
+            candidates.extend(root.rglob("*.ttf"))
+            candidates.extend(root.rglob("*.otf"))
+    for path in candidates:
+        if path.stem.lower().replace(" ", "") == wanted:
+            return str(path)
+    for path in candidates:
+        if wanted and wanted in path.stem.lower().replace(" ", ""):
+            return str(path)
+    for fallback in ("arial.ttf", "Arial.ttf", "Helvetica.ttc", "DejaVuSans-Bold.ttf"):
+        for root in roots:
+            path = root / fallback
+            if path.exists():
+                return str(path)
+    return None
 
-    Esta ruta es deliberadamente independiente de MOGRT/Essential Graphics:
-    Premiere lo trata como un medio normal, por lo que no hay controles que
-    puedan quedar invÃ¡lidos entre versiones del host.
-    """
+
+def build_caption_png(text: str, style: dict | None = None) -> Path:
+    """Renderiza un PNG transparente que Premiere sí admite como medio."""
+    from PIL import Image, ImageDraw, ImageFont
+
     style = style or {}
-    font = _svg_escape(style.get("font") or "Arial")
     size = max(8.0, min(260.0, float(style.get("fontSize") or 42)))
     stroke_size = max(0.0, min(40.0, float(style.get("strokeSize") or 0)))
     shadow_blur = max(0.0, min(80.0, float(style.get("shadowBlur") or 0)))
@@ -1507,53 +1530,47 @@ def build_caption_svg(text: str, style: dict | None = None) -> Path:
     shadow_color = _svg_color(style.get("shadowColor"), "#000000")
     glow_color = _svg_color(style.get("glowColor"), "#18a8ff")
     align = str(style.get("alignment") or "center").lower()
-    anchor = "start" if align in ("left", "start") else "end" if align in ("right", "end") else "middle"
-    x = 80 if anchor == "start" else 540 if anchor == "middle" else 1000
     y_percent = max(5.0, min(95.0, float(style.get("verticalPosition") or 82)))
     y = round(1920 * y_percent / 100.0)
     case = str(style.get("case") or "")
     if case == "upper": text = text.upper()
     elif case == "lower": text = text.lower()
     elif case == "title": text = " ".join(word[:1].upper() + word[1:] for word in text.split(" "))
-    # The SVG is imported as a normal media clip. This intentionally avoids
-    # Essential Graphics/MOGRT controls, which are the source of the invalid
-    # script-object errors across Premiere versions.
-    lines = str(text).splitlines() or [str(text)]
-    line_height = size * 1.12
-    first_y = y - (len(lines) - 1) * line_height / 2
-    tspans = "".join(
-        f'<tspan x="{x}" y="{round(first_y + index * line_height)}">{_svg_escape(line)}</tspan>'
-        for index, line in enumerate(lines)
-    )
-    shadow = ""
+    image = Image.new("RGBA", (1080, 1920), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(image)
+    font_path = _caption_font_path(style.get("font"))
+    font = ImageFont.truetype(font_path, round(size)) if font_path else ImageFont.load_default()
+    bbox = draw.multiline_textbbox((0, 0), text, font=font, stroke_width=round(stroke_size), align="center")
+    width, height = bbox[2] - bbox[0], bbox[3] - bbox[1]
+    x = 80 if align in ("left", "start") else 1000 - width if align in ("right", "end") else (1080 - width) / 2
+    top = y - height / 2
     if shadow_blur > 0 or shadow_offset:
-        shadow = (f'<text x="{x}" y="{y + shadow_offset}" text-anchor="{anchor}" '
-                  f'font-family="{font}" font-size="{size}" font-weight="700" '
-                  f'fill="{shadow_color}" opacity="0.78" filter="url(#shadow)">{_svg_escape(text)}</text>')
-    glow = ""
+        shadow_layer = Image.new("RGBA", image.size, (0, 0, 0, 0))
+        ImageDraw.Draw(shadow_layer).multiline_text((x + shadow_offset, top + shadow_offset), text, font=font,
+            fill=shadow_color, stroke_width=round(stroke_size), stroke_fill=shadow_color, align="center")
+        if shadow_blur > 0:
+            from PIL import ImageFilter
+            shadow_layer = shadow_layer.filter(ImageFilter.GaussianBlur(shadow_blur / 2))
+        image.alpha_composite(shadow_layer)
     if str(style.get("style") or "").lower().startswith("gota"):
-        glow = (f'<text x="{x}" y="{y}" text-anchor="{anchor}" font-family="{font}" '
-                f'font-size="{size}" font-weight="700" fill="none" stroke="{glow_color}" '
-                f'stroke-width="{max(1, stroke_size / 2)}" opacity="0.32" filter="url(#glow)">{_svg_escape(text)}</text>')
-    svg = f'''<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1920" viewBox="0 0 1080 1920">
-<defs><filter id="shadow" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="{shadow_blur / 2:.2f}"/></filter>
-<filter id="glow" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="6"/></filter></defs>
-<g>{shadow}{glow}<text text-anchor="{anchor}" font-family="{font}" font-size="{size}" font-weight="700" fill="{text_color}" {'stroke="' + stroke_color + '" stroke-width="' + str(stroke_size) + '" paint-order="stroke"' if stroke_size > 0 else ''}>{tspans}</text></g></svg>'''
-    cache_dir = preview_cache_dir.parent / "caption-svgs"
+        draw.multiline_text((x, top), text, font=font, fill=text_color,
+            stroke_width=max(round(stroke_size), 2), stroke_fill=glow_color, align="center")
+    draw.multiline_text((x, top), text, font=font, fill=text_color,
+        stroke_width=round(stroke_size), stroke_fill=stroke_color, align="center")
+    cache_dir = preview_cache_dir.parent / "caption-pngs"
     cache_dir.mkdir(parents=True, exist_ok=True)
     signature = json.dumps({"text": text, "style": style}, sort_keys=True, ensure_ascii=False)
     key = hashlib.sha256(signature.encode("utf-8")).hexdigest()
-    destination = cache_dir / f"{key}.svg"
+    destination = cache_dir / f"{key}.png"
     if not destination.exists():
-        destination.write_text(svg, encoding="utf-8")
+        image.save(destination, "PNG", optimize=True)
     return destination
 
 
-@app.post("/v1/caption-svg")
-def caption_svg(request: CaptionSvgRequest):
+@app.post("/v1/caption-png")
+def caption_png(request: CaptionSvgRequest):
     try:
-        return {"svgPath": str(build_caption_svg(request.text.strip(), request.style))}
+        return {"pngPath": str(build_caption_png(request.text.strip(), request.style))}
     except (ValueError, OSError) as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
 
@@ -1562,9 +1579,9 @@ def caption_svg(request: CaptionSvgRequest):
 def register_preview(request: PreviewRegistrationRequest):
     """Autoriza temporalmente un recurso elegido en Biblioteca Gota.
 
-    UXP no deja a los elementos HTML de vÃ­deo/audio reproducir de forma fiable
-    rutas `file:` del disco. El panel registra explÃ­citamente la entrada que el
-    usuario ya eligiÃ³ y recibe una URL local de corta vida; no se enumeran ni se
+    UXP no deja a los elementos HTML de vídeo/audio reproducir de forma fiable
+    rutas `file:` del disco. El panel registra explícitamente la entrada que el
+    usuario ya eligió y recibe una URL local de corta vida; no se enumeran ni se
     exponen carpetas del equipo.
     """
     path = Path(request.mediaPath).expanduser().resolve()
@@ -1617,7 +1634,7 @@ def get_preview(token: str):
     with preview_lock:
         item = preview_items.get(token)
     if not item:
-        raise HTTPException(status_code=404, detail="La vista previa venciÃ³. Selecciona el archivo otra vez.")
+        raise HTTPException(status_code=404, detail="La vista previa venció. Selecciona el archivo otra vez.")
     path = Path(item["path"])
     if not path.is_file():
         raise HTTPException(status_code=404, detail="El archivo de vista previa ya no existe.")
@@ -1628,15 +1645,15 @@ def get_preview(token: str):
 def get_preview_player(token: str):
     """Reproductor aislado para WebView de UXP.
 
-    El elemento de vÃ­deo normal de un panel UXP puede recibir el archivo pero
+    El elemento de vídeo normal de un panel UXP puede recibir el archivo pero
     no dibujarlo en algunas versiones de Premiere. WebView usa el reproductor
-    multimedia aislado de UXP y mantiene la reproducciÃ³n dentro del panel.
+    multimedia aislado de UXP y mantiene la reproducción dentro del panel.
     """
     cleanup_expired_previews()
     with preview_lock:
         item = preview_items.get(token)
     if not item or not Path(item["path"]).is_file():
-        raise HTTPException(status_code=404, detail="La vista previa venciÃ³. Selecciona el archivo otra vez.")
+        raise HTTPException(status_code=404, detail="La vista previa venció. Selecciona el archivo otra vez.")
     is_audio = str(item.get("mediaType", "")).startswith("audio/")
     tag = "audio" if is_audio else "video"
     style = "width:100%;height:100%;object-fit:contain;background:#0d0f12;"
@@ -1762,10 +1779,10 @@ def create_silence_job(request: SilenceRequest):
 
 @app.post("/v3/silence-diagnostics", status_code=202)
 def append_silence_diagnostic(request: SilenceDiagnosticRequest):
-    """Recibe el rastro de ediciÃ³n del panel de Premiere.
+    """Recibe el rastro de edición del panel de Premiere.
 
-    El anÃ¡lisis de audio ya registraba su informaciÃ³n. Este endpoint aÃ±ade las
-    fases que pertenecen a Premiere (clonado, compactaciÃ³n y desactivaciÃ³n del
+    El análisis de audio ya registraba su información. Este endpoint añade las
+    fases que pertenecen a Premiere (clonado, compactación y desactivación del
     original), que son las que antes quedaban invisibles al diagnosticar un
     error en macOS.
     """

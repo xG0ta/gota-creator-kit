@@ -13,13 +13,16 @@ if ([string]::IsNullOrWhiteSpace($Root)) {
 
 function Set-VersionInFile {
   param([string]$Path, [string]$Pattern, [string]$Replacement)
-  $text = Get-Content -LiteralPath $Path -Raw
+  # Windows PowerShell 5.1 interpreta UTF-8 sin BOM como ANSI si usamos
+  # Get-Content sin codificación. Eso corrompe acentos y símbolos del panel.
+  $utf8 = [Text.UTF8Encoding]::new($false)
+  $text = [IO.File]::ReadAllText($Path, $utf8)
   if (-not [regex]::IsMatch($text, $Pattern)) {
     throw "No se encontró el marcador de versión esperado en $Path"
   }
   $updated = [regex]::Replace($text, $Pattern, $Replacement)
   if ($updated -ne $text) {
-    [IO.File]::WriteAllText($Path, $updated, [Text.UTF8Encoding]::new($false))
+    [IO.File]::WriteAllText($Path, $updated, $utf8)
   }
 }
 
@@ -33,7 +36,7 @@ Set-VersionInFile (Join-Path $Root 'installer\Supervisor.ps1') '(version=)\d+\.\
 Set-VersionInFile (Join-Path $Root 'installer-mac\Supervisor.sh') '(Gota Creator Kit )\d+\.\d+\.\d+( supervisor)' "`${1}$Version`${2}"
 Set-VersionInFile (Join-Path $Root 'installer-mac\Supervisor.sh') '(version=)\d+\.\d+\.\d+' "`${1}$Version"
 $macInstaller = Join-Path $Root 'installer-mac\Instalar Gota Creator Kit.command'
-Set-VersionInFile $macInstaller '\d+\.\d+\.\d+' $Version
+Set-VersionInFile $macInstaller '(echo\s+")\d+\.\d+\.\d+("\s+>\s+"\$INSTALL_DIR/installed-engine-version\.txt")' "`${1}$Version`${2}"
 Set-VersionInFile (Join-Path $Root 'installer-mac\Instalar Gota Creator Kit.app\Contents\Info.plist') '(<key>CFBundleShortVersionString</key><string>)\d+\.\d+\.\d+(</string>)' "`${1}$Version`${2}"
 Set-VersionInFile (Join-Path $Root 'legacy-cep\CSXS\manifest.xml') '(ExtensionBundleVersion=")\d+\.\d+\.\d+(")' "`${1}$Version`${2}"
 Set-VersionInFile (Join-Path $Root 'legacy-cep\CSXS\manifest.xml') '(<Extension Id="com\.xg0ta\.gotacreatorkit\.legacy\.panel" Version=")\d+\.\d+\.\d+(")' "`${1}$Version`${2}"

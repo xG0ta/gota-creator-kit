@@ -6,3 +6,4 @@ imageio-ffmpeg>=0.6,<1
 cryptography==44.0.3
 faster-whisper>=1.1,<2
 requests>=2.31,<3
+Pillow>=10.4,<13

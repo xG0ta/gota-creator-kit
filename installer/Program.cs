@@ -8,9 +8,16 @@ using System.Windows.Forms;
 
 internal static class Program
 {
-    private const string ProductName = "Gota Creator Kit â˜”";
+    private const string ProductName = "Gota Creator Kit ☔";
     private const string PluginId = "com.autoframe.faces.dev";
-    private const string PackageVersion = "3.3.6";
+    private static readonly string[] LegacyPluginIds =
+    {
+        "com.autoframe.faces.dev",
+        "com.autoframe.faces",
+        "com.xg0ta.autoframe",
+        "com.xg0ta.gotacreatorkit"
+    };
+    private const string PackageVersion = "3.3.8";
     private static readonly string InstallDir = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "AutoFrameByGota");
@@ -53,19 +60,19 @@ internal static class Program
             if (IsPremiereRunning())
                 throw new InvalidOperationException(
                     "Cierra Premiere por completo antes de actualizar el panel. " +
-                    "AsÃ­ se reemplaza la versiÃ³n anterior sin dejar dos copias activas.");
+                    "Así se reemplaza la versión anterior sin dejar dos copias activas.");
             await LaunchPluginInstallerAsync();
             ShowMessage(
-                "Gota Creator Kit â˜” se instalÃ³ correctamente.\n\n" +
-                "Adobe abrirÃ¡ ahora la instalaciÃ³n del plugin. " +
-                "El motor se encenderÃ¡ automÃ¡ticamente cuando abras Premiere.",
+                "Gota Creator Kit ☔ se instaló correctamente.\n\n" +
+                "Adobe abrirá ahora la instalación del plugin. " +
+                "El motor se encenderá automáticamente cuando abras Premiere.",
                 false);
         }
         catch (Exception error)
         {
             await File.AppendAllTextAsync(LogFile, error + "\n");
             ShowMessage(
-                "No se pudo completar la instalaciÃ³n.\n\n" +
+                "No se pudo completar la instalación.\n\n" +
                 $"Detalle: {error.Message}\n\nRegistro: {LogFile}",
                 true);
         }
@@ -125,7 +132,7 @@ internal static class Program
                 continue;
             string destination = Path.GetFullPath(Path.Combine(InstallDir, entry.FullName));
             if (!destination.StartsWith(Path.GetFullPath(InstallDir), StringComparison.OrdinalIgnoreCase))
-                throw new InvalidOperationException("Ruta invÃ¡lida dentro del instalador.");
+                throw new InvalidOperationException("Ruta inválida dentro del instalador.");
             if (string.IsNullOrEmpty(entry.Name))
             {
                 Directory.CreateDirectory(destination);
@@ -175,7 +182,7 @@ internal static class Program
             "Include_pip=1 Include_test=0 Include_launcher=0 PrependPath=0");
         File.Delete(installer);
         if (code != 0 || !File.Exists(PythonExe))
-            throw new InvalidOperationException($"Python no pudo instalarse (cÃ³digo {code}).");
+            throw new InvalidOperationException($"Python no pudo instalarse (código {code}).");
     }
 
     private static async Task InstallDependenciesAsync()
@@ -184,7 +191,7 @@ internal static class Program
         int code = await RunAsync(PythonExe,
             $"-m pip install --disable-pip-version-check --no-warn-script-location -r \"{requirements}\"");
         if (code != 0)
-            throw new InvalidOperationException($"Las dependencias no pudieron instalarse (cÃ³digo {code}).");
+            throw new InvalidOperationException($"Las dependencias no pudieron instalarse (código {code}).");
     }
 
     private static async Task InstallFaceModelAsync()
@@ -207,7 +214,7 @@ internal static class Program
             await input.CopyToAsync(output);
         if (new FileInfo(modelFile).Length != expectedModelSize)
             throw new InvalidOperationException(
-                "El modelo facial 2.0 no se descargÃ³ correctamente.");
+                "El modelo facial 2.0 no se descargó correctamente.");
     }
 
     private static void InstallSupervisor()
@@ -274,8 +281,8 @@ internal static class Program
     private static async Task LaunchPluginInstallerAsync()
     {
         // Las versiones previas del paquete conservaban espacios en este nombre.
-        // Aceptamos ambos formatos para que una actualizaciÃ³n nunca falle por el
-        // nombre interno del archivo extraÃ­do.
+        // Aceptamos ambos formatos para que una actualización nunca falle por el
+        // nombre interno del archivo extraído.
         string[] ccxCandidates =
         {
             Path.Combine(InstallDir, "GotaCreatorKit.ccx"),
@@ -283,18 +290,18 @@ internal static class Program
         };
         string? ccx = ccxCandidates.FirstOrDefault(File.Exists);
         if (string.IsNullOrWhiteSpace(ccx))
-            throw new InvalidOperationException("No se encontrÃ³ el plugin CCX.");
+            throw new InvalidOperationException("No se encontró el plugin CCX.");
 
-        // La utilidad de Adobe puede devolver Ã©xito aunque Premiere conserve un
-        // panel anterior en cachÃ©. Instalamos primero la copia exacta incluida
-        // en este EXE en la ruta externa de UXP; asÃ­ EXE y CCX siempre dejan la
-        // misma versiÃ³n disponible, incluso si Creative Cloud no responde.
+        // La utilidad de Adobe puede devolver éxito aunque Premiere conserve un
+        // panel anterior en caché. Instalamos primero la copia exacta incluida
+        // en este EXE en la ruta externa de UXP; así EXE y CCX siempre dejan la
+        // misma versión disponible, incluso si Creative Cloud no responde.
         InstallPluginDirectly(ccx);
 
-        // Abrir un .ccx con la aplicaciÃ³n predeterminada dejaba instalada una
+        // Abrir un .ccx con la aplicación predeterminada dejaba instalada una
         // copia anterior en algunos equipos. Usamos UPIA, el instalador oficial
         // de Adobe incluido con Creative Cloud, para reemplazar el panel por la
-        // versiÃ³n incluida en este instalador.
+        // versión incluida en este instalador.
         string? upia = FindAdobePluginInstaller();
         if (!string.IsNullOrWhiteSpace(upia))
         {
@@ -303,7 +310,7 @@ internal static class Program
             // ello puede quedar esperando indefinidamente en segundo plano.
             await Task.Delay(TimeSpan.FromSeconds(4));
             // UPIA no comparte la misma sintaxis en ambos sistemas: Windows
-            // requiere /install; --install puede devolver Ã©xito sin instalar.
+            // requiere /install; --install puede devolver éxito sin instalar.
             CommandResult result = await RunWithOutputAsync(
                 upia, $"/install \"{ccx}\"", TimeSpan.FromSeconds(75));
             if (result.ExitCode == 0 && !AdobeReportedFailure(result.Text))
@@ -312,8 +319,8 @@ internal static class Program
                 return;
             }
             await File.AppendAllTextAsync(LogFile,
-                "Adobe no confirmÃ³ el reemplazo del panel. " +
-                $"CÃ³digo {result.ExitCode}; se abrirÃ¡ el respaldo CCX.\n");
+                "Adobe no confirmó el reemplazo del panel. " +
+                $"Código {result.ExitCode}; se abrirá el respaldo CCX.\n");
         }
 
         Process.Start(new ProcessStartInfo(ccx) { UseShellExecute = true });
@@ -321,18 +328,16 @@ internal static class Program
 
     private static void InstallPluginDirectly(string ccx)
     {
-        string external = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-            "Adobe", "UXP", "Plugins", "External");
+        string external = GetUxpExternalRoots().First();
         string destinationRoot = Path.Combine(external, "GotaCreatorKit-current");
         Directory.CreateDirectory(external);
 
         // Adobe puede conservar una copia anterior con otro nombre de carpeta.
-        // LÃ­mpialas antes de copiar el paquete actual para evitar que UXP cargue
-        // una versiÃ³n vieja por prioridad o cachÃ©.
+        // Límpialas antes de copiar el paquete actual para evitar que UXP cargue
+        // una versión vieja por prioridad o caché.
         RemoveAllExistingPluginCopies(destinationRoot);
 
-        // El destino es fijo y pertenece Ãºnicamente a Gota Creator Kit. Al
+        // El destino es fijo y pertenece únicamente a Gota Creator Kit. Al
         // reemplazarlo evitamos que Premiere prefiera una copia anterior.
         if (Directory.Exists(destinationRoot)) Directory.Delete(destinationRoot, true);
         Directory.CreateDirectory(destinationRoot);
@@ -344,7 +349,7 @@ internal static class Program
             if (!destination.StartsWith(destinationRoot + Path.DirectorySeparatorChar,
                     StringComparison.OrdinalIgnoreCase) &&
                 !string.Equals(destination, destinationRoot, StringComparison.OrdinalIgnoreCase))
-                throw new InvalidOperationException("El paquete CCX contiene una ruta no vÃ¡lida.");
+                throw new InvalidOperationException("El paquete CCX contiene una ruta no válida.");
             if (string.IsNullOrEmpty(entry.Name))
             {
                 Directory.CreateDirectory(destination);
@@ -359,36 +364,53 @@ internal static class Program
 
     private static void RemoveAllExistingPluginCopies(string keepPath)
     {
-        string external = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-            "Adobe", "UXP", "Plugins", "External");
-        if (!Directory.Exists(external)) return;
-
-        foreach (string folder in Directory.GetDirectories(external))
+        foreach (string external in GetUxpExternalRoots())
         {
-            if (string.Equals(Path.GetFullPath(folder), Path.GetFullPath(keepPath),
-                    StringComparison.OrdinalIgnoreCase))
-                continue;
-
-            string manifest = Path.Combine(folder, "manifest.json");
-            if (!File.Exists(manifest)) continue;
-            try
+            if (!Directory.Exists(external)) continue;
+            foreach (string folder in Directory.GetDirectories(external))
             {
-                using JsonDocument document = JsonDocument.Parse(File.ReadAllText(manifest));
-                if (!document.RootElement.TryGetProperty("id", out JsonElement idElement) ||
-                    !string.Equals(idElement.GetString(), PluginId, StringComparison.OrdinalIgnoreCase))
+                if (string.Equals(Path.GetFullPath(folder), Path.GetFullPath(keepPath),
+                        StringComparison.OrdinalIgnoreCase))
                     continue;
-
-                Directory.Delete(folder, true);
-                File.AppendAllText(LogFile,
-                    $"Se eliminÃ³ copia anterior del panel antes de instalar: {folder}\n");
-            }
-            catch (Exception error)
-            {
-                File.AppendAllText(LogFile,
-                    $"No se pudo limpiar copia anterior {folder}: {error.Message}\n");
+                string manifest = Path.Combine(folder, "manifest.json");
+                if (!File.Exists(manifest)) continue;
+                try
+                {
+                    using JsonDocument document = JsonDocument.Parse(File.ReadAllText(manifest));
+                    JsonElement root = document.RootElement;
+                    string id = root.TryGetProperty("id", out JsonElement idElement)
+                        ? idElement.GetString() ?? "" : "";
+                    string name = root.TryGetProperty("name", out JsonElement nameElement)
+                        ? nameElement.ToString() : "";
+                    bool belongsToGota = LegacyPluginIds.Any(candidate =>
+                        string.Equals(candidate, id, StringComparison.OrdinalIgnoreCase)) ||
+                        name.Contains("Gota Creator Kit", StringComparison.OrdinalIgnoreCase) ||
+                        name.Contains("AutoFrame", StringComparison.OrdinalIgnoreCase);
+                    if (!belongsToGota) continue;
+                    Directory.Delete(folder, true);
+                    File.AppendAllText(LogFile,
+                        $"Se eliminó copia anterior del panel antes de instalar: {folder}\n");
+                }
+                catch (Exception error)
+                {
+                    File.AppendAllText(LogFile,
+                        $"No se pudo limpiar copia anterior {folder}: {error.Message}\n");
+                }
             }
         }
+    }
+
+    private static IEnumerable<string> GetUxpExternalRoots()
+    {
+        yield return Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            "Adobe", "UXP", "Plugins", "External");
+        yield return Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "Adobe", "UXP", "Plugins", "External");
+        yield return Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
+            "Adobe", "UXP", "Plugins", "External");
     }
 
     private static bool IsPremiereRunning()
@@ -407,43 +429,13 @@ internal static class Program
                text.Contains("installation failed", StringComparison.OrdinalIgnoreCase);
     }
 
-    // Una instalaciÃ³n anterior en la carpeta UXP externa puede ganar prioridad
-    // sobre el paquete reciÃ©n instalado. Solo quitamos copias del mismo ID cuya
-    // versiÃ³n sea menor; no tocamos plugins de terceros ni la versiÃ³n nueva.
+    // Una instalación anterior en la carpeta UXP externa puede ganar prioridad
+    // sobre el paquete recién instalado. Solo quitamos copias del mismo ID cuya
+    // versión sea menor; no tocamos plugins de terceros ni la versión nueva.
     private static void RemoveOldExternalPluginCopies()
     {
-        string external = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-            "Adobe", "UXP", "Plugins", "External");
-        if (!Directory.Exists(external)) return;
-
-        Version package = Version.Parse(PackageVersion);
-        foreach (string folder in Directory.GetDirectories(external))
-        {
-            string manifest = Path.Combine(folder, "manifest.json");
-            if (!File.Exists(manifest)) continue;
-            try
-            {
-                using JsonDocument document = JsonDocument.Parse(File.ReadAllText(manifest));
-                JsonElement root = document.RootElement;
-                string? id = root.TryGetProperty("id", out JsonElement idElement)
-                    ? idElement.GetString() : null;
-                string? versionText = root.TryGetProperty("version", out JsonElement versionElement)
-                    ? versionElement.GetString() : null;
-                if (!string.Equals(id, PluginId, StringComparison.OrdinalIgnoreCase) ||
-                    !Version.TryParse(versionText, out Version? installed) ||
-                    installed >= package)
-                    continue;
-                Directory.Delete(folder, true);
-                File.AppendAllText(LogFile,
-                    $"Se eliminÃ³ copia anterior del panel: {folder}\n");
-            }
-            catch (Exception error)
-            {
-                File.AppendAllText(LogFile,
-                    $"No se pudo limpiar copia antigua {folder}: {error.Message}\n");
-            }
-        }
+        string keepPath = Path.Combine(GetUxpExternalRoots().First(), "GotaCreatorKit-current");
+        RemoveAllExistingPluginCopies(keepPath);
     }
 
     private static async Task WatchPremiereAsync()
@@ -487,7 +479,7 @@ internal static class Program
                 }
                 else if (service is { HasExited: true })
                 {
-                    AppendSupervisorLog($"El motor terminÃ³ con cÃ³digo {service.ExitCode}: {DateTimeOffset.Now:O}");
+                    AppendSupervisorLog($"El motor terminó con código {service.ExitCode}: {DateTimeOffset.Now:O}");
                     service.Dispose();
                     service = null;
                 }
@@ -522,7 +514,7 @@ internal static class Program
             @"Software\Microsoft\Windows\CurrentVersion\Run");
         key.DeleteValue("AutoFrameByGota", false);
         ShowMessage(
-            "Se desactivÃ³ el inicio automÃ¡tico. La carpeta puede eliminarse despuÃ©s de cerrar Premiere:\n\n" +
+            "Se desactivó el inicio automático. La carpeta puede eliminarse después de cerrar Premiere:\n\n" +
             InstallDir,
             false);
     }
