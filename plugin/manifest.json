@@ -1,8 +1,8 @@
 {
   "manifestVersion": 5,
   "id": "com.autoframe.faces.dev",
-  "name": "Gota Creator Kit â˜”",
-  "version": "3.3.6",
+  "name": "Gota Creator Kit ☔",
+  "version": "3.3.8",
   "main": "main.js",
   "host": {
     "app": "premierepro",
@@ -12,14 +12,14 @@
     {
       "type": "panel",
       "id": "autoframeFacesPanel",
-      "label": { "default": "Gota Creator Kit â˜”" },
+      "label": { "default": "Gota Creator Kit ☔" },
       "minimumSize": { "width": 280, "height": 360 },
       "preferredDockedSize": { "width": 340, "height": 560 }
     },
     {
       "type": "panel",
       "id": "gckLibraryPanel",
-      "label": { "default": "Biblioteca Gota â˜”" },
+      "label": { "default": "Biblioteca Gota ☔" },
       "minimumSize": { "width": 620, "height": 360 },
       "preferredDockedSize": { "width": 760, "height": 560 }
     }

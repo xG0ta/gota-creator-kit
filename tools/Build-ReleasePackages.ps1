@@ -65,7 +65,7 @@ function Get-CleanTreeEntries {
   param([string]$Folder, [string]$Prefix)
   Get-ChildItem -LiteralPath $Folder -File -Recurse | Where-Object {
     $_.FullName -notmatch '[\\/](__pycache__|tests)[\\/]' -and
-    $_.Extension.ToLowerInvariant() -notin @('.pyc', '.log', '.sqlite3')
+    $_.Extension.ToLowerInvariant() -notin @('.pyc', '.log', '.sqlite3', '.mogrt')
   } | ForEach-Object {
     $relative = $_.FullName.Substring($Folder.Length).TrimStart([char[]]@('\','/'))
     [pscustomobject]@{

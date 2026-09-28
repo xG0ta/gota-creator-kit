@@ -5,7 +5,7 @@ finish() {
   local status=$?
   if [ "$status" -ne 0 ]; then
     echo
-    echo "La instalaciÃ³n se detuvo con cÃ³digo $status."
+    echo "La instalación se detuvo con código $status."
     echo "Registro: $HOME/Library/Application Support/GotaCreatorKit/installer.log"
   fi
   read -r -p "Presiona Enter para cerrar esta ventana..."
@@ -31,8 +31,8 @@ find_python() {
     "/usr/local/bin/python3" \
     "$(command -v python3 2>/dev/null || true)"; do
     if [ -n "$candidate" ] && [ -x "$candidate" ]; then
-      # El motor se distribuye y se prueba con Python 3.12. Aceptar una versiÃ³n
-      # mÃ¡s reciente puede hacer que pip intente compilar dependencias nativas
+      # El motor se distribuye y se prueba con Python 3.12. Aceptar una versión
+      # más reciente puede hacer que pip intente compilar dependencias nativas
       # en Macs que no tienen Xcode, OpenSSL ni pkg-config.
       if "$candidate" -c 'import sys; raise SystemExit(sys.version_info[:2] != (3, 12))'; then
         PYTHON_BIN="$candidate"
@@ -56,18 +56,18 @@ find_upia() {
   return 1
 }
 
-# Premiere puede estar instalado con nombres y rutas que dependen de la versiÃ³n,
-# idioma o Creative Cloud. No se bloquea la instalaciÃ³n del motor por esa
-# comprobaciÃ³n: el CCX y Premiere validarÃ¡n su compatibilidad por separado.
+# Premiere puede estar instalado con nombres y rutas que dependen de la versión,
+# idioma o Creative Cloud. No se bloquea la instalación del motor por esa
+# comprobación: el CCX y Premiere validarán su compatibilidad por separado.
 echo "Preparando el motor local de Gota Creator Kit..."
 
 if ! find_python; then
-  PYTHON_PKG="$TMPDIR/python-3.3.6-macos11.pkg"
-  echo "Python 3.12 es necesario. Se descargarÃ¡ el instalador universal oficial."
+  PYTHON_PKG="$TMPDIR/python-3.12.10-macos11.pkg"
+  echo "Python 3.12 es necesario. Se descargará el instalador universal oficial."
   curl -L --fail \
-    "https://www.python.org/ftp/python/3.3.6/python-3.3.6-macos11.pkg" \
+    "https://www.python.org/ftp/python/3.12.10/python-3.12.10-macos11.pkg" \
     -o "$PYTHON_PKG"
-  echo "macOS solicitarÃ¡ tu contraseÃ±a para instalar Python."
+  echo "macOS solicitará tu contraseña para instalar Python."
   sudo /usr/sbin/installer -pkg "$PYTHON_PKG" -target /
   rm -f "$PYTHON_PKG"
   find_python
@@ -76,32 +76,32 @@ fi
 pkill -f "$INSTALL_DIR/service/run_service.py" 2>/dev/null || true
 launchctl bootout "gui/$UID/com.xg0ta.gotacreatorkit" 2>/dev/null || true
 
-# Cada actualizaciÃ³n instala un motor limpio. Esto evita que un mÃ³dulo viejo,
-# cachÃ© de Python o archivos de pruebas de una ediciÃ³n anterior sobrevivan y
-# apunten a la lÃ³gica antigua de licencias.
+# Cada actualización instala un motor limpio. Esto evita que un módulo viejo,
+# caché de Python o archivos de pruebas de una edición anterior sobrevivan y
+# apunten a la lógica antigua de licencias.
 rm -rf "$INSTALL_DIR/service" "$INSTALL_DIR/service_v2"
 ditto "$PAYLOAD_DIR/service" "$INSTALL_DIR/service"
 ditto "$PAYLOAD_DIR/service_v2" "$INSTALL_DIR/service_v2"
 cp "$PAYLOAD_DIR/Supervisor.sh" "$INSTALL_DIR/Supervisor.sh"
 cp "$PAYLOAD_DIR/Gota Creator Kit.ccx" "$INSTALL_DIR/Gota Creator Kit.ccx"
 chmod +x "$INSTALL_DIR/Supervisor.sh"
-echo "3.3.6" > "$INSTALL_DIR/installed-engine-version.txt"
-# El archivo existe desde la instalaciÃ³n. El motor irÃ¡ agregando los eventos
-# de anÃ¡lisis y de ediciÃ³n, sin obligar al usuario a buscar dentro del ZIP.
+echo "3.3.8" > "$INSTALL_DIR/installed-engine-version.txt"
+# El archivo existe desde la instalación. El motor irá agregando los eventos
+# de análisis y de edición, sin obligar al usuario a buscar dentro del ZIP.
 touch "$INSTALL_DIR/silence-diagnostics.log"
-# Estos rastros existen incluso si una dependencia no logra instalarse. AsÃ­ el
-# usuario no queda buscando archivos que aÃºn no pudo crear el servicio.
+# Estos rastros existen incluso si una dependencia no logra instalarse. Así el
+# usuario no queda buscando archivos que aún no pudo crear el servicio.
 printf 'Motor preparado; instalando dependencias.\n' > "$INSTALL_DIR/service/autoframe-service.log"
 : > "$INSTALL_DIR/supervisor.log"
 : > "$INSTALL_DIR/supervisor-error.log"
 
 CCX_FILE="$INSTALL_DIR/Gota Creator Kit.ccx"
 if ! /usr/bin/unzip -tq "$CCX_FILE" >/dev/null; then
-  echo "El paquete CCX estÃ¡ daÃ±ado. Vuelve a descargar el instalador."
+  echo "El paquete CCX está dañado. Vuelve a descargar el instalador."
   exit 1
 fi
 if ! /usr/bin/unzip -Z1 "$CCX_FILE" | /usr/bin/grep -qx "manifest.json"; then
-  echo "El paquete CCX no contiene el manifiesto en su raÃ­z."
+  echo "El paquete CCX no contiene el manifiesto en su raíz."
   exit 1
 fi
 if /usr/bin/unzip -Z1 "$CCX_FILE" | /usr/bin/grep -q '\\'; then
@@ -109,7 +109,7 @@ if /usr/bin/unzip -Z1 "$CCX_FILE" | /usr/bin/grep -q '\\'; then
   exit 1
 fi
 
-# La instalaciÃ³n anterior pudo interrumpirse durante pip. Recreamos el entorno
+# La instalación anterior pudo interrumpirse durante pip. Recreamos el entorno
 # completo para no heredar paquetes a medio compilar ni dependencias rotas.
 rm -rf "$INSTALL_DIR/venv"
 "$PYTHON_BIN" -m venv "$INSTALL_DIR/venv"
@@ -156,12 +156,12 @@ PLIST
 launchctl bootstrap "gui/$UID" "$AGENT_FILE"
 launchctl kickstart -k "gui/$UID/com.xg0ta.gotacreatorkit" 2>/dev/null || true
 
-# No damos la instalaciÃ³n por terminada hasta que el motor local responda.
-# AsÃ­ se detecta aquÃ­ cualquier problema de Python o dependencias, en lugar
-# de mostrar despuÃ©s un error genÃ©rico de conexiÃ³n dentro de Premiere.
+# No damos la instalación por terminada hasta que el motor local responda.
+# Así se detecta aquí cualquier problema de Python o dependencias, en lugar
+# de mostrar después un error genérico de conexión dentro de Premiere.
 SERVICE_READY=0
 for attempt in $(seq 1 30); do
-  if /usr/bin/curl --silent --fail --max-time 2 "http://3.3.6.1:8765/health" \
+  if /usr/bin/curl --silent --fail --max-time 2 "http://127.0.0.1:8765/health" \
     | /usr/bin/grep -q '"status":"ok"'; then
     SERVICE_READY=1
     break
@@ -186,8 +186,34 @@ if ! find_upia; then
   exit 1
 fi
 
+EXTERNAL_DIR="$HOME/Library/Application Support/Adobe/UXP/Plugins/External"
+CURRENT_PANEL_DIR="$EXTERNAL_DIR/GotaCreatorKit-current"
+/bin/mkdir -p "$EXTERNAL_DIR"
+
+# Quita todas las copias UXP anteriores de Gota/AutoFrame, aunque una versión
+# vieja haya usado otro nombre de carpeta o ID. Esta limpieza evita que
+# Premiere cargue primero un panel antiguo con MOGRT/SVG.
+while IFS= read -r manifest; do
+  folder="$(/usr/bin/dirname "$manifest")"
+  [ "$folder" = "$CURRENT_PANEL_DIR" ] && continue
+  if /usr/bin/grep -Eiq 'com\.autoframe\.faces|com\.xg0ta\.(autoframe|gotacreatorkit)|Gota Creator Kit|AutoFrame' "$manifest"; then
+    /bin/rm -rf "$folder"
+    echo "Se eliminó copia anterior del panel: $folder"
+  fi
+done < <(/usr/bin/find "$EXTERNAL_DIR" -mindepth 2 -maxdepth 2 -name manifest.json -print 2>/dev/null)
+
+# Instala también una copia externa exacta. Así la versión del panel siempre
+# coincide con este paquete, incluso si Creative Cloud/UPIA conserva caché.
+/bin/rm -rf "$CURRENT_PANEL_DIR"
+/bin/mkdir -p "$CURRENT_PANEL_DIR"
+/usr/bin/ditto -x -k "$CCX_FILE" "$CURRENT_PANEL_DIR"
+if [ ! -f "$CURRENT_PANEL_DIR/manifest.json" ]; then
+  echo "El CCX no contiene un manifest válido."
+  exit 1
+fi
+
 echo
-echo "Instalando el panel directamente con Adobe UPIA..."
+echo "Instalando el panel también con Adobe UPIA..."
 echo "Requisito: Adobe Premiere Pro 25.6 o posterior."
 set +e
 "$UPIA_BIN" --version || true
@@ -199,29 +225,15 @@ if [ "$UPIA_STATUS" -ne 0 ] || /usr/bin/grep -Eiq 'failed to install|status = -|
   echo
   echo "Adobe UPIA no pudo instalar el panel. Codigo: $UPIA_STATUS"
   echo "Revisa: $INSTALL_DIR/upia-install.log"
-  echo "TambiÃ©n revisa: $HOME/Library/Application Support/Adobe/UPI/Log/"
+  echo "También revisa: $HOME/Library/Application Support/Adobe/UPI/Log/"
   echo "Comprueba que Premiere 25.6+ y Creative Cloud se hayan abierto al menos una vez."
-  echo "El archivo CCX quedÃ³ en Descargas. Se abrirÃ¡ con Creative Cloud para un segundo intento."
+  echo "El archivo CCX quedó en Descargas. Se abrirá con Creative Cloud para un segundo intento."
   /usr/bin/open "$HOME/Downloads/Gota Creator Kit - Plugin.ccx" || true
   read -r -p "Presiona Enter para finalizar..."
   exit "$UPIA_STATUS"
 fi
 
-# Una copia UXP externa de una ediciÃ³n anterior puede abrirse antes que el
-# CCX reciÃ©n instalado. Se eliminan solo copias antiguas del mismo panel una
-# vez que Adobe confirmÃ³ la instalaciÃ³n; nada de terceros se toca.
-EXTERNAL_DIR="$HOME/Library/Application Support/Adobe/UXP/Plugins/External"
-if [ -d "$EXTERNAL_DIR" ]; then
-  for folder in "$EXTERNAL_DIR"/com.autoframe.faces.dev_*; do
-    [ -d "$folder" ] || continue
-    if ! /usr/bin/grep -q '"version"[[:space:]]*:[[:space:]]*"3.3.6"' "$folder/manifest.json" 2>/dev/null; then
-      rm -rf "$folder"
-      echo "Se eliminÃ³ copia externa anterior: $folder"
-    fi
-  done
-fi
-
 echo
-echo "InstalaciÃ³n terminada."
-echo "Creative Cloud abrirÃ¡ la confirmaciÃ³n del plugin."
+echo "Instalación terminada."
+echo "Creative Cloud abrirá la confirmación del plugin."
 echo "Todo listo."
