@@ -4,7 +4,7 @@ const os = require("os");
 const localFileSystem = storage.localFileSystem;
 
 const SERVICE_URL = "http://127.0.0.1:8765";
-const CURRENT_VERSION = "3.3.8";
+const CURRENT_VERSION = "3.3.9";
 const UPDATE_MANIFEST_URL =
   "https://api.github.com/repos/xG0ta/gota-creator-kit/contents/latest.json?ref=main";
 const OUTPUT_WIDTH = 1080;
@@ -2711,7 +2711,7 @@ function buildPanel() {
   [
     ["-30", "-30 dB (agresivo)"],
     ["-36", "-36 dB"],
-    ["-42", "-42 dB (recomendado)"],
+    ["-42", "Automático inteligente (recomendado)"],
     ["-48", "-48 dB"],
     ["-54", "-54 dB (conservador)"],
     ["-60", "-60 dB (solo silencio claro)"],
@@ -2744,7 +2744,8 @@ function buildPanel() {
   thresholdInputRow.appendChild(thresholdUnit);
   thresholdLabel.appendChild(thresholdInputRow);
   const thresholdHint = makeElement(
-    "div", "Puedes escribir cualquier valor entre -96 y 0 dB."
+    "div", "El motor adapta este valor al ruido y al volumen de voz del clip. " +
+    "Puedes escribir cualquier valor entre -96 y 0 dB."
   );
   thresholdHint.style.fontSize = "9px";
   thresholdHint.style.color = "#888888";
@@ -4290,14 +4291,21 @@ let silenceDiagnosticLogs = [];
       const thresholdLimited = silenceAnalyses.some(
         (item) => item.result.diagnostics?.thresholdWasLimited
       );
+      const calibration = silenceAnalyses[0]?.result;
+      const calibrationHint = calibration?.diagnostics
+        ? `\nCalibración inteligente: ruido ${calibration.diagnostics.noiseReferenceDb} dB, ` +
+          `voz ${calibration.diagnostics.speechReferenceDb} dB, ` +
+          `corte ${Number(calibration.effectiveThresholdDb).toFixed(1)} dB.`
+        : "";
       const diagnosticHint = silenceDiagnosticLogs.length
         ? `\n\nRegistro de diagnóstico guardado:\n${silenceDiagnosticLogs[0]}`
         : "";
       silenceStatus.textContent =
         `Análisis listo: ${silenceCount} silencios\n` +
         `Tiempo que puede retirarse: ${formatTimecode(savedSeconds)}` +
+        calibrationHint +
         (thresholdLimited
-          ? "\nNivel ajustado de forma conservadora para no cortar conversación normal."
+          ? "\nNivel ajustado automáticamente según el ruido y la voz del clip."
           : "") +
         (examples.length
           ? `\n\nPrimeros resultados:\n${examples.join("\n")}`
