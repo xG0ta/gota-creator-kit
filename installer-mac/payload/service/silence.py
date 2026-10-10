@@ -12,6 +12,7 @@ WINDOW_SAMPLES = round(SAMPLE_RATE * WINDOW_SECONDS)
 # que una conversación normal parezca silencio. Nunca subimos de este límite:
 # sigue siendo posible ser agresivo, pero no a costa de cortar palabras.
 MAX_SAFE_THRESHOLD_DB = -30.0
+MIN_EFFECTIVE_THRESHOLD_DB = -72.0
 
 
 def _percentile(values: list[float], ratio: float) -> float:
@@ -23,16 +24,68 @@ def _percentile(values: list[float], ratio: float) -> float:
 
 
 def effective_threshold_for_levels(levels: list[float], threshold_db: float) -> float:
-    """Evita que voces grabadas bajitas se clasifiquen como silencio.
+    """Calcula un umbral adaptado al ruido y a la voz del propio clip.
 
-    Aparte del máximo absoluto, usamos la voz predominante del propio clip
-    como referencia. Así una entrevista grabada a bajo volumen conserva su
-    diálogo aunque el usuario haya escogido un valor agresivo por accidente.
+    El valor elegido por el usuario ya no se usa como una frontera absoluta.
+    Funciona como control de agresividad alrededor de -42 dB. Esto permite
+    detectar pausas en una grabación con aire acondicionado a -35 dB sin
+    confundir una voz baja de otro clip con silencio.
     """
-    requested = min(float(threshold_db), MAX_SAFE_THRESHOLD_DB)
-    speech_reference = _percentile(levels, 0.75)
-    relative_guard = max(-60.0, min(MAX_SAFE_THRESHOLD_DB, speech_reference - 10.0))
-    return min(requested, relative_guard)
+    if not levels:
+        return max(MIN_EFFECTIVE_THRESHOLD_DB, min(float(threshold_db), MAX_SAFE_THRESHOLD_DB))
+    requested = max(-96.0, min(float(threshold_db), 0.0))
+    noise_reference = _percentile(levels, 0.18)
+    speech_reference = _percentile(levels, 0.82)
+    dynamic_range = max(0.0, speech_reference - noise_reference)
+    if dynamic_range >= 7.0:
+        # Separa los dos grupos sin acercarse demasiado a las sílabas suaves.
+        adaptive = noise_reference + max(4.0, min(11.0, dynamic_range * 0.42))
+    else:
+        # En audio casi uniforme es más seguro asumir que hay voz continua.
+        adaptive = speech_reference - 9.0
+    aggressiveness = (requested - (-42.0)) * 0.5
+    threshold = adaptive + aggressiveness
+    # Siempre dejamos al menos 6 dB de distancia respecto de la voz típica.
+    threshold = min(threshold, speech_reference - 6.0, MAX_SAFE_THRESHOLD_DB)
+    return max(MIN_EFFECTIVE_THRESHOLD_DB, threshold)
+
+
+def _smooth_levels(levels: list[float]) -> list[float]:
+    """Suavizado robusto: ignora clics y bajadas de una sola ventana."""
+    if not levels:
+        return []
+    median_levels = []
+    for index in range(len(levels)):
+        left = max(0, index - 2)
+        right = min(len(levels), index + 3)
+        local = sorted(levels[left:right])
+        median_levels.append(local[len(local) // 2])
+    smoothed = []
+    for index in range(len(median_levels)):
+        left = max(0, index - 2)
+        right = min(len(median_levels), index + 3)
+        smoothed.append(sum(median_levels[left:right]) / (right - left))
+    return smoothed
+
+
+def _bridge_short_active_islands(mask: list[bool], maximum_windows: int) -> list[bool]:
+    """Une una pausa atravesada por un clic o ruido muy breve."""
+    result = list(mask)
+    index = 0
+    while index < len(result):
+        if result[index]:
+            index += 1
+            continue
+        start = index
+        while index < len(result) and not result[index]:
+            index += 1
+        if (
+            start > 0 and index < len(result) and
+            result[start - 1] and result[index] and
+            index - start <= maximum_windows
+        ):
+            result[start:index] = [True] * (index - start)
+    return result
 
 
 def _dbfs(samples) -> float:
@@ -61,14 +114,25 @@ def intervals_from_levels(
     convierta en muchos microcortes en clips largos.
     """
     effective_threshold = effective_threshold_for_levels(levels, threshold_db)
-    # Suaviza cinco ventanas de 20 ms (100 ms) para no reaccionar a caídas
-    # instantáneas del volumen dentro de una palabra.
-    smoothed_levels = []
-    radius = 2
-    for index, _level in enumerate(levels):
-        left = max(0, index - radius)
-        right = min(len(levels), index + radius + 1)
-        smoothed_levels.append(sum(levels[left:right]) / (right - left))
+    smoothed_levels = _smooth_levels(levels)
+
+    # Histéresis: entrar en silencio exige caer claramente por debajo del
+    # umbral; para volver a voz hay que superarlo con margen. Así no alterna
+    # entre voz/silencio en cada ventana cuando el ruido está justo al límite.
+    enter_threshold = effective_threshold - 1.5
+    exit_threshold = effective_threshold + 2.5
+    silent = bool(smoothed_levels and smoothed_levels[0] < effective_threshold)
+    silence_mask = []
+    for level in smoothed_levels:
+        if silent:
+            if level >= exit_threshold:
+                silent = False
+        elif level <= enter_threshold:
+            silent = True
+        silence_mask.append(silent)
+    silence_mask = _bridge_short_active_islands(
+        silence_mask, max(1, round(0.12 / window_seconds))
+    )
 
     intervals = []
     run_start = None
@@ -77,10 +141,10 @@ def intervals_from_levels(
     # intervalo en uno negativo. La duración mínima se comprueba sobre el
     # intervalo que realmente se va a recortar, no sobre el silencio crudo.
     requested_minimum = max(0.1, float(minimum_silence))
-    for index, level in enumerate(smoothed_levels + [float("inf")]):
-        if level < effective_threshold and run_start is None:
+    for index, is_silent in enumerate(silence_mask + [False]):
+        if is_silent and run_start is None:
             run_start = index
-        elif level >= effective_threshold and run_start is not None:
+        elif not is_silent and run_start is not None:
             raw_start = start_seconds + run_start * window_seconds
             raw_end = start_seconds + index * window_seconds
             raw_duration = raw_end - raw_start
@@ -216,8 +280,9 @@ def analyze_silences(
             "windowSeconds": WINDOW_SECONDS,
             "levelWindows": len(levels),
             "thresholdWasLimited": effective_threshold != threshold_db,
-            "speechReferenceDb": round(_percentile(levels, 0.75), 2),
+            "noiseReferenceDb": round(_percentile(levels, 0.18), 2),
+            "speechReferenceDb": round(_percentile(levels, 0.82), 2),
             "requestedMinimumSilenceSeconds": max(0.1, float(minimum_silence)),
-            "algorithm": "silence-1.2-natural-padding",
+            "algorithm": "silence-2.0-adaptive-hysteresis",
         },
     }

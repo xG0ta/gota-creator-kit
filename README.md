@@ -4,16 +4,25 @@ Herramientas para Adobe Premiere Pro: reencuadre automático, edición de silenc
 
 > Este repositorio muestra únicamente la versión actual para evitar confusiones. Las versiones anteriores están en los Releases de GitHub y no se recomiendan para instalaciones nuevas.
 
-## Descarga correcta — versión 3.3.8
+## Descarga correcta — versión 3.3.9
 
 | Tu computadora | Descarga esto | Importante |
 | --- | --- | --- |
-| **Windows** | [Instalador completo para Windows — GotaCreatorKit-3.3.8-Windows.exe](https://github.com/xG0ta/gota-creator-kit/releases/download/v3.3.8/GotaCreatorKit-3.3.8-Windows.exe) | Recomendado. Instala el panel y el motor local. También elimina copias UXP antiguas antes de instalar. |
-| **Premiere 2026 sin Creative Cloud** | [ZIP completo: EXE + CCX — GotaCreatorKit-3.3.8-Premiere-2026-sin-Creative-Cloud.zip](https://github.com/xG0ta/gota-creator-kit/releases/download/v3.3.8/GotaCreatorKit-3.3.8-Premiere-2026-sin-Creative-Cloud.zip) | Ejecuta primero el EXE y luego instala el CCX con un gestor compatible. Así también queda instalado el motor local. |
-| **macOS** | [Instalador completo para macOS — GotaCreatorKit-3.3.8-macOS.zip](https://github.com/xG0ta/gota-creator-kit/releases/download/v3.3.8/GotaCreatorKit-3.3.8-macOS.zip) | Descomprime el ZIP completo y abre **Instalar Gota Creator Kit.app**. |
-| **Premiere Pro 2021–2025.5** | [Gota Creator Kit Legacy 3.3.8 — ZXP](https://github.com/xG0ta/gota-creator-kit/releases/download/v3.3.8/GotaCreatorKit-Legacy-Premiere-2021-a-2025.5-3.3.8.zxp) | Para Premiere 2024 y anteriores. Instálalo con ZXP Installer. |
+| **Windows** | [Instalador completo para Windows — GotaCreatorKit-3.3.9-Windows.exe](https://github.com/xG0ta/gota-creator-kit/releases/download/v3.3.9/GotaCreatorKit-3.3.9-Windows.exe) | Recomendado. Instala el panel y el motor local. También elimina copias UXP antiguas antes de instalar. |
+| **Premiere 2026 sin Creative Cloud** | [ZIP completo: EXE + CCX — GotaCreatorKit-3.3.9-Premiere-2026-sin-Creative-Cloud.zip](https://github.com/xG0ta/gota-creator-kit/releases/download/v3.3.9/GotaCreatorKit-3.3.9-Premiere-2026-sin-Creative-Cloud.zip) | Ejecuta primero el EXE y luego instala el CCX con un gestor compatible. Así también queda instalado el motor local. |
+| **macOS** | [Instalador completo para macOS — GotaCreatorKit-3.3.9-macOS.zip](https://github.com/xG0ta/gota-creator-kit/releases/download/v3.3.9/GotaCreatorKit-3.3.9-macOS.zip) | Descomprime el ZIP completo y abre **Instalar Gota Creator Kit.app**. |
+| **Premiere Pro 2021–2025.5** | [Gota Creator Kit Legacy 3.3.9 — ZXP](https://github.com/xG0ta/gota-creator-kit/releases/download/v3.3.9/GotaCreatorKit-Legacy-Premiere-2021-a-2025.5-3.3.9.zxp) | Para Premiere 2024 y anteriores. Instálalo con ZXP Installer. |
 
-## Novedades de 3.3.8
+## Novedades de 3.3.9
+
+- Detector de silencios 2.0 con calibración automática para cada clip.
+- Distingue el ruido ambiente de la voz real y conserva voces suaves.
+- Evita cortes falsos causados por respiraciones, clics, golpes o caídas breves de volumen.
+- Usa histéresis y suavizado para proteger el inicio y final de las palabras.
+- El panel muestra los niveles de ruido, voz y corte utilizados durante el análisis.
+- Windows, macOS y Legacy comparten exactamente la versión 3.3.9.
+
+## Cambios anteriores de 3.3.8
 
 - Los subtítulos ya no dependen de MOGRT ni SVG: Premiere recibe PNG transparentes compatibles.
 - Los instaladores eliminan copias antiguas de AutoFrame/Gota Creator Kit antes de copiar el panel nuevo.
@@ -38,7 +47,7 @@ Herramientas para Adobe Premiere Pro: reencuadre automático, edición de silenc
 ### Windows
 
 1. Cierra Premiere Pro.
-2. Ejecuta `GotaCreatorKit-3.3.8-Windows.exe`.
+2. Ejecuta `GotaCreatorKit-3.3.9-Windows.exe`.
 3. Abre Premiere y entra a **Ventana > Plugins de UXP > Gota Creator Kit**.
 
 ### macOS
