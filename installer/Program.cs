@@ -17,7 +17,7 @@ internal static class Program
         "com.xg0ta.autoframe",
         "com.xg0ta.gotacreatorkit"
     };
-    private const string PackageVersion = "3.3.9";
+    private const string PackageVersion = "3.3.10";
     private static readonly string InstallDir = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "AutoFrameByGota");

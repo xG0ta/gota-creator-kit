@@ -54,7 +54,7 @@ while ($true) {
 }
 }
 catch {
-    "[$(Get-Date -Format o)] version=3.3.9`n$($_ | Out-String)" |
+    "[$(Get-Date -Format o)] version=3.3.10`n$($_ | Out-String)" |
         Add-Content -LiteralPath $supervisorErrorLog
     exit 1
 }

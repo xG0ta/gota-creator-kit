@@ -1,9 +1,9 @@
 {
-  "version": "3.3.9",
-  "displayVersion": "3.3.9 — Gota Creator Kit ☔",
-  "downloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.3.9/GotaCreatorKit-3.3.9-Windows.exe",
-  "windowsDownloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.3.9/GotaCreatorKit-3.3.9-Windows.exe",
-  "macDownloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.3.9/GotaCreatorKit-3.3.9-macOS.zip",
-  "legacyDownloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.3.9/GotaCreatorKit-Legacy-Premiere-2021-a-2025.5-3.3.9.zxp",
-  "notes": "Detector de silencios 2.0: calibración automática por clip, histéresis, protección de voz suave y filtrado de clics o golpes breves. El panel muestra los niveles de ruido, voz y corte empleados. Versión unificada para Windows, macOS y Legacy."
+  "version": "3.3.10",
+  "displayVersion": "3.3.10 — Gota Creator Kit ☔",
+  "downloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.3.10/GotaCreatorKit-3.3.10-Windows.exe",
+  "windowsDownloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.3.10/GotaCreatorKit-3.3.10-Windows.exe",
+  "macDownloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.3.10/GotaCreatorKit-3.3.10-macOS.zip",
+  "legacyDownloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.3.10/GotaCreatorKit-Legacy-Premiere-2021-a-2025.5-3.3.10.zxp",
+  "notes": "Transcripción estable en videos largos: bloques de 30 segundos, consumo de memoria limitado y cambio automático a un modelo más ligero si falta RAM. Windows, macOS y Legacy mantienen la misma versión."
 }
