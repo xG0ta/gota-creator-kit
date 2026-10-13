@@ -1,9 +1,19 @@
 from pathlib import Path
 import base64
+import gc
 import hashlib
 import io
 import json
 import os
+
+# Deben configurarse antes de importar OpenCV, NumPy, CTranslate2 o cualquier
+# otra dependencia numérica. Si se establecen dentro del endpoint, MKL ya pudo
+# haber creado un grupo grande de hilos y reservar memoria de más.
+os.environ.setdefault("OMP_NUM_THREADS", "1")
+os.environ.setdefault("MKL_NUM_THREADS", "1")
+os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
+os.environ.setdefault("NUMEXPR_NUM_THREADS", "1")
+
 import sys
 import traceback
 from concurrent.futures import ThreadPoolExecutor
@@ -33,7 +43,7 @@ from service.hybrid_license import (
     remove_license,
 )
 
-APP_VERSION = "3.3.9"
+APP_VERSION = "3.3.10"
 # Increment this whenever the binary contents of generated caption MOGRTs
 # change.  Including it in the cache key prevents an older cached MOGRT (with
 # the placeholder text) from being reused after an update.
@@ -441,28 +451,35 @@ def transcribe_local_media(request: TranscribeRequest) -> dict:
 
     cache_root = preview_cache_dir.parent / "whisper-models"
     cache_root.mkdir(parents=True, exist_ok=True)
-    # MKL/CTranslate2 puede intentar reservar varios buffers enormes para una
-    # selección larga.  Un solo trabajo y fragmentos acotados evitan el
-    # ``mkl_malloc: failed to allocate memory`` sin limitar la duración total.
-    os.environ.setdefault("OMP_NUM_THREADS", "1")
-    os.environ.setdefault("MKL_NUM_THREADS", "1")
-    os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
     clip_end = request.endSeconds
     total_duration = max(0.05, (clip_end - request.startSeconds) if clip_end is not None else 3600.0)
-    chunk_size = 90.0
+    # 30 s mantiene acotados los buffers internos de Whisper/CTranslate2. Los
+    # bloques de 90 s todavía podían agotar la RAM en equipos de 8 GB.
+    chunk_size = 30.0
     result_segments = []
     model = None
     info_language = request.language
 
+    def is_memory_exhaustion(error: BaseException) -> bool:
+        message = str(error).lower()
+        return isinstance(error, MemoryError) or any(marker in message for marker in (
+            "mkl_malloc", "failed to allocate memory", "out of memory",
+            "not enough memory", "bad allocation", "std::bad_alloc",
+        ))
+
+    def load_model(model_name: str):
+        loaded = transcription_models.get(model_name)
+        if loaded is None:
+            loaded = WhisperModel(
+                model_name, device="cpu", compute_type="int8",
+                download_root=str(cache_root), cpu_threads=1, num_workers=1,
+            )
+            transcription_models[model_name] = loaded
+        return loaded
+
     with transcription_lock:
         try:
-            model = transcription_models.get(request.model)
-            if model is None:
-                model = WhisperModel(
-                    request.model, device="cpu", compute_type="int8",
-                    download_root=str(cache_root), cpu_threads=1, num_workers=1,
-                )
-                transcription_models[request.model] = model
+            active_model_name = request.model
             for offset in range(0, max(1, int((total_duration + chunk_size - 0.001) // chunk_size))):
                 chunk_start = request.startSeconds + offset * chunk_size
                 if clip_end is not None and chunk_start >= clip_end:
@@ -482,35 +499,69 @@ def transcribe_local_media(request: TranscribeRequest) -> dict:
                     message = completed.stderr.decode("utf-8", errors="replace").strip()
                     raise RuntimeError(message or "No se pudo preparar el audio para los subtítulos.")
                 try:
-                    segments, info = model.transcribe(
-                        str(segment_path), language=request.language, vad_filter=True,
-                        beam_size=1, best_of=1, temperature=0.0,
-                        condition_on_previous_text=False, word_timestamps=True,
-                        initial_prompt=(
-                            "Transcripción en español mexicano. Conserva nombres propios, "
-                            "muletillas y palabras coloquiales; no traduzcas al inglés."
-                        ),
-                    )
-                    info_language = getattr(info, "language", request.language)
-                    for segment in segments:
-                        text = str(segment.text or "").strip()
-                        if not text:
-                            continue
-                        words = []
-                        for word in getattr(segment, "words", None) or []:
-                            word_text = str(getattr(word, "word", "") or "").strip()
-                            if word_text:
-                                words.append({
-                                    "text": word_text,
-                                    "startSeconds": round(chunk_start + float(word.start), 3),
-                                    "endSeconds": round(chunk_start + float(word.end), 3),
+                    fallback_models = [active_model_name]
+                    if active_model_name == "small":
+                        fallback_models.extend(["base", "tiny"])
+                    elif active_model_name == "base":
+                        fallback_models.append("tiny")
+
+                    for candidate_index, candidate_name in enumerate(fallback_models):
+                        segments = None
+                        info = None
+                        chunk_results = []
+                        try:
+                            model = load_model(candidate_name)
+                            segments, info = model.transcribe(
+                                str(segment_path), language=request.language, vad_filter=True,
+                                beam_size=1, best_of=1, temperature=0.0,
+                                condition_on_previous_text=False, word_timestamps=True,
+                                initial_prompt=(
+                                    "Transcripción en español mexicano. Conserva nombres propios, "
+                                    "muletillas y palabras coloquiales; no traduzcas al inglés."
+                                ),
+                            )
+                            info_language = getattr(info, "language", request.language)
+                            for segment in segments:
+                                text = str(segment.text or "").strip()
+                                if not text:
+                                    continue
+                                words = []
+                                for word in getattr(segment, "words", None) or []:
+                                    word_text = str(getattr(word, "word", "") or "").strip()
+                                    if word_text:
+                                        words.append({
+                                            "text": word_text,
+                                            "startSeconds": round(chunk_start + float(word.start), 3),
+                                            "endSeconds": round(chunk_start + float(word.end), 3),
+                                        })
+                                chunk_results.append({
+                                    "startSeconds": round(chunk_start + float(segment.start), 3),
+                                    "endSeconds": round(chunk_start + float(segment.end), 3),
+                                    "text": text,
+                                    "words": words,
                                 })
-                        result_segments.append({
-                            "startSeconds": round(chunk_start + float(segment.start), 3),
-                            "endSeconds": round(chunk_start + float(segment.end), 3),
-                            "text": text,
-                            "words": words,
-                        })
+                            result_segments.extend(chunk_results)
+                            active_model_name = candidate_name
+                            break
+                        except Exception as chunk_error:
+                            has_fallback = candidate_index + 1 < len(fallback_models)
+                            if not is_memory_exhaustion(chunk_error) or not has_fallback:
+                                raise
+                            transcription_models.pop(candidate_name, None)
+                            model = None
+                            segments = None
+                            info = None
+                            chunk_results = []
+                            gc.collect()
+                            write_silence_diagnostic(
+                                "transcription_memory_fallback",
+                                requestedModel=request.model,
+                                failedModel=candidate_name,
+                                fallbackModel=fallback_models[candidate_index + 1],
+                                chunkStartSeconds=round(chunk_start, 3),
+                                message=str(chunk_error)[:300],
+                            )
+                    gc.collect()
                 finally:
                     try:
                         segment_path.unlink(missing_ok=True)
@@ -524,7 +575,12 @@ def transcribe_local_media(request: TranscribeRequest) -> dict:
             )
             raise
 
-    return {"segments": result_segments, "language": info_language, "model": request.model}
+    return {
+        "segments": result_segments,
+        "language": info_language,
+        "model": active_model_name,
+        "requestedModel": request.model,
+    }
 
 
 def get_system_fonts() -> list[str]:

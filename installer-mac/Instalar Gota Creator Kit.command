@@ -85,7 +85,7 @@ ditto "$PAYLOAD_DIR/service_v2" "$INSTALL_DIR/service_v2"
 cp "$PAYLOAD_DIR/Supervisor.sh" "$INSTALL_DIR/Supervisor.sh"
 cp "$PAYLOAD_DIR/Gota Creator Kit.ccx" "$INSTALL_DIR/Gota Creator Kit.ccx"
 chmod +x "$INSTALL_DIR/Supervisor.sh"
-echo "3.3.9" > "$INSTALL_DIR/installed-engine-version.txt"
+echo "3.3.10" > "$INSTALL_DIR/installed-engine-version.txt"
 # El archivo existe desde la instalación. El motor irá agregando los eventos
 # de análisis y de edición, sin obligar al usuario a buscar dentro del ZIP.
 touch "$INSTALL_DIR/silence-diagnostics.log"
