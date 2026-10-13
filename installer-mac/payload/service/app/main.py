@@ -43,7 +43,7 @@ from service.hybrid_license import (
     remove_license,
 )
 
-APP_VERSION = "3.3.10"
+APP_VERSION = "3.3.11"
 # Increment this whenever the binary contents of generated caption MOGRTs
 # change.  Including it in the cache key prevents an older cached MOGRT (with
 # the placeholder text) from being reused after an update.
@@ -1627,8 +1627,12 @@ def build_caption_png(text: str, style: dict | None = None) -> Path:
 def caption_png(request: CaptionSvgRequest):
     try:
         return {"pngPath": str(build_caption_png(request.text.strip(), request.style))}
-    except (ValueError, OSError) as error:
-        raise HTTPException(status_code=422, detail=str(error)) from error
+    except Exception as error:
+        logger.exception("caption_png_failed")
+        raise HTTPException(
+            status_code=422,
+            detail=f"No se pudo preparar el texto del subtítulo: {type(error).__name__}: {error}",
+        ) from error
 
 
 @app.post("/v1/preview/register")
