@@ -13,6 +13,18 @@ Herramientas para Adobe Premiere Pro: reencuadre automático, edición de silenc
 | **macOS** | [Instalador completo para macOS — GotaCreatorKit-3.3.11-macOS.zip](https://github.com/xG0ta/gota-creator-kit/releases/download/v3.3.11/GotaCreatorKit-3.3.11-macOS.zip) | Descomprime el ZIP completo y abre **Instalar Gota Creator Kit.app**. |
 | **Premiere Pro 2021–2025.5** | [Gota Creator Kit Legacy 3.3.11 — ZXP](https://github.com/xG0ta/gota-creator-kit/releases/download/v3.3.11/GotaCreatorKit-Legacy-Premiere-2021-a-2025.5-3.3.11.zxp) | Para Premiere 2024 y anteriores. Instálalo con ZXP Installer. |
 
+## Nuevo: Gota Subtítulos — app sin Premiere
+
+Pone subtítulos animados (palabra destacada), un **título gracioso hecho con IA local** y **emojis** a cualquier video, sin abrir Premiere. Todo se procesa en tu computadora y el original no se modifica.
+
+| Tu computadora | Descarga esto |
+| --- | --- |
+| **Windows 10/11** | [GotaSubtitulos-1.0.0-Windows.zip](https://github.com/xG0ta/gota-creator-kit/releases/download/gota-subtitulos-v1.0.0/GotaSubtitulos-1.0.0-Windows.zip) |
+| **Mac con Intel** | [GotaSubtitulos-1.0.0-macOS-Intel.zip](https://github.com/xG0ta/gota-creator-kit/releases/download/gota-subtitulos-v1.0.0/GotaSubtitulos-1.0.0-macOS-Intel.zip) |
+| **Mac con Apple (M1, M2…)** | [GotaSubtitulos-1.0.0-macOS-AppleSilicon.zip](https://github.com/xG0ta/gota-creator-kit/releases/download/gota-subtitulos-v1.0.0/GotaSubtitulos-1.0.0-macOS-AppleSilicon.zip) |
+
+Cómo abrirla, qué necesita el título con IA (Ollama) y qué hace cada estilo: [notas de Gota Subtítulos 1.0.0](https://github.com/xG0ta/gota-creator-kit/releases/tag/gota-subtitulos-v1.0.0).
+
 ## Novedades de 3.3.11
 
 - Corrige “No se pudo preparar el texto del subtítulo” en instalaciones completas.

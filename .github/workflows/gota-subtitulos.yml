@@ -1,0 +1,110 @@
+# Compila y publica la app externa Gota Subtítulos (no necesita Premiere).
+# Se activa al subir una etiqueta gota-subtitulos-vX.Y.Z; a mano solo compila.
+name: Gota Subtítulos
+
+on:
+  push:
+    tags: ["gota-subtitulos-v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Compilar ${{ matrix.label }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            label: Windows
+          - os: macos-15-intel
+            label: macOS-Intel
+          - os: macos-14
+            label: macOS-AppleSilicon
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Instalar dependencias
+        run: |
+          python -m pip install --disable-pip-version-check --only-binary=:all: \
+            -r subtitulos-app/requirements.txt pyinstaller==6.22.3 pytest==9.2.0 > pip.log 2>&1
+
+      - name: Pruebas
+        run: python -m pytest -q -p no:cacheprovider service/tests/test_captions.py subtitulos-app/tests > pruebas.log 2>&1
+
+      - name: Compilar
+        working-directory: subtitulos-app
+        run: pyinstaller --noconfirm --clean gota_subtitulos.spec > ../pyinstaller.log 2>&1
+
+      - name: Probar la app compilada
+        run: |
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            ./subtitulos-app/dist/GotaSubtitulos/GotaSubtitulos.exe --self-test selftest.txt --with-model
+          else
+            "./subtitulos-app/dist/Gota Subtitulos.app/Contents/MacOS/GotaSubtitulos" --self-test selftest.txt --with-model
+          fi
+          cat selftest.txt
+          grep -q "SELFTEST OK" selftest.txt
+
+      - name: Comprimir
+        run: |
+          VERSION=$(python -c "import re;print(re.search(r'VERSION = \"([^\"]+)\"', open('subtitulos-app/gota_subtitulos/__init__.py', encoding='utf-8').read()).group(1))")
+          mkdir -p paquete
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            cd subtitulos-app/dist && 7z a -tzip "../../paquete/GotaSubtitulos-$VERSION-${{ matrix.label }}.zip" GotaSubtitulos > /dev/null
+          else
+            cd subtitulos-app/dist && ditto -c -k --sequesterRsrc --keepParent "Gota Subtitulos.app" "../../paquete/GotaSubtitulos-$VERSION-${{ matrix.label }}.zip"
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: GotaSubtitulos-${{ matrix.label }}
+          path: paquete/*.zip
+          retention-days: 7
+
+      # Sin sesión iniciada no se ven los registros de Actions; las anotaciones
+      # de error sí son públicas, así que el final de cada registro va ahí.
+      - name: Mostrar el error
+        if: failure()
+        run: |
+          python - <<'EOF'
+          from pathlib import Path
+          for name in ("pip.log", "pruebas.log", "pyinstaller.log", "selftest.txt"):
+              path = Path(name)
+              if path.exists():
+                  text = path.read_text(encoding="utf-8", errors="replace")[-3500:]
+                  text = text.replace("%", "%25").replace("\r", "").replace("\n", "%0A")
+                  print(f"::error title={name}::{text}")
+          EOF
+
+  release:
+    name: Publicar
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/gota-subtitulos-v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: paquete
+          merge-multiple: true
+      - name: Crear el Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#gota-subtitulos-v}"
+          gh release create "$GITHUB_REF_NAME" paquete/*.zip \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "Gota Subtítulos $VERSION (app sin Premiere)" \
+            --notes-file subtitulos-app/NOTAS.md \
+            --latest=false
