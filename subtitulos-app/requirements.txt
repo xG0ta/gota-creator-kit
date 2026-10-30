@@ -1,0 +1,16 @@
+# Versiones probadas juntas en macOS Intel (Python 3.12). Instalar con
+# pip install --only-binary=:all: -r requirements.txt
+faster-whisper==1.1.1
+ctranslate2==4.8.4
+onnxruntime==1.23.2
+av==19.0.2
+huggingface-hub==2.4.0
+tokenizers==0.23.3
+requests==2.32.3
+fastapi==0.116.1
+starlette==0.47.3
+uvicorn==0.35.0
+pydantic==2.14.2
+Pillow==11.3.0
+imageio-ffmpeg==0.6.0
+numpy==2.5.4

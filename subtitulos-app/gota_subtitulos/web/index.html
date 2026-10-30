@@ -1,0 +1,740 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gota Subtítulos</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E☔%3C/text%3E%3C/svg%3E">
+<style>
+  :root {
+    --bg: #14171c; --panel: #1d2128; --panel-2: #252a33; --line: #343b47; --text: #eef1f5;
+    --muted: #a3adbb; --accent: #1f7ae0; --accent-2: #3d93f5; --ok: #1fa971; --warn: #e0a21f; --bad: #e0503d;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; }
+  header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 22px; border-bottom: 1px solid var(--line); }
+  header h1 { margin: 0; font-size: 19px; letter-spacing: .2px; }
+  header .version { color: var(--muted); font-size: 12px; margin-left: 6px; }
+  main { display: grid; grid-template-columns: minmax(280px, 1fr) minmax(360px, 520px); gap: 22px; padding: 22px; max-width: 1400px; margin: 0 auto; }
+  @media (max-width: 920px) { main { grid-template-columns: 1fr; padding: 14px; } }
+  .preview { position: sticky; top: 16px; align-self: start; }
+  .stage-wrap { display: flex; justify-content: center; background: #0c0e11; border: 1px solid var(--line); border-radius: 12px; padding: 12px; min-height: 280px; }
+  .stage { position: relative; max-width: 100%; max-height: 74vh; aspect-ratio: 9 / 16; height: 74vh; background: #000; border-radius: 6px; overflow: hidden; }
+  .stage video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: #000; }
+  .stage img.layer { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; display: none; }
+  .stage .empty { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; color: var(--muted); padding: 20px; }
+  .controls-bar { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+  .controls-bar input[type=range] { flex: 1; }
+  .time { font-variant-numeric: tabular-nums; color: var(--muted); font-size: 12px; min-width: 92px; text-align: right; }
+  .note { color: var(--muted); font-size: 12px; margin-top: 6px; }
+  section.card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; margin-bottom: 16px; }
+  section.card h2 { margin: 0 0 12px; font-size: 15px; display: flex; align-items: center; gap: 8px; }
+  .step { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--accent); font-size: 12px; font-weight: 700; }
+  .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 8px 0; }
+  .row > label { flex: 1 1 140px; }
+  label { display: block; color: var(--muted); font-size: 12px; }
+  label > select, label > input[type=text], label > input[type=range] { width: 100%; margin-top: 4px; }
+  select, input[type=text] { background: var(--panel-2); color: var(--text); border: 1px solid var(--line); border-radius: 7px; padding: 7px 9px; font: inherit; }
+  input[type=text]:focus, select:focus { outline: 2px solid var(--accent-2); outline-offset: 0; }
+  input[type=color] { width: 38px; height: 30px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel-2); padding: 2px; cursor: pointer; }
+  .color { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12px; }
+  button { font: inherit; border: 1px solid var(--line); background: var(--panel-2); color: var(--text); border-radius: 8px; padding: 8px 12px; cursor: pointer; }
+  button:hover:not(:disabled) { border-color: var(--accent-2); }
+  button:disabled { opacity: .5; cursor: default; }
+  button.primary { background: var(--accent); border-color: var(--accent); font-weight: 600; }
+  button.primary:hover:not(:disabled) { background: var(--accent-2); }
+  button.ok { background: var(--ok); border-color: var(--ok); font-weight: 600; }
+  .chips { display: flex; gap: 6px; flex-wrap: wrap; }
+  .chip { padding: 6px 11px; border-radius: 999px; font-size: 13px; }
+  .chip.active { background: var(--accent); border-color: var(--accent); }
+  progress { width: 100%; height: 8px; accent-color: var(--accent); }
+  .status { font-size: 13px; color: var(--muted); white-space: pre-line; margin-top: 6px; }
+  .status.error { color: #ff8a7a; }
+  .status.done { color: #6fdcaa; }
+  .lines { max-height: 340px; overflow: auto; border: 1px solid var(--line); border-radius: 8px; }
+  .line { display: flex; align-items: center; gap: 6px; padding: 5px 6px; border-bottom: 1px solid #2a303a; }
+  .line:last-child { border-bottom: 0; }
+  .line.current { background: #1c2a3d; }
+  .line .at { font-variant-numeric: tabular-nums; color: var(--accent-2); background: none; border: 0; padding: 2px 4px; font-size: 12px; }
+  .line input { flex: 1; min-width: 0; padding: 5px 7px; }
+  .emojis { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0 2px; }
+  .emojis button { padding: 3px 6px; font-size: 18px; line-height: 1.2; background: transparent; }
+  .suggestions { display: grid; gap: 6px; margin-top: 8px; }
+  .suggestions button { text-align: left; }
+  .suggestions button.chosen { border-color: var(--ok); background: #183427; }
+  .hidden { display: none !important; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .result { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 8px; }
+  footer { text-align: center; color: var(--muted); font-size: 12px; padding: 0 0 26px; }
+  .closed { position: fixed; inset: 0; background: rgba(10, 12, 15, .94); display: grid; place-items: center; font-size: 18px; z-index: 5; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Gota Subtítulos ☔ <span class="version" id="version"></span></h1>
+  <button id="quit" title="Cierra la app en esta computadora">Cerrar app</button>
+</header>
+<main>
+  <div class="preview">
+    <div class="stage-wrap">
+      <div class="stage" id="stage">
+        <video id="player" playsinline preload="metadata"></video>
+        <img class="layer" id="subtitleLayer" alt="">
+        <img class="layer" id="titleLayer" alt="">
+        <div class="empty" id="emptyStage">Elige un video para empezar.<br>La vista previa muestra cómo quedará.</div>
+      </div>
+    </div>
+    <div class="controls-bar">
+      <button id="play" disabled>▶︎ Reproducir</button>
+      <input type="range" id="seek" min="0" max="1000" value="0" disabled>
+      <span class="time" id="time">0:00 / 0:00</span>
+    </div>
+    <div class="note" id="previewNote"></div>
+  </div>
+
+  <div>
+    <section class="card">
+      <h2><span class="step">1</span> Video</h2>
+      <div class="row">
+        <button class="primary" id="chooseVideo">Elegir video…</button>
+        <span id="videoName" class="note">Ningún video elegido.</span>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2><span class="step">2</span> Subtítulos automáticos</h2>
+      <div class="row">
+        <label>Idioma
+          <select id="language">
+            <option value="es">Español</option>
+            <option value="en">Inglés</option>
+            <option value="auto">Detectar solo</option>
+          </select>
+        </label>
+        <label>Calidad
+          <select id="quality">
+            <option value="precisa">Precisa (recomendada)</option>
+            <option value="rapida">Rápida</option>
+          </select>
+        </label>
+        <label>Palabras por línea <span id="maxWordsValue">6</span>
+          <input type="range" id="maxWords" min="2" max="12" value="6">
+        </label>
+      </div>
+      <div class="row">
+        <button class="primary" id="transcribe" disabled>Generar subtítulos</button>
+        <button id="cancelJob" class="hidden">Cancelar</button>
+      </div>
+      <progress id="transcribeProgress" class="hidden" max="1" value="0"></progress>
+      <div class="status" id="transcribeStatus">Todo se hace en tu computadora. La primera vez descarga el modelo de voz.</div>
+    </section>
+
+    <section class="card">
+      <h2><span class="step">3</span> Estilo de los subtítulos</h2>
+      <div class="chips" id="presets">
+        <button class="chip" data-preset="pop">Gota Pop</button>
+        <button class="chip" data-preset="impact">Impacto</button>
+        <button class="chip" data-preset="clean">Minimal</button>
+      </div>
+      <div class="note" id="presetHelp"></div>
+      <div class="row">
+        <label>Tipografía <select id="font"></select></label>
+        <label>Mayúsculas
+          <select id="case">
+            <option value="upper">TODO EN MAYÚSCULAS</option>
+            <option value="">Como se escribió</option>
+            <option value="title">Inicial En Mayúscula</option>
+            <option value="lower">todo en minúsculas</option>
+          </select>
+        </label>
+      </div>
+      <div class="row">
+        <label>Tamaño <span id="sizeValue"></span><input type="range" id="size" min="20" max="140" value="46"></label>
+        <label>Altura en pantalla <span id="positionValue"></span><input type="range" id="position" min="10" max="92" value="70"></label>
+      </div>
+      <div class="row">
+        <span class="color"><input type="color" id="textColor" value="#ffffff"> Texto</span>
+        <span class="color"><input type="color" id="strokeColor" value="#072944"> Contorno</span>
+        <span class="color" id="highlightWrap"><input type="color" id="highlightColor" value="#20b7ff"> <span id="highlightLabel">Palabra destacada</span></span>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2><span class="step">4</span> Título con IA local ✨</h2>
+      <div class="status" id="ollamaStatus">Buscando la IA local (Ollama)…</div>
+      <label style="margin-top:8px">Tono del título
+        <input type="text" id="tone" maxlength="200">
+      </label>
+      <div class="row">
+        <label style="flex:0 0 auto; display:flex; align-items:center; gap:6px; color:var(--text)"><input type="checkbox" id="titleEmojis" checked> Con emojis</label>
+        <label style="flex:0 0 auto; display:flex; align-items:center; gap:6px; color:var(--text)" id="useImagesWrap"><input type="checkbox" id="useImages"> Que también mire el video (tarda unos minutos más)</label>
+      </div>
+      <div class="row">
+        <button class="primary" id="suggestTitles" disabled>✨ Proponer títulos</button>
+      </div>
+      <progress id="titleProgress" class="hidden" max="1" value="0"></progress>
+      <div class="status" id="titleStatus"></div>
+      <div class="suggestions" id="suggestions"></div>
+      <label style="margin-top:12px">Título que se verá en el video (puedes escribirlo tú)
+        <input type="text" id="titleText" maxlength="120" placeholder="Ej.: POV: tu compa dice que ya viene 😂">
+      </label>
+      <div class="chips" id="titlePresets" style="margin-top:8px">
+        <button class="chip" data-title-preset="white">Caja blanca</button>
+        <button class="chip" data-title-preset="black">Caja negra</button>
+        <button class="chip" data-title-preset="outline">Contorno</button>
+      </div>
+      <div class="row">
+        <label>Tamaño <span id="titleSizeValue"></span><input type="range" id="titleSize" min="24" max="120" value="58"></label>
+        <label>Altura en pantalla <span id="titlePositionValue"></span><input type="range" id="titlePosition" min="5" max="60" value="14"></label>
+        <label>Se ve
+          <select id="titleSeconds">
+            <option value="0">Todo el video</option>
+            <option value="3">Primeros 3 segundos</option>
+            <option value="5">Primeros 5 segundos</option>
+          </select>
+        </label>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2><span class="step">5</span> Revisar el texto</h2>
+      <div class="note">Toca un emoji para agregarlo donde está el cursor (título o una línea).</div>
+      <div class="emojis" id="emojiBar"></div>
+      <div class="lines" id="lines"><div class="note" style="padding:10px">Aquí aparecerán los subtítulos para corregirlos.</div></div>
+    </section>
+
+    <section class="card">
+      <h2><span class="step">6</span> Guardar</h2>
+      <div class="row">
+        <button class="ok" id="exportMp4" disabled>Guardar video con subtítulos (MP4)</button>
+      </div>
+      <div class="row">
+        <button id="exportSrt" disabled>Solo el texto (SRT)</button>
+        <button id="exportMov" disabled>Solo subtítulos transparentes (MOV)</button>
+      </div>
+      <progress id="exportProgress" class="hidden" max="1" value="0"></progress>
+      <div class="status" id="exportStatus"></div>
+      <div class="result hidden" id="exportResult">
+        <button id="revealResult">Mostrar en la carpeta</button>
+      </div>
+      <div class="note" id="exportFolder"></div>
+    </section>
+  </div>
+</main>
+<footer>El video original nunca se modifica. Todo se procesa en tu computadora.</footer>
+<div class="closed hidden" id="closed">Gota Subtítulos se cerró. Ya puedes cerrar esta pestaña.</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const EMOJIS = ["😂", "🤣", "💀", "🔥", "😱", "😎", "🙄", "🤯", "😅", "😭", "👀", "💯", "❤️", "🙌", "🤠", "🌮", "🍺", "🐔", "🤡", "🥵", "😏", "🫣", "👌", "💸", "🚨", "⚠️", "✅", "❌"];
+const PRESETS = {
+  pop: { style: "gota-pop", fontSize: 46, textColor: "#ffffff", strokeColor: "#072944", strokeSize: 2, shadowColor: "#001828", shadowBlur: 8, shadowOffset: 2, accent: "#20b7ff",
+         help: "La palabra que se dice se pinta de color y crece un poco." },
+  impact: { style: "impact", fontSize: 52, textColor: "#ffffff", strokeColor: "#161616", strokeSize: 1, shadowColor: "#000000", shadowBlur: 4, shadowOffset: 2, accent: "#f5cc38",
+            help: "La palabra que se dice lleva un recuadro de color." },
+  clean: { style: "minimal", fontSize: 42, textColor: "#ffffff", strokeColor: "#000000", strokeSize: 2, shadowColor: "#000000", shadowBlur: 5, shadowOffset: 2, accent: null,
+           help: "Texto limpio, cada línea aparece con un fundido." }
+};
+const TITLE_PRESETS = {
+  white: { style: "title-box", textColor: "#111111", boxColor: "#ffffff", strokeSize: 0, shadowBlur: 0, shadowOffset: 0 },
+  black: { style: "title-box", textColor: "#ffffff", boxColor: "#000000", strokeSize: 0, shadowBlur: 0, shadowOffset: 0 },
+  outline: { style: "minimal", textColor: "#ffffff", strokeColor: "#000000", strokeSize: 6, shadowColor: "#000000", shadowBlur: 6, shadowOffset: 3 }
+};
+const SAMPLE = { text: "Así se verán tus subtítulos 😂", startSeconds: 0, endSeconds: 999, words: [] };
+
+let info = { entrances: {} };
+let video = null;
+let lines = [];
+let units = [];
+let preset = "pop";
+let titlePreset = "white";
+let focusedInput = null;
+let activeUnitKey = "";
+let titleKey = "";
+const pngCache = new Map();
+let pollTimer = null;
+let jobHandlers = {};
+
+function store(key, value) { try { localStorage.setItem(`gotaSubtitulos.${key}`, value); } catch (_) {} }
+function load(key, fallback) { try { return localStorage.getItem(`gotaSubtitulos.${key}`) ?? fallback; } catch (_) { return fallback; } }
+function formatTime(seconds) {
+  const total = Math.max(0, Math.floor(seconds || 0));
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
+}
+async function api(path, options = {}) {
+  const response = await fetch(path, {
+    method: options.body !== undefined || options.method === "POST" ? "POST" : "GET",
+    headers: options.body !== undefined ? { "Content-Type": "application/json" } : {},
+    body: options.body !== undefined ? JSON.stringify(options.body) : undefined
+  });
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({}));
+    throw new Error(payload.detail || `Error ${response.status}`);
+  }
+  return options.raw ? response : response.json();
+}
+function debounce(fn, wait) {
+  let timer = null;
+  return (...args) => { clearTimeout(timer); timer = setTimeout(() => fn(...args), wait); };
+}
+function setStatus(element, text, kind = "") {
+  element.textContent = text;
+  element.className = `status ${kind}`;
+}
+
+function subtitleStyle() {
+  const base = PRESETS[preset];
+  return {
+    style: base.style, fontPath: $("font").value || null, fontSize: Number($("size").value),
+    verticalPosition: Number($("position").value), case: $("case").value, alignment: "center",
+    textColor: $("textColor").value, strokeColor: $("strokeColor").value, strokeSize: base.strokeSize,
+    shadowColor: base.shadowColor, shadowBlur: base.shadowBlur, shadowOffset: base.shadowOffset,
+    glowColor: $("highlightColor").value, highlightColor: $("highlightColor").value
+  };
+}
+function titleStyle() {
+  return { ...TITLE_PRESETS[titlePreset], fontPath: $("font").value || null, fontSize: Number($("titleSize").value),
+           verticalPosition: Number($("titlePosition").value), alignment: "center" };
+}
+
+function applyPreset(name, keepColors = false) {
+  preset = name;
+  const values = PRESETS[name];
+  document.querySelectorAll("#presets .chip").forEach((chip) => chip.classList.toggle("active", chip.dataset.preset === name));
+  $("presetHelp").textContent = values.help;
+  if (!keepColors) {
+    $("size").value = values.fontSize;
+    $("textColor").value = values.textColor;
+    $("strokeColor").value = values.strokeColor;
+    if (values.accent) $("highlightColor").value = values.accent;
+  }
+  $("highlightWrap").classList.toggle("hidden", !values.accent);
+  $("highlightLabel").textContent = name === "impact" ? "Recuadro destacado" : "Palabra destacada";
+  store("preset", name);
+  styleChanged();
+}
+function applyTitlePreset(name) {
+  titlePreset = name;
+  document.querySelectorAll("#titlePresets .chip").forEach((chip) => chip.classList.toggle("active", chip.dataset.titlePreset === name));
+  store("titlePreset", name);
+  titleChanged();
+}
+function refreshLabels() {
+  $("sizeValue").textContent = $("size").value;
+  $("positionValue").textContent = `${$("position").value}%`;
+  $("titleSizeValue").textContent = $("titleSize").value;
+  $("titlePositionValue").textContent = `${$("titlePosition").value}%`;
+  $("maxWordsValue").textContent = $("maxWords").value;
+}
+
+const refreshUnits = debounce(async () => {
+  if (!video) return;
+  const source = lines.length ? lines : [SAMPLE];
+  try {
+    const payload = await api("/api/units", { body: { lines: source, style: subtitleStyle() } });
+    units = payload.units;
+    activeUnitKey = "";
+    drawFrame(true);
+  } catch (error) { console.warn(error); }
+}, 200);
+function styleChanged() {
+  refreshLabels();
+  pngCache.forEach((entry) => URL.revokeObjectURL(entry.url));
+  pngCache.clear();
+  activeUnitKey = "";
+  titleKey = "";
+  for (const id of ["size", "position", "case", "textColor", "strokeColor", "highlightColor", "font"]) store(id, $(id).value);
+  refreshUnits();
+  titleChanged();
+}
+const titleChanged = debounce(async () => {
+  refreshLabels();
+  store("titleSize", $("titleSize").value);
+  store("titlePosition", $("titlePosition").value);
+  const text = $("titleText").value.trim();
+  const layer = $("titleLayer");
+  if (!video || !text) { layer.style.display = "none"; layer.dataset.ready = ""; return; }
+  const key = JSON.stringify([text, titleStyle()]);
+  if (key === titleKey) return;
+  titleKey = key;
+  try {
+    const response = await api("/api/render", { body: { text, style: titleStyle(), highlightIndex: -1 }, raw: true });
+    const url = URL.createObjectURL(await response.blob());
+    if (layer.dataset.url) URL.revokeObjectURL(layer.dataset.url);
+    layer.dataset.url = url;
+    layer.src = url;
+    layer.dataset.ready = "1";
+    drawFrame(true);
+  } catch (error) { console.warn(error); }
+}, 250);
+
+async function unitImage(unit) {
+  const style = subtitleStyle();
+  const key = JSON.stringify([unit.text, unit.highlightIndex, style]);
+  if (pngCache.has(key)) return pngCache.get(key);
+  const response = await api("/api/render", { body: { text: unit.text, style, highlightIndex: unit.highlightIndex }, raw: true });
+  const entry = {
+    url: URL.createObjectURL(await response.blob()),
+    centerX: Number(response.headers.get("X-Text-Center-X") || 0.5),
+    centerY: Number(response.headers.get("X-Text-Center-Y") || 0.5)
+  };
+  pngCache.set(key, entry);
+  return entry;
+}
+function interpolate(keys, seconds, fallback) {
+  if (!keys || !keys.length) return fallback;
+  if (seconds <= keys[0][0]) return keys[0][1];
+  for (let index = 1; index < keys.length; index += 1) {
+    const [t0, v0] = keys[index - 1];
+    const [t1, v1] = keys[index];
+    if (seconds <= t1) return v0 + (v1 - v0) * (t1 > t0 ? (seconds - t0) / (t1 - t0) : 1);
+  }
+  return keys[keys.length - 1][1];
+}
+function entranceAt(unit, seconds) {
+  const entrance = (info.entrances || {})[PRESETS[preset].style] || {};
+  const limit = Math.max(0.04, (unit.endSeconds - unit.startSeconds) * 0.9);
+  const fit = (keys) => {
+    if (!keys) return null;
+    const last = keys[keys.length - 1][0];
+    const factor = last > limit ? limit / last : 1;
+    return keys.map(([t, v]) => [t * factor, v]);
+  };
+  return { scale: interpolate(fit(entrance.scale), seconds, 100), opacity: interpolate(fit(entrance.opacity), seconds, 100) };
+}
+let sampleStep = 0;
+async function drawFrame(force = false) {
+  if (!video) return;
+  const player = $("player");
+  const now = player.currentTime || 0;
+  const layer = $("subtitleLayer");
+  let unit = null;
+  if (!lines.length && units.length) {
+    // Sin transcripción: muestra un ejemplo que va destacando palabras.
+    unit = units[Math.floor(sampleStep) % units.length];
+  } else {
+    unit = units.find((item) => now >= item.startSeconds && now < item.endSeconds) || null;
+  }
+  highlightCurrentLine(now);
+  if (!unit) { layer.style.display = "none"; activeUnitKey = ""; }
+  else {
+    const key = `${unit.text}|${unit.highlightIndex}|${unit.startSeconds}`;
+    if (key !== activeUnitKey || force) {
+      activeUnitKey = key;
+      try {
+        const image = await unitImage(unit);
+        if (activeUnitKey !== key) return;
+        layer.src = image.url;
+        layer.dataset.centerX = image.centerX;
+        layer.dataset.centerY = image.centerY;
+        layer.style.display = "block";
+      } catch (error) { console.warn(error); }
+    }
+    if (unit.lineStart && lines.length) {
+      const state = entranceAt(unit, now - unit.startSeconds);
+      layer.style.transformOrigin = `${Number(layer.dataset.centerX) * 100}% ${Number(layer.dataset.centerY) * 100}%`;
+      layer.style.transform = `scale(${state.scale / 100})`;
+      layer.style.opacity = String(state.opacity / 100);
+    } else {
+      layer.style.transform = "none";
+      layer.style.opacity = "1";
+    }
+  }
+  const title = $("titleLayer");
+  const seconds = Number($("titleSeconds").value);
+  title.style.display = title.dataset.ready && (!seconds || now < seconds) ? "block" : "none";
+}
+function loop() {
+  const player = $("player");
+  if (video) {
+    if (!lines.length) sampleStep += 1 / 40;
+    drawFrame();
+    const duration = player.duration || video.duration || 0;
+    if (!seeking) $("seek").value = duration ? Math.round((player.currentTime / duration) * 1000) : 0;
+    $("time").textContent = `${formatTime(player.currentTime)} / ${formatTime(duration)}`;
+  }
+  requestAnimationFrame(loop);
+}
+let seeking = false;
+
+function highlightCurrentLine(now) {
+  const rows = $("lines").querySelectorAll(".line");
+  rows.forEach((row, index) => {
+    const line = lines[index];
+    row.classList.toggle("current", Boolean(line && now >= line.startSeconds && now < line.endSeconds));
+  });
+}
+function renderLines() {
+  const box = $("lines");
+  box.innerHTML = "";
+  if (!lines.length) {
+    box.innerHTML = '<div class="note" style="padding:10px">Aquí aparecerán los subtítulos para corregirlos.</div>';
+    return;
+  }
+  lines.forEach((line, index) => {
+    const row = document.createElement("div");
+    row.className = "line";
+    const at = document.createElement("button");
+    at.className = "at";
+    at.textContent = formatTime(line.startSeconds);
+    at.title = "Ir a este momento";
+    at.addEventListener("click", () => { $("player").currentTime = line.startSeconds + 0.01; });
+    const input = document.createElement("input");
+    input.type = "text";
+    input.value = line.text;
+    input.addEventListener("focus", () => { focusedInput = input; });
+    input.addEventListener("input", () => { lines[index].text = input.value; lines[index].edited = true; refreshUnits(); });
+    row.append(at, input);
+    box.appendChild(row);
+  });
+}
+
+function setBusy(busy) {
+  for (const id of ["chooseVideo", "transcribe", "suggestTitles", "exportMp4", "exportSrt", "exportMov"]) $(id).disabled = busy || (id !== "chooseVideo" && !video);
+  if (!busy && !ollama.available) $("suggestTitles").disabled = true;
+  $("cancelJob").classList.toggle("hidden", !busy);
+}
+function watchJob(kind, handlers) {
+  jobHandlers = handlers;
+  setBusy(true);
+  clearInterval(pollTimer);
+  pollTimer = setInterval(async () => {
+    let job;
+    try { job = await api("/api/job"); } catch (error) { return; }
+    if (job.kind !== kind) return;
+    handlers.progress && handlers.progress(job);
+    if (job.status === "running") return;
+    clearInterval(pollTimer);
+    setBusy(false);
+    if (job.status === "done") handlers.done(job.result);
+    else if (job.status === "canceled") handlers.failed("Cancelado.");
+    else handlers.failed(job.error || "Algo falló.");
+  }, 500);
+}
+
+async function chooseVideo() {
+  $("chooseVideo").disabled = true;
+  $("videoName").textContent = "Se abrió una ventana para elegir el video…";
+  try {
+    const payload = await api("/api/choose-video", { method: "POST" });
+    if (payload.video) openVideo(payload.video, !payload.canceled);
+    else $("videoName").textContent = "Ningún video elegido.";
+  } catch (error) {
+    $("videoName").textContent = error.message;
+  } finally {
+    setBusy(false);
+  }
+}
+function openVideo(info, isNew) {
+  video = info;
+  const ratio = video.width && video.height ? `${video.width} / ${video.height}` : "9 / 16";
+  const stage = $("stage");
+  stage.style.aspectRatio = ratio;
+  stage.style.height = video.width > video.height ? "auto" : "74vh";
+  stage.style.width = video.width > video.height ? "100%" : "auto";
+  $("emptyStage").classList.add("hidden");
+  const player = $("player");
+  if (isNew || !player.src) {
+    player.src = `/api/video?v=${encodeURIComponent(video.path)}`;
+    lines = [];
+    renderLines();
+    $("suggestions").innerHTML = "";
+  }
+  $("videoName").textContent = `${video.name} · ${video.width}×${video.height} · ${formatTime(video.duration)}`;
+  $("play").disabled = false;
+  $("seek").disabled = false;
+  setBusy(false);
+  styleChanged();
+}
+
+function startTranscription() {
+  const progress = $("transcribeProgress");
+  progress.classList.remove("hidden");
+  setStatus($("transcribeStatus"), "Empezando…");
+  api("/api/transcribe", { body: { language: $("language").value, quality: $("quality").value, maxWords: Number($("maxWords").value) } })
+    .then(() => watchJob("transcribe", {
+      progress: (job) => { progress.value = job.progress; setStatus($("transcribeStatus"), job.message); },
+      done: (result) => {
+        progress.classList.add("hidden");
+        lines = result.lines || [];
+        renderLines();
+        refreshUnits();
+        setStatus($("transcribeStatus"), lines.length
+          ? `Listo: ${lines.length} líneas. Revísalas en el paso 5 y dale play para ver cómo quedan.`
+          : "No encontré voz en el video.", lines.length ? "done" : "error");
+      },
+      failed: (message) => { progress.classList.add("hidden"); setStatus($("transcribeStatus"), `No se pudo transcribir: ${message}`, "error"); }
+    }))
+    .catch((error) => { progress.classList.add("hidden"); setStatus($("transcribeStatus"), error.message, "error"); });
+}
+async function resplit() {
+  refreshLabels();
+  store("maxWords", $("maxWords").value);
+  if (!lines.length) return;
+  const edited = lines.some((line) => line.edited);
+  const payload = await api("/api/split", { body: { maxWords: Number($("maxWords").value) } });
+  if (!payload.lines.length) return;
+  if (edited && !confirm("Al cambiar las palabras por línea se pierden las correcciones que hiciste. ¿Continuar?")) return;
+  lines = payload.lines;
+  renderLines();
+  refreshUnits();
+}
+
+let ollama = { available: false };
+async function checkOllama() {
+  try { ollama = await api("/api/ollama"); } catch (_) { ollama = { available: false, message: "No se pudo revisar la IA local." }; }
+  if (!ollama.available) {
+    setStatus($("ollamaStatus"), ollama.message, "error");
+    $("suggestTitles").disabled = true;
+  } else if (!ollama.textModel) {
+    setStatus($("ollamaStatus"), "Ollama está abierto pero no tiene un modelo de texto. En la Terminal escribe: ollama pull qwen3:4b-instruct", "error");
+    ollama.available = false;
+  } else {
+    setStatus($("ollamaStatus"), `IA local lista: ${ollama.textModel}${ollama.visionModel ? ` · puede mirar el video con ${ollama.visionModel}` : ""}.`, "done");
+    $("suggestTitles").disabled = !video;
+  }
+  $("useImagesWrap").classList.toggle("hidden", !ollama.visionModel);
+}
+function suggestTitles() {
+  const progress = $("titleProgress");
+  progress.classList.remove("hidden");
+  setStatus($("titleStatus"), lines.length ? "Pensando… (en una Mac sin tarjeta de video tarda 1 o 2 minutos)" : "Todavía no hay subtítulos: la IA mirará el video, puede tardar unos minutos.");
+  store("tone", $("tone").value);
+  api("/api/titles", { body: { tone: $("tone").value, emojis: $("titleEmojis").checked, useImages: $("useImages").checked, lines } })
+    .then(() => watchJob("titles", {
+      progress: (job) => { progress.value = job.progress; setStatus($("titleStatus"), job.message); },
+      done: (result) => {
+        progress.classList.add("hidden");
+        setStatus($("titleStatus"), `${result.note ? `${result.note}\n` : ""}Toca el que más te guste (luego puedes editarlo). ¿No te convencen? Pide otros.`, "done");
+        const box = $("suggestions");
+        box.innerHTML = "";
+        (result.titles || []).forEach((title) => {
+          const option = document.createElement("button");
+          option.textContent = title;
+          option.addEventListener("click", () => {
+            box.querySelectorAll("button").forEach((item) => item.classList.remove("chosen"));
+            option.classList.add("chosen");
+            $("titleText").value = title;
+            titleChanged();
+          });
+          box.appendChild(option);
+        });
+      },
+      failed: (message) => { progress.classList.add("hidden"); setStatus($("titleStatus"), `No se pudieron proponer títulos: ${message}`, "error"); }
+    }))
+    .catch((error) => { progress.classList.add("hidden"); setStatus($("titleStatus"), error.message, "error"); });
+}
+
+let lastExport = null;
+function exportVideo(kind) {
+  const progress = $("exportProgress");
+  const status = $("exportStatus");
+  $("exportResult").classList.add("hidden");
+  const title = $("titleText").value.trim();
+  const body = { kind, lines, style: subtitleStyle(),
+                 title: title ? { text: title, style: titleStyle(), seconds: Number($("titleSeconds").value) } : {} };
+  if (!lines.length && !title) { setStatus(status, "Primero genera los subtítulos o escribe un título.", "error"); return; }
+  progress.classList.toggle("hidden", kind === "srt");
+  setStatus(status, kind === "srt" ? "Guardando…" : "Empezando…");
+  api("/api/export", { body })
+    .then((payload) => {
+      const finish = (result) => {
+        progress.classList.add("hidden");
+        lastExport = result.path;
+        setStatus(status, `Guardado: ${result.path}`, "done");
+        $("exportResult").classList.remove("hidden");
+      };
+      if (payload.status === "done") { finish(payload.result); return; }
+      watchJob("export", {
+        progress: (job) => { progress.value = job.progress; setStatus(status, `${job.message} ${Math.round(job.progress * 100)}%`); },
+        done: finish,
+        failed: (message) => { progress.classList.add("hidden"); setStatus(status, `No se pudo guardar: ${message}`, "error"); }
+      });
+    })
+    .catch((error) => { progress.classList.add("hidden"); setStatus(status, error.message, "error"); });
+}
+
+function insertEmoji(emoji) {
+  const target = focusedInput && document.body.contains(focusedInput) ? focusedInput : $("titleText");
+  const start = target.selectionStart ?? target.value.length;
+  const end = target.selectionEnd ?? target.value.length;
+  const before = target.value.slice(0, start);
+  const spacer = before && !/\s$/.test(before) ? " " : "";
+  target.value = `${before}${spacer}${emoji}${target.value.slice(end)}`;
+  const caret = start + spacer.length + emoji.length;
+  target.focus();
+  target.setSelectionRange(caret, caret);
+  target.dispatchEvent(new Event("input"));
+}
+
+async function init() {
+  info = await api("/api/info");
+  $("version").textContent = `v${info.version}`;
+  $("exportFolder").textContent = `Los archivos se guardan en: ${info.exportFolder}`;
+  $("tone").value = load("tone", info.defaultTone);
+  EMOJIS.forEach((emoji) => {
+    const button = document.createElement("button");
+    button.textContent = emoji;
+    button.addEventListener("mousedown", (event) => event.preventDefault());
+    button.addEventListener("click", () => insertEmoji(emoji));
+    $("emojiBar").appendChild(button);
+  });
+  const fonts = await api("/api/fonts");
+  const select = $("font");
+  fonts.fonts.forEach((font) => {
+    const option = document.createElement("option");
+    option.value = font.path;
+    option.textContent = font.label;
+    select.appendChild(option);
+  });
+  select.value = load("font", fonts.default) || fonts.default || "";
+  if (!select.value && fonts.default) select.value = fonts.default;
+  for (const id of ["case", "maxWords", "titleSize", "titlePosition"]) { const saved = load(id, null); if (saved !== null) $(id).value = saved; }
+  applyPreset(PRESETS[load("preset", "pop")] ? load("preset", "pop") : "pop");
+  for (const id of ["size", "position", "textColor", "strokeColor", "highlightColor"]) { const saved = load(id, null); if (saved !== null) $(id).value = saved; }
+  applyTitlePreset(TITLE_PRESETS[load("titlePreset", "white")] ? load("titlePreset", "white") : "white");
+  $("titleText").addEventListener("focus", () => { focusedInput = $("titleText"); });
+  $("titleText").addEventListener("input", titleChanged);
+  if (info.video) openVideo(info.video, true);
+  setBusy(false);
+  checkOllama();
+  requestAnimationFrame(loop);
+}
+
+document.querySelectorAll("#presets .chip").forEach((chip) => chip.addEventListener("click", () => applyPreset(chip.dataset.preset)));
+document.querySelectorAll("#titlePresets .chip").forEach((chip) => chip.addEventListener("click", () => applyTitlePreset(chip.dataset.titlePreset)));
+for (const id of ["size", "position", "case", "textColor", "strokeColor", "highlightColor", "font"]) $(id).addEventListener("input", styleChanged);
+for (const id of ["titleSize", "titlePosition"]) $(id).addEventListener("input", titleChanged);
+$("titleSeconds").addEventListener("change", () => drawFrame(true));
+$("maxWords").addEventListener("change", resplit);
+$("maxWords").addEventListener("input", refreshLabels);
+$("chooseVideo").addEventListener("click", chooseVideo);
+$("transcribe").addEventListener("click", startTranscription);
+$("suggestTitles").addEventListener("click", suggestTitles);
+$("cancelJob").addEventListener("click", () => api("/api/job/cancel", { method: "POST" }));
+$("exportMp4").addEventListener("click", () => exportVideo("mp4"));
+$("exportSrt").addEventListener("click", () => exportVideo("srt"));
+$("exportMov").addEventListener("click", () => exportVideo("mov"));
+$("revealResult").addEventListener("click", () => lastExport && api("/api/reveal", { body: { path: lastExport } }));
+$("play").addEventListener("click", () => { const player = $("player"); player.paused ? player.play() : player.pause(); });
+$("player").addEventListener("play", () => { $("play").textContent = "⏸ Pausar"; });
+$("player").addEventListener("pause", () => { $("play").textContent = "▶︎ Reproducir"; });
+$("player").addEventListener("error", () => {
+  $("previewNote").textContent = "El navegador no puede reproducir este formato, pero sí se puede guardar con subtítulos.";
+});
+$("seek").addEventListener("input", () => {
+  seeking = true;
+  const player = $("player");
+  if (player.duration) player.currentTime = (Number($("seek").value) / 1000) * player.duration;
+});
+$("seek").addEventListener("change", () => { seeking = false; });
+$("quit").addEventListener("click", async () => {
+  if (!confirm("¿Cerrar Gota Subtítulos?")) return;
+  try { await api("/api/quit", { method: "POST" }); } catch (_) {}
+  $("closed").classList.remove("hidden");
+});
+setInterval(() => { fetch("/api/ping").catch(() => {}); }, 15000);
+init().catch((error) => { document.body.insertAdjacentHTML("afterbegin", `<p style="color:#ff8a7a;padding:12px">${error.message}</p>`); });
+</script>
+</body>
+</html>
