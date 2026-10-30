@@ -1,5 +1,6 @@
 from pathlib import Path
 import base64
+from functools import lru_cache
 import gc
 import hashlib
 import io
@@ -35,6 +36,7 @@ from .planner import plan_crops, plan_podcast_layout
 from service_v2.detector import analyze_identities
 from service_v2.editorial import EditorialFrame, PROFILES, build_shot_plan
 from service.silence import analyze_silences
+from service.captions import build_caption_png as render_caption_png
 from service.licensing import LicenseError, default_store
 from service.offline_license import OfflineLicenseError
 from service.hybrid_license import (
@@ -1534,19 +1536,13 @@ def _svg_escape(value: object) -> str:
             .replace("'", "&apos;"))
 
 
-def _svg_color(value: object, fallback: str) -> str:
-    raw = str(value or "").strip()
-    if not raw:
-        return fallback
-    if raw.startswith("#") and len(raw) in (4, 7, 9):
-        allowed = all(char in "0123456789abcdefABCDEF#" for char in raw)
-        if allowed:
-            return raw
-    return fallback
-
-
+@lru_cache(maxsize=64)
 def _caption_font_path(requested: object) -> str | None:
-    """Localiza una fuente instalada sin depender de After Effects."""
+    """Localiza una fuente instalada sin depender de After Effects.
+
+    Se guarda en memoria: con palabra destacada se generan cientos de PNG y
+    recorrer todas las carpetas de fuentes en cada uno haría lenta la colocación.
+    """
     wanted = str(requested or "Arial").strip().lower().replace(" ", "")
     roots = []
     if os.name == "nt":
@@ -1572,61 +1568,19 @@ def _caption_font_path(requested: object) -> str | None:
     return None
 
 
-def build_caption_png(text: str, style: dict | None = None) -> Path:
-    """Renderiza un PNG transparente que Premiere sí admite como medio."""
-    from PIL import Image, ImageDraw, ImageFont
-
+def build_caption_png(text: str, style: dict | None = None) -> tuple[Path, dict]:
+    """Renderiza un PNG transparente del tamaño de la secuencia."""
     style = style or {}
-    size = max(8.0, min(260.0, float(style.get("fontSize") or 42)))
-    stroke_size = max(0.0, min(40.0, float(style.get("strokeSize") or 0)))
-    shadow_blur = max(0.0, min(80.0, float(style.get("shadowBlur") or 0)))
-    shadow_offset = max(-80.0, min(80.0, float(style.get("shadowOffset") or 0)))
-    text_color = _svg_color(style.get("textColor"), "#ffffff")
-    stroke_color = _svg_color(style.get("strokeColor"), "#000000")
-    shadow_color = _svg_color(style.get("shadowColor"), "#000000")
-    glow_color = _svg_color(style.get("glowColor"), "#18a8ff")
-    align = str(style.get("alignment") or "center").lower()
-    y_percent = max(5.0, min(95.0, float(style.get("verticalPosition") or 82)))
-    y = round(1920 * y_percent / 100.0)
-    case = str(style.get("case") or "")
-    if case == "upper": text = text.upper()
-    elif case == "lower": text = text.lower()
-    elif case == "title": text = " ".join(word[:1].upper() + word[1:] for word in text.split(" "))
-    image = Image.new("RGBA", (1080, 1920), (0, 0, 0, 0))
-    draw = ImageDraw.Draw(image)
-    font_path = _caption_font_path(style.get("font"))
-    font = ImageFont.truetype(font_path, round(size)) if font_path else ImageFont.load_default()
-    bbox = draw.multiline_textbbox((0, 0), text, font=font, stroke_width=round(stroke_size), align="center")
-    width, height = bbox[2] - bbox[0], bbox[3] - bbox[1]
-    x = 80 if align in ("left", "start") else 1000 - width if align in ("right", "end") else (1080 - width) / 2
-    top = y - height / 2
-    if shadow_blur > 0 or shadow_offset:
-        shadow_layer = Image.new("RGBA", image.size, (0, 0, 0, 0))
-        ImageDraw.Draw(shadow_layer).multiline_text((x + shadow_offset, top + shadow_offset), text, font=font,
-            fill=shadow_color, stroke_width=round(stroke_size), stroke_fill=shadow_color, align="center")
-        if shadow_blur > 0:
-            from PIL import ImageFilter
-            shadow_layer = shadow_layer.filter(ImageFilter.GaussianBlur(shadow_blur / 2))
-        image.alpha_composite(shadow_layer)
-    if str(style.get("style") or "").lower().startswith("gota"):
-        draw.multiline_text((x, top), text, font=font, fill=text_color,
-            stroke_width=max(round(stroke_size), 2), stroke_fill=glow_color, align="center")
-    draw.multiline_text((x, top), text, font=font, fill=text_color,
-        stroke_width=round(stroke_size), stroke_fill=stroke_color, align="center")
-    cache_dir = preview_cache_dir.parent / "caption-pngs"
-    cache_dir.mkdir(parents=True, exist_ok=True)
-    signature = json.dumps({"text": text, "style": style}, sort_keys=True, ensure_ascii=False)
-    key = hashlib.sha256(signature.encode("utf-8")).hexdigest()
-    destination = cache_dir / f"{key}.png"
-    if not destination.exists():
-        image.save(destination, "PNG", optimize=True)
-    return destination
+    return render_caption_png(
+        text, style, preview_cache_dir.parent / "caption-pngs", _caption_font_path(style.get("font"))
+    )
 
 
 @app.post("/v1/caption-png")
 def caption_png(request: CaptionSvgRequest):
     try:
-        return {"pngPath": str(build_caption_png(request.text.strip(), request.style))}
+        png_path, info = build_caption_png(request.text.strip(), request.style)
+        return {"pngPath": str(png_path), **info}
     except Exception as error:
         logger.exception("caption_png_failed")
         raise HTTPException(

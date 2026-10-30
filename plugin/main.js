@@ -50,8 +50,11 @@ async function waitForLocalService({ attempts = 50, delayMs = 600, onProgress = 
   );
 }
 
+const CAPTION_BIN_NAME = "Gota Subtítulos";
+
+// Quien llama espera al motor una sola vez antes del lote: con palabra
+// destacada se piden cientos de imágenes y no conviene revisar /health en cada una.
 async function makeCaptionPng(text, style) {
-  await waitForLocalService();
   const response = await fetch(`${SERVICE_URL}/v1/caption-png`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -61,91 +64,263 @@ async function makeCaptionPng(text, style) {
   if (!response.ok || !payload.pngPath) {
     throw new Error(payload.detail || "No se pudo preparar el texto del subtítulo.");
   }
-  return String(payload.pngPath);
+  // Un motor anterior responde con la misma versión pero sin estos datos:
+  // dibujaría siempre en 1080x1920 y la animación movería el texto.
+  if (!Number.isFinite(Number(payload.textCenterX)) || !Number.isFinite(Number(payload.textCenterY))) {
+    throw new Error("El motor local no tiene los subtítulos nuevos. Instala el paquete completo de esta versión.");
+  }
+  return {
+    pngPath: String(payload.pngPath),
+    textCenterX: Number(payload.textCenterX),
+    textCenterY: Number(payload.textCenterY)
+  };
 }
 
-async function findImportedMediaItem(folder, nativePath) {
-  const items = await folder.getItems();
-  for (const item of items) {
+function applyCaptionCase(text, mode) {
+  const value = String(text || "");
+  if (mode === "upper") return value.toUpperCase();
+  if (mode === "lower") return value.toLowerCase();
+  // `\b\w` de JavaScript no reconoce letras acentuadas: «él» quedaba «éL».
+  if (mode === "title") return value.split(" ").map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(" ");
+  return value;
+}
+
+/**
+ * Convierte las líneas de la transcripción en las imágenes que se colocan.
+ * Con palabra destacada hay una imagen por palabra, desde que empieza esa
+ * palabra hasta que empieza la siguiente; sin ella, una sola por línea.
+ */
+function buildCaptionUnits(segments, highlightWords) {
+  const units = [];
+  for (const segment of segments || []) {
+    const text = String(segment.text || "").trim();
+    const start = Number(segment.startSeconds);
+    const end = Number(segment.endSeconds);
+    if (!text || !Number.isFinite(start) || !Number.isFinite(end) || end <= start) continue;
+    const words = text.split(/\s+/).filter(Boolean);
+    if (!highlightWords) {
+      units.push({ text, startSeconds: start, endSeconds: end, highlightIndex: -1, lineStart: true });
+      continue;
+    }
+    const timed = Array.isArray(segment.words) ? segment.words : [];
+    let starts;
+    if (timed.length === words.length) {
+      starts = timed.map((word) => Number(word.startSeconds));
+    } else {
+      // El usuario cambió las palabras de la línea: el tiempo se reparte
+      // según la longitud de cada palabra.
+      const total = words.reduce((sum, word) => sum + word.length, 0) || 1;
+      let elapsed = 0;
+      starts = words.map((word) => {
+        const at = start + (end - start) * (elapsed / total);
+        elapsed += word.length;
+        return at;
+      });
+    }
+    // Cada palabra dura al menos un cuadro y nunca empieza antes que la anterior.
+    const minimum = Math.min(0.04, (end - start) / words.length);
+    let previous = start;
+    starts = starts.map((value, index) => {
+      if (index === 0) return start;
+      const wanted = Number.isFinite(value) ? value : previous + minimum;
+      const latest = end - minimum * (words.length - index);
+      previous = Math.min(latest, Math.max(previous + minimum, wanted));
+      return previous;
+    });
+    words.forEach((_, index) => {
+      units.push({
+        text,
+        startSeconds: starts[index],
+        endSeconds: index + 1 < words.length ? starts[index + 1] : end,
+        highlightIndex: index,
+        lineStart: index === 0
+      });
+    });
+  }
+  return units.sort((left, right) => left.startSeconds - right.startSeconds);
+}
+
+async function getSequenceFrameSize(sequence) {
+  const readRect = (rect) => {
+    const width = Math.round(Number(rect && rect.width));
+    const height = Math.round(Number(rect && rect.height));
+    return width >= 16 && height >= 16 ? { width, height, known: true } : null;
+  };
+  try {
+    const settings = await sequence.getSettings();
+    const size = readRect(await settings.getVideoFrameRect());
+    if (size) return size;
+  } catch (_) { /* se intenta la otra API */ }
+  try {
+    const size = readRect(await sequence.getFrameSize());
+    if (size) return size;
+  } catch (_) { /* Premiere sin esa API */ }
+  return { width: OUTPUT_WIDTH, height: OUTPUT_HEIGHT, known: false };
+}
+
+function projectItemName(item) {
+  try { return String(item.name || ""); } catch (_) { return ""; }
+}
+
+// Los PNG van a su propia carpeta del proyecto para no llenar la carpeta
+// activa. Si esta versión de Premiere no permite crearla, se usa la activa.
+async function getCaptionBin(project) {
+  try {
+    const root = ppro.FolderItem.cast(await project.getRootItem());
+    const findBin = async () => {
+      for (const item of await root.getItems()) {
+        if (projectItemName(item) !== CAPTION_BIN_NAME) continue;
+        try {
+          const bin = ppro.FolderItem.cast(item);
+          await bin.getItems();
+          return bin;
+        } catch (_) { /* un archivo con el mismo nombre, no una carpeta */ }
+      }
+      return null;
+    };
+    let bin = await findBin();
+    if (!bin) {
+      project.lockedAccess(() => {
+        project.executeTransaction((compoundAction) => {
+          compoundAction.addAction(root.createBinAction(CAPTION_BIN_NAME, false));
+        }, "Gota Creator Kit: crear carpeta de subtítulos");
+      });
+      bin = await findBin();
+    }
+    if (bin) return { bin, dedicated: true };
+  } catch (_) { /* se usa la carpeta activa */ }
+  return { bin: ppro.FolderItem.cast(await project.getInsertionBin()), dedicated: false };
+}
+
+async function collectImportedMedia(folder, found, recursive) {
+  for (const item of await folder.getItems()) {
     try {
       const clip = ppro.ClipProjectItem.cast(item);
-      const mediaPath = await clip.getMediaFilePath();
-      if (String(mediaPath).toLowerCase() === String(nativePath).toLowerCase()) return item;
+      const mediaPath = String(await clip.getMediaFilePath()).toLowerCase();
+      if (mediaPath && !found.has(mediaPath)) found.set(mediaPath, item);
     } catch (_) {
+      if (!recursive) continue;
       try {
-        const subfolder = ppro.FolderItem.cast(item);
-        const found = await findImportedMediaItem(subfolder, nativePath);
-        if (found) return found;
+        await collectImportedMedia(ppro.FolderItem.cast(item), found, true);
       } catch (_) { /* elemento de proyecto no recorrible */ }
     }
   }
-  return null;
+  return found;
 }
 
-async function insertCaptionPng(project, sequence, pngPath, start, videoTrackIndex) {
-  const insertionBin = ppro.FolderItem.cast(await project.getInsertionBin());
-  // Premiere devuelve false cuando el mismo PNG ya existe en el proyecto.
-  // Eso no es un fallo: reutilizamos el elemento importado para las frases
-  // repetidas y evitamos que el segundo subtítulo se detenga.
-  let imported = false;
-  try {
-    imported = await project.importFiles([String(pngPath)], true, insertionBin, false);
-  } catch (_) {
-    // Puede fallar únicamente por duplicado; la búsqueda recursiva de abajo
-    // determina si el recurso ya estaba disponible.
+/**
+ * Importa todas las imágenes de una vez y devuelve ruta → elemento del
+ * proyecto. Buscar cada PNG por separado recorría la carpeta completa en
+ * cada subtítulo y se volvía muy lento con cientos de imágenes.
+ */
+async function importCaptionPngs(project, bin, recursive, paths, onProgress = null) {
+  const wanted = Array.from(new Set(paths.map((path) => String(path))));
+  let found = await collectImportedMedia(bin, new Map(), recursive);
+  const missing = wanted.filter((path) => !found.has(path.toLowerCase()));
+  for (let index = 0; index < missing.length; index += 100) {
+    try {
+      // Premiere devuelve false cuando un PNG ya existía en el proyecto; la
+      // búsqueda de abajo decide si cada recurso quedó disponible.
+      await project.importFiles(missing.slice(index, index + 100), true, bin, false);
+    } catch (_) { /* se verifica abajo */ }
+    if (typeof onProgress === "function") onProgress(Math.min(missing.length, index + 100), missing.length);
   }
-  const projectItem = await findImportedMediaItem(insertionBin, pngPath);
-  if (!projectItem && !imported) throw new Error("Premiere no pudo importar el texto del subtítulo.");
-  if (!projectItem) throw new Error("Premiere importó el texto, pero no pudo prepararlo para la línea de tiempo.");
+  // Premiere puede tardar un momento en registrar los archivos importados.
+  for (let attempt = 0; missing.length && attempt < 6; attempt += 1) {
+    found = await collectImportedMedia(bin, new Map(), recursive);
+    if (wanted.every((path) => found.has(path.toLowerCase()))) break;
+    await pauseForPremiere(400);
+  }
+  return found;
+}
+
+async function placeCaptionItem(project, sequence, projectItem, start, videoTrackIndex) {
+  const trackIndex = Math.max(0, Math.floor(Number(videoTrackIndex) || 0));
   const editor = ppro.SequenceEditor.getEditor(sequence);
   let inserted = false;
   project.lockedAccess(() => {
     inserted = project.executeTransaction((compoundAction) => {
-      compoundAction.addAction(editor.createOverwriteProjectItemAction(
-        projectItem, start, Math.max(0, Math.floor(Number(videoTrackIndex) || 0)), -1
-      ));
+      compoundAction.addAction(editor.createOverwriteProjectItemAction(projectItem, start, trackIndex, -1));
     }, "Gota Creator Kit: colocar subtítulo nativo");
   });
-  if (!inserted) throw new Error("Premiere no pudo colocar el texto en una pista de video libre.");
-  const track = await sequence.getVideoTrack(Math.max(0, Math.floor(Number(videoTrackIndex) || 0)));
+  if (!inserted) throw new Error("Premiere no pudo colocar el texto en la pista de subtítulos.");
+  const track = await sequence.getVideoTrack(trackIndex);
   const items = track.getTrackItems(ppro.Constants.TrackItemType.CLIP, false);
   const expected = Number(start.seconds || 0);
   let best = null;
   let distance = Infinity;
-  for (const item of items) {
+  // Se recorre desde el final: los subtítulos se colocan en orden y el recién
+  // insertado suele ser el último, así no se revisa toda la pista cada vez.
+  for (let index = items.length - 1; index >= 0; index -= 1) {
     try {
-      const itemStart = await item.getStartTime();
-      const delta = Math.abs(itemStart.seconds - expected);
-      if (delta < distance) { distance = delta; best = item; }
+      const delta = Math.abs((await items[index].getStartTime()).seconds - expected);
+      if (delta < distance) { distance = delta; best = items[index]; }
+      if (delta < 0.002) break;
     } catch (_) { /* Premiere puede invalidar un elemento durante la inserción */ }
   }
   if (!best) throw new Error("Premiere no devolvió el clip de texto insertado.");
   return best;
 }
 
-async function applySubtitlePosition(project, trackItem, verticalPercent) {
-  const motion = await getMotionComponent(trackItem);
-  if (!motion) return false;
-  const positionParam = motion.getParam(0);
-  const point = new ppro.PointF();
-  point.x = 0.5;
-  point.y = Math.max(0.05, Math.min(0.95, Number(verticalPercent || 82) / 100));
+// Entradas nativas con keyframes de Movimiento y Opacidad: [segundos, valor].
+const CAPTION_ENTRANCES = {
+  "gota-pop": { scale: [[0, 80], [0.08, 108], [0.16, 100]], opacity: [[0, 0], [0.06, 100]] },
+  impact: { scale: [[0, 60], [0.09, 115], [0.18, 100]], opacity: [[0, 0], [0.05, 100]] },
+  minimal: { scale: null, opacity: [[0, 0], [0.15, 100]] }
+};
+
+/**
+ * Anima la aparición de una línea. El PNG ocupa todo el cuadro, así que al
+ * escalarlo también se mueve su posición: el texto crece sobre su propio
+ * centro en vez de deslizarse hacia el centro de la pantalla.
+ */
+async function applyCaptionEntrance(project, trackItem, styleName, textCenter, durationSeconds) {
+  const entrance = CAPTION_ENTRANCES[styleName] || CAPTION_ENTRANCES.minimal;
+  // Si la primera imagen dura poco, la animación se comprime para terminar
+  // antes de que aparezca la siguiente palabra.
+  const limit = Math.max(0.04, Number(durationSeconds) * 0.9);
+  const fit = (keys) => {
+    const last = keys[keys.length - 1][0];
+    const factor = last > limit ? limit / last : 1;
+    return keys.map(([seconds, value]) => [seconds * factor, value]);
+  };
+  const motion = entrance.scale ? await getMotionComponent(trackItem) : null;
+  const opacityComponent = await findComponent(trackItem, "opacity");
+  const position = motion ? motion.getParam(0) : null;
+  const scale = motion ? motion.getParam(1) : null;
+  const opacity = opacityComponent ? opacityComponent.getParam(0) : null;
+  const params = [position, scale, opacity].filter(Boolean);
+  if (!params.length) return false;
+  project.lockedAccess(() => {
+    project.executeTransaction((compoundAction) => {
+      params.forEach((param) => compoundAction.addAction(param.createSetTimeVaryingAction(true)));
+    }, "Gota Creator Kit: preparar animación de subtítulo");
+  });
+  const centerX = Number(textCenter && textCenter.textCenterX);
+  const centerY = Number(textCenter && textCenter.textCenterY);
   let success = false;
   project.lockedAccess(() => {
     success = project.executeTransaction((compoundAction) => {
-      compoundAction.addAction(positionParam.createSetTimeVaryingAction(false));
-      compoundAction.addAction(positionParam.createSetValueAction(
-        positionParam.createKeyframe(point), true
-      ));
-    }, "Gota Creator Kit: ubicar subtítulo");
+      const addKey = (param, seconds, value) => {
+        const key = param.createKeyframe(value);
+        key.position = ppro.TickTime.createWithSeconds(seconds);
+        compoundAction.addAction(param.createAddKeyframeAction(key));
+      };
+      if (position && scale) {
+        for (const [seconds, percent] of fit(entrance.scale)) {
+          addKey(scale, seconds, percent);
+          const point = new ppro.PointF();
+          point.x = centerX - (percent / 100) * (centerX - 0.5);
+          point.y = centerY - (percent / 100) * (centerY - 0.5);
+          addKey(position, seconds, point);
+        }
+      }
+      if (opacity) {
+        for (const [seconds, value] of fit(entrance.opacity)) addKey(opacity, seconds, value);
+      }
+    }, "Gota Creator Kit: animar entrada de subtítulo");
   });
   return success;
-}
-
-async function applySubtitleEntrance(project, trackItem, style, verticalPercent) {
-  // Los subtítulos actuales son imágenes PNG transparentes. La entrada se
-  // reserva para una animación nativa posterior; no depende de MOGRT.
-  return false;
 }
 
 async function trimPlacedCaptionItem(project, trackItem, seconds) {
@@ -212,15 +387,19 @@ function compareVersions(left, right) {
   return 0;
 }
 
-async function getMotionComponent(trackItem) {
+async function findComponent(trackItem, matchFragment) {
   const chain = await trackItem.getComponentChain();
   const count = chain.getComponentCount();
   for (let index = 0; index < count; index += 1) {
     const component = chain.getComponentAtIndex(index);
     const matchName = String(await component.getMatchName()).toLowerCase();
-    if (matchName.includes("motion")) return component;
+    if (matchName.includes(matchFragment)) return component;
   }
   return null;
+}
+
+async function getMotionComponent(trackItem) {
+  return findComponent(trackItem, "motion");
 }
 
 async function cloneSequence(project, sequence) {
@@ -5220,12 +5399,7 @@ let silenceDiagnosticLogs = [];
     shadowBlur: Math.max(0, Math.min(30, Number(captionsShadowBlur.value || 0))),
     shadowOffset: Math.max(-20, Math.min(20, Number(captionsShadowOffset.value || 0))),
   });
-  const captionText = (word) => {
-    if (captionsCase.value === "upper") return word.toUpperCase();
-    if (captionsCase.value === "lower") return word.toLowerCase();
-    if (captionsCase.value === "title") return word.replace(/\b\w/g, (letter) => letter.toUpperCase());
-    return word;
-  };
+  const captionText = (word) => applyCaptionCase(word, captionsCase.value);
   const renderCaptionPreview = () => {
     // UXP cambia su soporte de capas y filtros entre versiones. Una sola
     // superficie flex con spans independientes es estable en Premiere 2024,
@@ -5749,51 +5923,94 @@ let silenceDiagnosticLogs = [];
     exportCaptions.style.cursor = "default";
     exportCaptions.textContent = "Colocando texto…";
     try {
+      await waitForLocalService({ attempts: 20, delayMs: 600 });
       const project = await ppro.Project.getActiveProject();
       const sequence = await project.getActiveSequence();
       if (!sequence) throw new Error("Abre la secuencia donde quieres colocar los subtítulos.");
-      let placed = 0;
       if (placedCaptionGraphics.length) {
         captionsStatus.textContent = "Reemplazando los gráficos anteriores…";
         await removePlacedCaptionGraphics(project, sequence);
       }
-      for (let index = 0; index < editableCaptionSegments.length; index += 1) {
-        const segment = editableCaptionSegments[index];
-        const start = ppro.TickTime.createWithSeconds(segment.startSeconds);
-        const videoTrackIndex = await findLowestAvailableTrack(sequence, "video", start);
-        const captionText = captionsCase.value === "upper" ? segment.text.toUpperCase()
-          : captionsCase.value === "lower" ? segment.text.toLowerCase()
-            : captionsCase.value === "title" ? segment.text.replace(/\b\w/g, (letter) => letter.toUpperCase())
-              : segment.text;
-        const captionStyle = {
-          font: captionsFont.value,
-          fontSize: Number(captionsSize.value),
-          case: captionsCase.value,
-          textColor: captionsColorControl.value,
-          strokeColor: captionsStrokeControl.value,
-          strokeSize: Number(captionsStrokeSize.value),
-          shadowColor: captionsShadowControl.value,
-          shadowBlur: Number(captionsShadowBlur.value),
-          shadowOffset: Number(captionsShadowOffset.value),
-          glowColor: captionsGlowControl.value,
-          style: captionsStyle.value,
-          alignment: captionsAlign.value,
-          verticalPosition: Number(captionsPosition.value),
-          durationSeconds: Math.max(0.18, Number(segment.endSeconds) - Number(segment.startSeconds))
-        };
-        // PNG transparente es un formato admitido de forma estable por
-        // Premiere en Windows y macOS. Evita el error de importación de SVG.
-        const pngPath = await makeCaptionPng(captionText, captionStyle);
-        const graphic = await insertCaptionPng(project, sequence, pngPath, start, videoTrackIndex);
-        try { await trimPlacedCaptionItem(project, graphic, segment.endSeconds - segment.startSeconds); } catch (_) {}
+      const styleName = captionsStyle.value || "minimal";
+      // Gota Pop e Impacto destacan la palabra que se está diciendo, igual
+      // que la vista previa; Minimal coloca una imagen por línea.
+      const units = buildCaptionUnits(
+        editableCaptionSegments.map((segment) => ({ ...segment, text: applyCaptionCase(segment.text, captionsCase.value) })),
+        styleName !== "minimal"
+      );
+      if (!units.length) throw new Error("No hay texto para colocar. Escribe al menos una línea.");
+      const frame = await getSequenceFrameSize(sequence);
+      const baseStyle = {
+        font: captionsFont.value,
+        fontSize: Number(captionsSize.value),
+        case: captionsCase.value,
+        textColor: captionsColorControl.value,
+        strokeColor: captionsStrokeControl.value,
+        strokeSize: Number(captionsStrokeSize.value),
+        shadowColor: captionsShadowControl.value,
+        shadowBlur: Number(captionsShadowBlur.value),
+        shadowOffset: Number(captionsShadowOffset.value),
+        glowColor: captionsGlowControl.value,
+        highlightColor: captionsImpactControl.value,
+        style: styleName,
+        alignment: captionsAlign.value,
+        verticalPosition: Number(captionsPosition.value),
+        // El PNG mide lo mismo que la secuencia: Premiere no lo escala y el
+        // texto queda dentro del cuadro en vertical, horizontal o cuadrado.
+        frameWidth: frame.width,
+        frameHeight: frame.height
+      };
+      const images = [];
+      for (let index = 0; index < units.length; index += 1) {
+        if (index % 5 === 0) captionsStatus.textContent = `Preparando imágenes: ${index + 1}/${units.length}…`;
+        images.push(await makeCaptionPng(units[index].text, { ...baseStyle, highlightIndex: units[index].highlightIndex }));
+      }
+      captionsStatus.textContent = `Importando imágenes a la carpeta «${CAPTION_BIN_NAME}»…`;
+      const { bin, dedicated } = await getCaptionBin(project);
+      const imported = await importCaptionPngs(
+        project, bin, !dedicated, images.map((image) => image.pngPath),
+        (done, total) => { captionsStatus.textContent = `Importando imágenes: ${done}/${total}…`; }
+      );
+      // Todos los subtítulos van en una sola pista libre durante todo el
+      // tramo. El margen cubre la duración inicial de una imagen fija en
+      // Premiere, que se recorta justo después de colocarla.
+      const firstStart = Math.min(...units.map((unit) => unit.startSeconds));
+      const lastEnd = Math.max(...units.map((unit) => unit.endSeconds));
+      const trackIndex = await findFreeTrackForRange(sequence, "video", firstStart, lastEnd + 30);
+      let placed = 0;
+      let lines = 0;
+      let withoutEntrance = 0;
+      for (let index = 0; index < units.length; index += 1) {
+        const unit = units[index];
+        const projectItem = imported.get(images[index].pngPath.toLowerCase());
+        if (!projectItem) throw new Error("Premiere no pudo importar el texto del subtítulo.");
+        const graphic = await placeCaptionItem(
+          project, sequence, projectItem, ppro.TickTime.createWithSeconds(unit.startSeconds), trackIndex
+        );
         placedCaptionGraphics.push(graphic);
+        const duration = unit.endSeconds - unit.startSeconds;
+        try { await trimPlacedCaptionItem(project, graphic, duration); } catch (_) {}
+        if (unit.lineStart) {
+          lines += 1;
+          let animated = false;
+          try { animated = await applyCaptionEntrance(project, graphic, styleName, images[index], duration); } catch (_) {}
+          if (!animated) withoutEntrance += 1;
+        }
         placed += 1;
-        captionsStatus.textContent = `Colocando texto nativo: ${placed}/${editableCaptionSegments.length}…`;
+        if (index % 5 === 0 || placed === units.length) {
+          captionsStatus.textContent = `Colocando subtítulos: ${placed}/${units.length}…`;
+        }
       }
       if (!placed) throw new Error("Premiere no pudo insertar el texto del subtítulo.");
       captionsPlaced = true;
       captionsNeedReapply = false;
-      captionsStatus.textContent = `Listo: ${placed} clips de texto colocados en pistas de video libres. No se usaron MOGRTs.`;
+      const notes = [];
+      if (withoutEntrance) notes.push(`${withoutEntrance} de ${lines} líneas quedaron sin animación de entrada porque Premiere no aceptó sus keyframes.`);
+      if (!frame.known) notes.push("No pude leer el tamaño de la secuencia y usé 1080×1920.");
+      captionsStatus.textContent =
+        `Listo: ${lines} líneas (${placed} imágenes) en la pista V${trackIndex + 1}, ` +
+        `formato ${frame.width}×${frame.height}. Las imágenes están en la carpeta «${dedicated ? CAPTION_BIN_NAME : "activa del proyecto"}».` +
+        (notes.length ? `\n${notes.join("\n")}` : "");
     } catch (error) {
       captionsStatus.textContent = `No se pudieron colocar los gráficos: ${error.message || error}`;
     } finally {
