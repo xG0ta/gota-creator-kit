@@ -37,7 +37,7 @@ def run(report_path: str | None, with_model: bool = False) -> int:
             folder = Path(folder)
             source = folder / "prueba.mp4"
             subprocess.run([
-                media.ffmpeg(), "-y", "-hide_banner", "-loglevel", "error",
+                media.ffmpeg(), "-nostdin", "-y", "-hide_banner", "-loglevel", "error",
                 "-f", "lavfi", "-i", "testsrc2=size=360x640:rate=30:duration=3",
                 "-f", "lavfi", "-i", "sine=frequency=440:duration=3",
                 "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", "-shortest", str(source),

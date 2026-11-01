@@ -14,6 +14,8 @@ jobs:
   build:
     name: Compilar ${{ matrix.label }}
     runs-on: ${{ matrix.os }}
+    # La 1.0.0 se quedó 6 horas trabada en Windows: mejor fallar rápido.
+    timeout-minutes: 40
     strategy:
       fail-fast: false
       matrix:
@@ -40,13 +42,16 @@ jobs:
             -r subtitulos-app/requirements.txt pyinstaller==6.22.3 pytest==9.2.0 > pip.log 2>&1
 
       - name: Pruebas
-        run: python -m pytest -q -p no:cacheprovider service/tests/test_captions.py subtitulos-app/tests > pruebas.log 2>&1
+        timeout-minutes: 8
+        # Si una prueba se traba, faulthandler escribe dónde a los 120 s.
+        run: python -m pytest -v -p no:cacheprovider -o faulthandler_timeout=120 service/tests/test_captions.py subtitulos-app/tests > pruebas.log 2>&1
 
       - name: Compilar
         working-directory: subtitulos-app
         run: pyinstaller --noconfirm --clean gota_subtitulos.spec > ../pyinstaller.log 2>&1
 
       - name: Probar la app compilada
+        timeout-minutes: 15
         run: |
           if [ "$RUNNER_OS" = "Windows" ]; then
             ./subtitulos-app/dist/GotaSubtitulos/GotaSubtitulos.exe --self-test selftest.txt --with-model
@@ -75,7 +80,7 @@ jobs:
       # Sin sesión iniciada no se ven los registros de Actions; las anotaciones
       # de error sí son públicas, así que el final de cada registro va ahí.
       - name: Mostrar el error
-        if: failure()
+        if: failure() || cancelled()
         run: |
           python - <<'EOF'
           from pathlib import Path

@@ -1,6 +1,6 @@
 import unittest
 
-from gota_subtitulos.timeline import build_units, entrance_keys, interpolate, split_lines, to_srt
+from gota_subtitulos.timeline import build_units, entrance_keys, entrance_name, interpolate, split_lines, to_srt
 
 SEGMENT = {
     "startSeconds": 1.0, "endSeconds": 4.0, "text": "uno dos tres cuatro cinco seis siete ocho",
@@ -40,6 +40,15 @@ class TimelineTests(unittest.TestCase):
         self.assertLessEqual(keys["scale"][-1][0], 0.09 + 1e-9)
         self.assertEqual(interpolate(keys["opacity"], 0), 0)
         self.assertEqual(interpolate(keys["scale"], 10), 100)
+
+    def test_entrance_choice(self):
+        self.assertEqual(entrance_name({"style": "impact"}), "impact")
+        self.assertEqual(entrance_name({"style": "impact", "entrance": "auto"}), "impact")
+        self.assertEqual(entrance_name({"style": "gota-pop", "entrance": "minimal"}), "minimal")
+        self.assertEqual(entrance_name({"style": "title-box"}), "minimal")
+        keys = entrance_keys("none", 1.0)
+        self.assertIsNone(keys["scale"])
+        self.assertIsNone(keys["opacity"])
 
     def test_srt(self):
         text = to_srt([{"startSeconds": 61.5, "endSeconds": 62.25, "text": "hola 😂"}])

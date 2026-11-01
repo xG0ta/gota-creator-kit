@@ -13,7 +13,17 @@ ENTRANCES = {
     "gota-pop": {"scale": [[0, 80], [0.08, 108], [0.16, 100]], "opacity": [[0, 0], [0.06, 100]]},
     "impact": {"scale": [[0, 60], [0.09, 115], [0.18, 100]], "opacity": [[0, 0], [0.05, 100]]},
     "minimal": {"scale": None, "opacity": [[0, 0], [0.15, 100]]},
+    "none": {"scale": None, "opacity": None},
 }
+
+
+def entrance_name(style: dict) -> str:
+    """La entrada que eligió el usuario o, en «auto», la propia del estilo."""
+    wanted = str(style.get("entrance") or "auto")
+    if wanted in ENTRANCES:
+        return wanted
+    name = str(style.get("style") or "minimal")
+    return name if name in ENTRANCES else "minimal"
 
 
 def _finite(value, fallback=None):

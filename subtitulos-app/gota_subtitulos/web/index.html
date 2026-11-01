@@ -65,6 +65,11 @@
   .hidden { display: none !important; }
   .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
   .result { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 8px; }
+  details.more { margin-top: 10px; }
+  details.more summary { cursor: pointer; color: var(--accent-2); font-size: 13px; }
+  .saved { margin-top: 12px; border-top: 1px solid var(--line); padding-top: 10px; }
+  .chip .remove { margin-left: 6px; opacity: .6; }
+  .chip .remove:hover { opacity: 1; }
   footer { text-align: center; color: var(--muted); font-size: 12px; padding: 0 0 26px; }
   .closed { position: fixed; inset: 0; background: rgba(10, 12, 15, .94); display: grid; place-items: center; font-size: 18px; z-index: 5; }
 </style>
@@ -156,6 +161,40 @@
         <span class="color"><input type="color" id="textColor" value="#ffffff"> Texto</span>
         <span class="color"><input type="color" id="strokeColor" value="#072944"> Contorno</span>
         <span class="color" id="highlightWrap"><input type="color" id="highlightColor" value="#20b7ff"> <span id="highlightLabel">Palabra destacada</span></span>
+        <span class="color"><input type="color" id="shadowColor" value="#001828"> Sombra</span>
+      </div>
+      <details class="more">
+        <summary>Más ajustes</summary>
+        <div class="row">
+          <label>Grosor del contorno <span id="strokeSizeValue"></span><input type="range" id="strokeSize" min="0" max="20" value="2"></label>
+          <label>Sombra difuminada <span id="shadowBlurValue"></span><input type="range" id="shadowBlur" min="0" max="40" value="8"></label>
+          <label>Distancia de la sombra <span id="shadowOffsetValue"></span><input type="range" id="shadowOffset" min="0" max="20" value="2"></label>
+        </div>
+        <div class="row">
+          <label>Alineación
+            <select id="alignment">
+              <option value="center">Centrado</option>
+              <option value="left">A la izquierda</option>
+              <option value="right">A la derecha</option>
+            </select>
+          </label>
+          <label>Animación de entrada
+            <select id="entrance">
+              <option value="auto">La del estilo</option>
+              <option value="gota-pop">Pop</option>
+              <option value="impact">Golpe</option>
+              <option value="minimal">Fundido</option>
+              <option value="none">Sin animación</option>
+            </select>
+          </label>
+        </div>
+      </details>
+      <div class="saved">
+        <div class="note">Mis estilos: guarda cómo lo dejaste para usarlo con un clic.</div>
+        <div class="chips" id="savedStyles"></div>
+        <div class="row">
+          <button id="saveStyle">Guardar este estilo…</button>
+        </div>
       </div>
     </section>
 
@@ -219,6 +258,20 @@
       </div>
       <div class="note" id="exportFolder"></div>
     </section>
+
+    <section class="card">
+      <h2><span class="step">⚡</span> Varios videos a la vez</h2>
+      <div class="note">Subtitula muchos clips sin revisarlos uno por uno. Usa el idioma, la calidad, las palabras por línea y el estilo de arriba; si escribiste un título, se pone en todos. Cada video se guarda como MP4 en la carpeta de Gota Subtítulos.</div>
+      <div class="row">
+        <button class="primary" id="chooseBatch">Elegir videos…</button>
+        <span id="batchNames" class="note">Ningún video elegido.</span>
+      </div>
+      <div class="row">
+        <button class="ok" id="startBatch" disabled>Subtitular todos</button>
+      </div>
+      <progress id="batchProgress" class="hidden" max="1" value="0"></progress>
+      <div class="status" id="batchStatus"></div>
+    </section>
   </div>
 </main>
 <footer>El video original nunca se modifica. Todo se procesa en tu computadora.</footer>
@@ -240,6 +293,9 @@ const TITLE_PRESETS = {
   black: { style: "title-box", textColor: "#ffffff", boxColor: "#000000", strokeSize: 0, shadowBlur: 0, shadowOffset: 0 },
   outline: { style: "minimal", textColor: "#ffffff", strokeColor: "#000000", strokeSize: 6, shadowColor: "#000000", shadowBlur: 6, shadowOffset: 3 }
 };
+// Controles que forman «el estilo»: se recuerdan y se guardan en Mis estilos.
+const STYLE_FIELDS = ["size", "position", "case", "textColor", "strokeColor", "highlightColor", "font",
+  "shadowColor", "strokeSize", "shadowBlur", "shadowOffset", "alignment", "entrance"];
 const SAMPLE = { text: "Así se verán tus subtítulos 😂", startSeconds: 0, endSeconds: 999, words: [] };
 
 let info = { entrances: {} };
@@ -286,10 +342,10 @@ function subtitleStyle() {
   const base = PRESETS[preset];
   return {
     style: base.style, fontPath: $("font").value || null, fontSize: Number($("size").value),
-    verticalPosition: Number($("position").value), case: $("case").value, alignment: "center",
-    textColor: $("textColor").value, strokeColor: $("strokeColor").value, strokeSize: base.strokeSize,
-    shadowColor: base.shadowColor, shadowBlur: base.shadowBlur, shadowOffset: base.shadowOffset,
-    glowColor: $("highlightColor").value, highlightColor: $("highlightColor").value
+    verticalPosition: Number($("position").value), case: $("case").value, alignment: $("alignment").value,
+    textColor: $("textColor").value, strokeColor: $("strokeColor").value, strokeSize: Number($("strokeSize").value),
+    shadowColor: $("shadowColor").value, shadowBlur: Number($("shadowBlur").value), shadowOffset: Number($("shadowOffset").value),
+    glowColor: $("highlightColor").value, highlightColor: $("highlightColor").value, entrance: $("entrance").value
   };
 }
 function titleStyle() {
@@ -306,6 +362,10 @@ function applyPreset(name, keepColors = false) {
     $("size").value = values.fontSize;
     $("textColor").value = values.textColor;
     $("strokeColor").value = values.strokeColor;
+    $("strokeSize").value = values.strokeSize;
+    $("shadowColor").value = values.shadowColor;
+    $("shadowBlur").value = values.shadowBlur;
+    $("shadowOffset").value = values.shadowOffset;
     if (values.accent) $("highlightColor").value = values.accent;
   }
   $("highlightWrap").classList.toggle("hidden", !values.accent);
@@ -325,6 +385,9 @@ function refreshLabels() {
   $("titleSizeValue").textContent = $("titleSize").value;
   $("titlePositionValue").textContent = `${$("titlePosition").value}%`;
   $("maxWordsValue").textContent = $("maxWords").value;
+  $("strokeSizeValue").textContent = $("strokeSize").value;
+  $("shadowBlurValue").textContent = $("shadowBlur").value;
+  $("shadowOffsetValue").textContent = $("shadowOffset").value;
 }
 
 const refreshUnits = debounce(async () => {
@@ -343,7 +406,7 @@ function styleChanged() {
   pngCache.clear();
   activeUnitKey = "";
   titleKey = "";
-  for (const id of ["size", "position", "case", "textColor", "strokeColor", "highlightColor", "font"]) store(id, $(id).value);
+  for (const id of STYLE_FIELDS) store(id, $(id).value);
   refreshUnits();
   titleChanged();
 }
@@ -392,7 +455,8 @@ function interpolate(keys, seconds, fallback) {
   return keys[keys.length - 1][1];
 }
 function entranceAt(unit, seconds) {
-  const entrance = (info.entrances || {})[PRESETS[preset].style] || {};
+  const chosen = $("entrance").value;
+  const entrance = (info.entrances || {})[chosen !== "auto" ? chosen : PRESETS[preset].style] || {};
   const limit = Math.max(0.04, (unit.endSeconds - unit.startSeconds) * 0.9);
   const fit = (keys) => {
     if (!keys) return null;
@@ -491,6 +555,8 @@ function renderLines() {
 
 function setBusy(busy) {
   for (const id of ["chooseVideo", "transcribe", "suggestTitles", "exportMp4", "exportSrt", "exportMov"]) $(id).disabled = busy || (id !== "chooseVideo" && !video);
+  $("chooseBatch").disabled = busy;
+  $("startBatch").disabled = busy || !batchVideos.length;
   if (!busy && !ollama.available) $("suggestTitles").disabled = true;
   $("cancelJob").classList.toggle("hidden", !busy);
 }
@@ -654,6 +720,99 @@ function exportVideo(kind) {
     .catch((error) => { progress.classList.add("hidden"); setStatus(status, error.message, "error"); });
 }
 
+let savedStyles = [];
+function renderSavedStyles() {
+  const box = $("savedStyles");
+  box.innerHTML = "";
+  if (!savedStyles.length) { box.innerHTML = '<span class="note">Todavía no guardas ninguno.</span>'; return; }
+  savedStyles.forEach((item, index) => {
+    const chip = document.createElement("button");
+    chip.className = "chip";
+    chip.textContent = item.name;
+    chip.title = "Usar este estilo";
+    const remove = document.createElement("span");
+    remove.className = "remove";
+    remove.textContent = "✕";
+    remove.title = "Borrar este estilo";
+    remove.addEventListener("click", async (event) => {
+      event.stopPropagation();
+      if (!confirm(`¿Borrar el estilo «${item.name}»?`)) return;
+      savedStyles.splice(index, 1);
+      await persistStyles();
+    });
+    chip.appendChild(remove);
+    chip.addEventListener("click", () => useSavedStyle(item));
+    box.appendChild(chip);
+  });
+}
+async function persistStyles() {
+  try { savedStyles = (await api("/api/styles", { body: { styles: savedStyles } })).styles; }
+  catch (error) { alert(`No se pudo guardar: ${error.message}`); }
+  renderSavedStyles();
+}
+function useSavedStyle(item) {
+  applyPreset(PRESETS[item.preset] ? item.preset : "pop", true);
+  for (const id of STYLE_FIELDS) {
+    if (item.values[id] === undefined) continue;
+    // Si la tipografía ya no está instalada se queda la actual.
+    if (id === "font" && ![...$("font").options].some((option) => option.value === item.values[id])) continue;
+    $(id).value = item.values[id];
+  }
+  styleChanged();
+}
+async function saveCurrentStyle() {
+  const name = (prompt("Nombre para este estilo (ej.: Ramoncito amarillo)") || "").trim().slice(0, 40);
+  if (!name) return;
+  const values = Object.fromEntries(STYLE_FIELDS.map((id) => [id, $(id).value]));
+  const existing = savedStyles.findIndex((item) => item.name.toLowerCase() === name.toLowerCase());
+  const entry = { name, preset, values };
+  if (existing >= 0) {
+    if (!confirm(`Ya tienes un estilo «${savedStyles[existing].name}». ¿Reemplazarlo?`)) return;
+    savedStyles[existing] = entry;
+  } else savedStyles.push(entry);
+  await persistStyles();
+}
+
+let batchVideos = [];
+async function chooseBatch() {
+  $("chooseBatch").disabled = true;
+  $("batchNames").textContent = "Se abrió una ventana para elegir los videos (puedes elegir varios)…";
+  try {
+    const payload = await api("/api/batch/choose", { method: "POST" });
+    if (payload.videos.length) batchVideos = payload.videos;
+    $("batchNames").textContent = batchVideos.length
+      ? `${batchVideos.length} video(s): ${batchVideos.map((item) => item.name).join(", ")}${payload.skipped ? ` · ${payload.skipped} archivo(s) no son video` : ""}`
+      : "Ningún video elegido.";
+  } catch (error) {
+    $("batchNames").textContent = error.message;
+  } finally {
+    setBusy(false);
+  }
+}
+function startBatch() {
+  const progress = $("batchProgress");
+  const status = $("batchStatus");
+  const title = $("titleText").value.trim();
+  progress.classList.remove("hidden");
+  setStatus(status, "Empezando…");
+  const body = { paths: batchVideos.map((item) => item.path), language: $("language").value, quality: $("quality").value,
+                 maxWords: Number($("maxWords").value), style: subtitleStyle(),
+                 title: title ? { text: title, style: titleStyle(), seconds: Number($("titleSeconds").value) } : {} };
+  api("/api/batch", { body })
+    .then(() => watchJob("batch", {
+      progress: (job) => { progress.value = job.progress; setStatus(status, `${job.message} · ${Math.round(job.progress * 100)}% en total`); },
+      done: (result) => {
+        progress.classList.add("hidden");
+        const lines = [`Listo: ${result.done.length} de ${batchVideos.length} videos guardados en la carpeta de Gota Subtítulos.`];
+        result.failed.forEach((item) => lines.push(`✕ ${item.name}: ${item.error}`));
+        setStatus(status, lines.join("\n"), result.failed.length ? "error" : "done");
+        if (result.done.length) api("/api/open-export-folder", { method: "POST" }).catch(() => {});
+      },
+      failed: (message) => { progress.classList.add("hidden"); setStatus(status, `Se detuvo: ${message}`, "error"); }
+    }))
+    .catch((error) => { progress.classList.add("hidden"); setStatus(status, error.message, "error"); });
+}
+
 function insertEmoji(emoji) {
   const target = focusedInput && document.body.contains(focusedInput) ? focusedInput : $("titleText");
   const start = target.selectionStart ?? target.value.length;
@@ -690,8 +849,12 @@ async function init() {
   select.value = load("font", fonts.default) || fonts.default || "";
   if (!select.value && fonts.default) select.value = fonts.default;
   for (const id of ["case", "maxWords", "titleSize", "titlePosition"]) { const saved = load(id, null); if (saved !== null) $(id).value = saved; }
-  applyPreset(PRESETS[load("preset", "pop")] ? load("preset", "pop") : "pop");
-  for (const id of ["size", "position", "textColor", "strokeColor", "highlightColor"]) { const saved = load(id, null); if (saved !== null) $(id).value = saved; }
+  for (const id of STYLE_FIELDS) { const saved = load(id, null); if (saved !== null) $(id).value = saved; }
+  if (!select.value && fonts.default) select.value = fonts.default;
+  applyPreset(PRESETS[load("preset", "pop")] ? load("preset", "pop") : "pop", true);
+  try { savedStyles = (await api("/api/styles")).styles || []; } catch (_) { savedStyles = []; }
+  renderSavedStyles();
+  styleChanged();
   applyTitlePreset(TITLE_PRESETS[load("titlePreset", "white")] ? load("titlePreset", "white") : "white");
   $("titleText").addEventListener("focus", () => { focusedInput = $("titleText"); });
   $("titleText").addEventListener("input", titleChanged);
@@ -703,7 +866,7 @@ async function init() {
 
 document.querySelectorAll("#presets .chip").forEach((chip) => chip.addEventListener("click", () => applyPreset(chip.dataset.preset)));
 document.querySelectorAll("#titlePresets .chip").forEach((chip) => chip.addEventListener("click", () => applyTitlePreset(chip.dataset.titlePreset)));
-for (const id of ["size", "position", "case", "textColor", "strokeColor", "highlightColor", "font"]) $(id).addEventListener("input", styleChanged);
+for (const id of STYLE_FIELDS) $(id).addEventListener("input", styleChanged);
 for (const id of ["titleSize", "titlePosition"]) $(id).addEventListener("input", titleChanged);
 $("titleSeconds").addEventListener("change", () => drawFrame(true));
 $("maxWords").addEventListener("change", resplit);
@@ -715,6 +878,9 @@ $("cancelJob").addEventListener("click", () => api("/api/job/cancel", { method: 
 $("exportMp4").addEventListener("click", () => exportVideo("mp4"));
 $("exportSrt").addEventListener("click", () => exportVideo("srt"));
 $("exportMov").addEventListener("click", () => exportVideo("mov"));
+$("saveStyle").addEventListener("click", saveCurrentStyle);
+$("chooseBatch").addEventListener("click", chooseBatch);
+$("startBatch").addEventListener("click", startBatch);
 $("revealResult").addEventListener("click", () => lastExport && api("/api/reveal", { body: { path: lastExport } }));
 $("play").addEventListener("click", () => { const player = $("player"); player.paused ? player.play() : player.pause(); });
 $("player").addEventListener("play", () => { $("play").textContent = "⏸ Pausar"; });

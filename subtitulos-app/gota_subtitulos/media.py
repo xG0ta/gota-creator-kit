@@ -4,6 +4,7 @@ from __future__ import annotations
 import math
 import re
 import subprocess
+import tempfile
 from pathlib import Path
 from typing import Callable
 
@@ -23,7 +24,7 @@ def ffmpeg() -> str:
 def probe(path: str) -> dict:
     """Duración, tamaño visible (ya girado), cuadros por segundo y pistas."""
     result = subprocess.run(
-        [ffmpeg(), "-hide_banner", "-i", str(path)],
+        [ffmpeg(), "-nostdin", "-hide_banner", "-i", str(path)],
         capture_output=True, text=True, encoding="utf-8", errors="replace", creationflags=NO_WINDOW, check=False,
     )
     info = result.stderr
@@ -61,7 +62,7 @@ def probe(path: str) -> dict:
 
 
 def extract_audio(path: str, destination: Path) -> Path:
-    command = [ffmpeg(), "-y", "-hide_banner", "-loglevel", "error", "-i", str(path),
+    command = [ffmpeg(), "-nostdin", "-y", "-hide_banner", "-loglevel", "error", "-i", str(path),
                "-vn", "-ac", "1", "-ar", "16000", "-c:a", "pcm_s16le", str(destination)]
     result = subprocess.run(command, capture_output=True, text=True, encoding="utf-8", errors="replace",
                             creationflags=NO_WINDOW, check=False)
@@ -77,7 +78,7 @@ def extract_frames(path: str, duration: float, folder: Path, count: int = 1) -> 
         at = max(0.0, duration * (index + 1) / (count + 1))
         destination = folder / f"cuadro-{index + 1}.jpg"
         subprocess.run(
-            [ffmpeg(), "-y", "-hide_banner", "-loglevel", "error", "-ss", f"{at:.2f}", "-i", str(path),
+            [ffmpeg(), "-nostdin", "-y", "-hide_banner", "-loglevel", "error", "-ss", f"{at:.2f}", "-i", str(path),
              "-frames:v", "1", "-vf", "scale='min(384,iw)':-2", "-q:v", "5", str(destination)],
             capture_output=True, creationflags=NO_WINDOW, check=False,
         )
@@ -88,26 +89,29 @@ def extract_frames(path: str, duration: float, folder: Path, count: int = 1) -> 
 
 def _run_with_progress(command: list[str], duration: float, on_progress: Callable[[float], None] | None,
                        is_canceled: Callable[[], bool] | None) -> None:
-    process = subprocess.Popen(
-        command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8",
-        errors="replace", creationflags=NO_WINDOW,
-    )
-    try:
-        for line in process.stdout:
-            if is_canceled and is_canceled():
+    # Los avisos de FFmpeg van a un archivo y no a otro tubo: en Windows el
+    # tubo se llena con pocos KB, FFmpeg se queda esperando y nunca termina.
+    with tempfile.TemporaryFile(mode="w+", encoding="utf-8", errors="replace") as errors:
+        process = subprocess.Popen(
+            command, stdout=subprocess.PIPE, stderr=errors, stdin=subprocess.DEVNULL, text=True,
+            encoding="utf-8", errors="replace", creationflags=NO_WINDOW,
+        )
+        try:
+            for line in process.stdout:
+                if is_canceled and is_canceled():
+                    process.kill()
+                    raise Canceled()
+                if line.startswith("out_time_us=") and on_progress and duration > 0:
+                    try:
+                        on_progress(min(1.0, int(line.split("=", 1)[1]) / 1_000_000 / duration))
+                    except ValueError:
+                        pass
+            if process.wait() != 0:
+                errors.seek(0)
+                raise RuntimeError(errors.read().strip()[-600:] or "FFmpeg no pudo exportar el video.")
+        finally:
+            if process.poll() is None:
                 process.kill()
-                raise Canceled()
-            if line.startswith("out_time_us=") and on_progress and duration > 0:
-                try:
-                    on_progress(min(1.0, int(line.split("=", 1)[1]) / 1_000_000 / duration))
-                except ValueError:
-                    pass
-        error = process.stderr.read()
-        if process.wait() != 0:
-            raise RuntimeError(error.strip()[-600:] or "FFmpeg no pudo exportar el video.")
-    finally:
-        if process.poll() is None:
-            process.kill()
 
 
 def _entrance_frames(base_path: Path, info: dict, keys: dict, fps: float, duration: float,
@@ -240,7 +244,7 @@ def _with_title(timeline, title_path: Path, title_end: float, folder: Path):
 
 def export_mp4(video: dict, overlay: Path, destination: Path, on_progress=None, is_canceled=None) -> Path:
     command = [
-        ffmpeg(), "-y", "-hide_banner", "-nostats", "-progress", "pipe:1",
+        ffmpeg(), "-nostdin", "-y", "-hide_banner", "-nostats", "-progress", "pipe:1",
         "-i", video["path"], "-f", "concat", "-safe", "0", "-i", str(overlay),
         "-filter_complex", "[1:v]format=rgba[sub];[0:v][sub]overlay=0:0:eof_action=pass:format=auto,format=yuv420p[v]",
         "-map", "[v]", "-map", "0:a?",
@@ -255,7 +259,7 @@ def export_transparent_mov(video: dict, overlay: Path, destination: Path, on_pro
     """Solo los subtítulos sobre fondo transparente, para otros editores."""
     fps = video["fps"] or 30.0
     command = [
-        ffmpeg(), "-y", "-hide_banner", "-nostats", "-progress", "pipe:1",
+        ffmpeg(), "-nostdin", "-y", "-hide_banner", "-nostats", "-progress", "pipe:1",
         "-f", "concat", "-safe", "0", "-i", str(overlay),
         "-r", f"{fps:.3f}", "-c:v", "prores_ks", "-profile:v", "4444", "-pix_fmt", "yuva444p10le",
         "-vendor", "apl0", str(destination),

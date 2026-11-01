@@ -46,18 +46,27 @@ def unique_path(folder: Path, stem: str, extension: str) -> Path:
     return candidate
 
 
-def choose_video() -> str | None:
-    """Abre el selector de archivos del sistema; None si se canceló."""
+def choose_videos(multiple: bool = False) -> list[str]:
+    """Abre el selector de archivos del sistema; lista vacía si se canceló."""
+    prompt = "Elige los videos que quieres subtitular" if multiple else "Elige el video que quieres subtitular"
     if sys.platform == "darwin":
+        many = " with multiple selections allowed" if multiple else ""
         script = (
             'activate\n'
-            'set chosen to choose file with prompt "Elige el video que quieres subtitular" '
-            'of type {"public.movie", "public.audiovisual-content"}\n'
+            f'set chosen to choose file with prompt "{prompt}" '
+            f'of type {{"public.movie", "public.audiovisual-content"}}{many}\n'
+            'if class of chosen is list then\n'
+            '  set paths to {}\n'
+            '  repeat with item_ in chosen\n'
+            '    set end of paths to POSIX path of item_\n'
+            '  end repeat\n'
+            '  set AppleScript\'s text item delimiters to linefeed\n'
+            '  return paths as text\n'
+            'end if\n'
             'POSIX path of chosen'
         )
         result = subprocess.run(["osascript", "-e", script], capture_output=True, text=True, check=False)
-        path = result.stdout.strip()
-        return path or None
+        return [line for line in result.stdout.strip().splitlines() if line.strip()]
     if os.name == "nt":
         patterns = ";".join(f"*{extension}" for extension in VIDEO_EXTENSIONS)
         script = (
@@ -65,17 +74,22 @@ def choose_video() -> str | None:
             "Add-Type -AssemblyName System.Windows.Forms; "
             "$owner = New-Object System.Windows.Forms.Form -Property @{TopMost = $true}; "
             "$dialog = New-Object System.Windows.Forms.OpenFileDialog; "
-            "$dialog.Title = 'Elige el video que quieres subtitular'; "
+            f"$dialog.Title = '{prompt}'; "
+            f"$dialog.Multiselect = ${'true' if multiple else 'false'}; "
             f"$dialog.Filter = 'Videos|{patterns}|Todos los archivos|*.*'; "
-            "if ($dialog.ShowDialog($owner) -eq 'OK') { $dialog.FileName }"
+            "if ($dialog.ShowDialog($owner) -eq 'OK') { $dialog.FileNames -join [Environment]::NewLine }"
         )
         result = subprocess.run(
             ["powershell", "-NoProfile", "-STA", "-Command", script],
             capture_output=True, text=True, encoding="utf-8", creationflags=NO_WINDOW, check=False,
         )
-        path = result.stdout.strip()
-        return path or None
-    return None
+        return [line for line in result.stdout.strip().splitlines() if line.strip()]
+    return []
+
+
+def choose_video() -> str | None:
+    chosen = choose_videos(False)
+    return chosen[0] if chosen else None
 
 
 def reveal(path: str) -> None:
