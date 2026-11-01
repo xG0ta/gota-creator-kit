@@ -65,6 +65,8 @@
   .hidden { display: none !important; }
   .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
   .result { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 8px; }
+  .folder { margin-top: 12px; border-top: 1px solid var(--line); padding-top: 10px; }
+  .folder strong { color: var(--text); font-weight: 500; word-break: break-all; }
   details.more { margin-top: 10px; }
   details.more summary { cursor: pointer; color: var(--accent-2); font-size: 13px; }
   .saved { margin-top: 12px; border-top: 1px solid var(--line); padding-top: 10px; }
@@ -257,12 +259,18 @@
       <div class="result hidden" id="exportResult">
         <button id="revealResult">Mostrar en la carpeta</button>
       </div>
-      <div class="note" id="exportFolder"></div>
+      <div class="folder">
+        <div class="note">Se guardan en: <strong id="exportFolder"></strong></div>
+        <div class="row">
+          <button id="chooseFolder">Cambiar carpeta…</button>
+          <button id="resetFolder" class="hidden">Usar la de siempre</button>
+        </div>
+      </div>
     </section>
 
     <section class="card">
       <h2><span class="step">⚡</span> Varios videos a la vez</h2>
-      <div class="note">Subtitula muchos clips sin revisarlos uno por uno. Usa el idioma, la calidad, las palabras por línea y el estilo de arriba; si escribiste un título, se pone en todos. Cada video se guarda como MP4 en la carpeta de Gota Subtítulos.</div>
+      <div class="note">Subtitula muchos clips sin revisarlos uno por uno. Usa el idioma, la calidad, las palabras por línea y el estilo de arriba; si escribiste un título, se pone en todos. Cada video se guarda como MP4 en la carpeta que elegiste en «Guardar».</div>
       <div class="row">
         <button class="primary" id="chooseBatch">Elegir videos…</button>
         <span id="batchNames" class="note">Ningún video elegido.</span>
@@ -721,6 +729,17 @@ function exportVideo(kind) {
     .catch((error) => { progress.classList.add("hidden"); setStatus(status, error.message, "error"); });
 }
 
+function showFolder(folder) {
+  $("exportFolder").textContent = folder;
+  $("resetFolder").classList.toggle("hidden", folder === info.defaultExportFolder);
+}
+async function chooseFolder(action) {
+  try {
+    const payload = await api("/api/export-folder", { body: { action } });
+    showFolder(payload.exportFolder);
+  } catch (error) { alert(error.message); }
+}
+
 let savedStyles = [];
 function renderSavedStyles() {
   const box = $("savedStyles");
@@ -804,7 +823,7 @@ function startBatch() {
       progress: (job) => { progress.value = job.progress; setStatus(status, `${job.message} · ${Math.round(job.progress * 100)}% en total`); },
       done: (result) => {
         progress.classList.add("hidden");
-        const lines = [`Listo: ${result.done.length} de ${batchVideos.length} videos guardados en la carpeta de Gota Subtítulos.`];
+        const lines = [`Listo: ${result.done.length} de ${batchVideos.length} videos guardados en ${$("exportFolder").textContent}.`];
         result.failed.forEach((item) => lines.push(`✕ ${item.name}: ${item.error}`));
         setStatus(status, lines.join("\n"), result.failed.length ? "error" : "done");
         if (result.done.length) api("/api/open-export-folder", { method: "POST" }).catch(() => {});
@@ -830,7 +849,7 @@ function insertEmoji(emoji) {
 async function init() {
   info = await api("/api/info");
   $("version").textContent = `v${info.version}`;
-  $("exportFolder").textContent = `Los archivos se guardan en: ${info.exportFolder}`;
+  showFolder(info.exportFolder);
   $("tone").value = load("tone", info.defaultTone);
   EMOJIS.forEach((emoji) => {
     const button = document.createElement("button");
@@ -880,6 +899,8 @@ $("exportMp4").addEventListener("click", () => exportVideo("mp4"));
 $("exportSrt").addEventListener("click", () => exportVideo("srt"));
 $("exportMov").addEventListener("click", () => exportVideo("mov"));
 $("saveStyle").addEventListener("click", saveCurrentStyle);
+$("chooseFolder").addEventListener("click", () => chooseFolder("choose"));
+$("resetFolder").addEventListener("click", () => chooseFolder("reset"));
 $("chooseBatch").addEventListener("click", chooseBatch);
 $("startBatch").addEventListener("click", startBatch);
 $("revealResult").addEventListener("click", () => lastExport && api("/api/reveal", { body: { path: lastExport } }));

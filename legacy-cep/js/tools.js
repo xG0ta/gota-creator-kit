@@ -69,22 +69,51 @@
   }
 
   // ---------- Subtítulos ----------
+  var PAUSE = 0.6, TAIL = 0.3;
+  // Igual que splitCaptionLines del panel moderno: corta en pausas, al final
+  // de las oraciones y, si la línea se llena, después de un signo.
   function splitLines(segments, maximum) {
     var limit = Math.max(2, Math.min(16, Math.round(Number(maximum) || 6)));
     var result = [];
     segments.forEach(function (segment) {
       var words = String(segment.text || '').trim().split(/\s+/).filter(Boolean);
       var timed = (segment.words || []).filter(function (word) { return String(word.text || '').trim(); });
+      if (words.length && timed.length === words.length) {
+        var gapBefore = function (i) { return timed[i].startSeconds - timed[i - 1].endSeconds; };
+        var first = 0, index = 1;
+        while (index <= words.length) {
+          if (index < words.length) {
+            var gap = gapBefore(index);
+            var sentenceEnd = /[.?!…]$/.test(words[index - 1]) && index - first >= 2 && gap > 0.15;
+            if (index - first < limit && gap <= PAUSE && !sentenceEnd) { index += 1; continue; }
+            if (index - first >= limit) {
+              var ahead = null;
+              for (var stop = index + 1; stop <= Math.min(words.length, index + 2) && !ahead; stop += 1) {
+                var together = true;
+                for (var k = index; k < stop; k += 1) if (gapBefore(k) > PAUSE) together = false;
+                if (together && /[.?!…]$/.test(words[stop - 1])) ahead = stop;
+              }
+              if (ahead) index = ahead;
+              else for (var cut = index - 1; cut > first + 1; cut -= 1) { if (/[.?!…,;:]$/.test(words[cut - 1])) { index = cut; break; } }
+            }
+          }
+          var chunk = timed.slice(first, index);
+          result.push({ startSeconds: chunk[0].startSeconds, endSeconds: chunk[chunk.length - 1].endSeconds,
+                        text: words.slice(first, index).join(' '), words: chunk });
+          first = index; index += 1;
+        }
+        return;
+      }
       if (words.length <= limit) { result.push({ startSeconds: segment.startSeconds, endSeconds: segment.endSeconds, text: words.join(' '), words: timed }); return; }
       var duration = Math.max(0.1, segment.endSeconds - segment.startSeconds);
-      for (var first = 0; first < words.length; first += limit) {
-        var last = Math.min(words.length, first + limit);
-        var chunk = timed.slice(first, last);
+      for (var start = 0; start < words.length; start += limit) {
+        var last = Math.min(words.length, start + limit);
+        var part = timed.slice(start, last);
         result.push({
-          startSeconds: chunk.length ? chunk[0].startSeconds : segment.startSeconds + duration * first / words.length,
-          endSeconds: chunk.length ? chunk[chunk.length - 1].endSeconds : segment.startSeconds + duration * last / words.length,
-          text: words.slice(first, last).join(' '),
-          words: chunk
+          startSeconds: part.length ? part[0].startSeconds : segment.startSeconds + duration * start / words.length,
+          endSeconds: part.length ? part[part.length - 1].endSeconds : segment.startSeconds + duration * last / words.length,
+          text: words.slice(start, last).join(' '),
+          words: part
         });
       }
     });
@@ -96,9 +125,10 @@
     var start = line.startSeconds, end = line.endSeconds;
     var words = text.split(/\s+/).filter(Boolean);
     if (!highlight) return [{ text: text, startSeconds: start, endSeconds: end, highlightIndex: -1, lineStart: true }];
-    var starts;
+    var starts, ends = null;
     if ((line.words || []).length === words.length) {
       starts = line.words.map(function (word) { return Number(word.startSeconds); });
+      ends = line.words.map(function (word) { return Number(word.endSeconds); });
     } else {
       var total = words.reduce(function (sum, word) { return sum + word.length; }, 0) || 1;
       var elapsed = 0;
@@ -112,10 +142,15 @@
       previous = Math.min(end - minimum * (words.length - index), Math.max(previous + minimum, wanted));
       return previous;
     });
-    return words.map(function (_, index) {
-      return { text: text, startSeconds: starts[index], endSeconds: index + 1 < words.length ? starts[index + 1] : end,
-               highlightIndex: index, lineStart: index === 0 };
+    var units = [];
+    words.forEach(function (_, index) {
+      var following = index + 1 < words.length ? starts[index + 1] : end;
+      // Tras una pausa el destacado se suelta en vez de quedarse pegado.
+      var stop = ends && isFinite(ends[index]) ? Math.min(following, Math.max(starts[index] + minimum, ends[index] + TAIL)) : following;
+      units.push({ text: text, startSeconds: starts[index], endSeconds: stop, highlightIndex: index, lineStart: index === 0 });
+      if (following - stop > 0.05) units.push({ text: text, startSeconds: stop, endSeconds: following, highlightIndex: -1, lineStart: false });
     });
+    return units;
   }
   function renderLines() {
     var box = $('cap-lines');
@@ -140,7 +175,7 @@
         chain = chain.then(function () {
           say('cap-status', 'Transcribiendo' + (clips.length > 1 ? ' clip ' + (index + 1) + ' de ' + clips.length : '') + '… La primera vez tarda unos minutos.');
           return api('/v1/transcribe', { mediaPath: clip.mediaPath, startSeconds: clip.inPointSeconds, endSeconds: clip.outPointSeconds,
-                                         language: $('cap-language').value, model: 'small' });
+                                         language: $('cap-language').value, model: 'large-v3-turbo' });
         }).then(function (payload) {
           var scale = scaleOf(clip);
           var toTimeline = function (seconds) { return clip.startSeconds + (Number(seconds) - clip.inPointSeconds) * scale; };

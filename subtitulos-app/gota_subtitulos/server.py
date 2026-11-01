@@ -24,7 +24,7 @@ app = FastAPI(title="Gota Subtítulos", version=VERSION)
 # Solo responde a esta computadora: evita que una página web ajena use el
 # servidor local con un nombre de dominio que apunte a 127.0.0.1.
 app.add_middleware(TrustedHostMiddleware, allowed_hosts=["127.0.0.1", "localhost"])
-state: dict = {"video": None, "segments": [], "lastPing": time.time(), "quit": False}
+state: dict = {"video": None, "segments": [], "lastPing": time.time(), "quit": False, "exported": set()}
 job_lock = threading.Lock()
 job: dict = {"id": 0, "kind": "", "status": "idle", "progress": 0.0, "message": "", "result": None, "error": ""}
 
@@ -87,6 +87,20 @@ class ExportRequest(BaseModel):
 
 class RevealRequest(BaseModel):
     path: str
+
+
+class ExportFolderRequest(BaseModel):
+    action: str = "choose"  # «choose» abre el selector, «reset» vuelve a la de siempre
+
+
+def _destination_folder(video_path: str) -> Path:
+    folder = system.export_dir()
+    if system.same_folder(folder, Path(video_path).parent):
+        raise HTTPException(status_code=400, detail=(
+            "La carpeta de destino es la misma donde está el video original. Elige otra en «Guardar»: "
+            "si esa carpeta la vigila Gota Flow, el video subtitulado se publicaría solo."
+        ))
+    return folder
 
 
 class SavedStylesRequest(BaseModel):
@@ -176,6 +190,7 @@ def info():
     return {
         "version": VERSION,
         "exportFolder": str(system.export_dir()),
+        "defaultExportFolder": str(system.default_export_dir()),
         "entrances": timeline.ENTRANCES,
         "defaultTone": titles.DEFAULT_TONE,
         "video": state["video"],
@@ -314,10 +329,12 @@ def start_export(request: ExportRequest):
     if not lines and not title_text:
         raise HTTPException(status_code=400, detail="No hay subtítulos ni título para exportar.")
     stem = Path(video["name"]).stem
+    target = _destination_folder(video["path"])
 
     if request.kind == "srt":
-        destination = system.unique_path(system.export_dir(), f"{stem} - subtítulos", ".srt")
+        destination = system.unique_path(_destination_folder(video["path"]), f"{stem} - subtítulos", ".srt")
         destination.write_text(timeline.to_srt(lines), encoding="utf-8")
+        state["exported"].add(str(destination))
         return {"status": "done", "result": {"path": str(destination)}}
 
     def work(progress, canceled):
@@ -340,10 +357,10 @@ def start_export(request: ExportRequest):
                 is_canceled=canceled,
             )
             if request.kind == "mov":
-                destination = system.unique_path(system.export_dir(), f"{stem} - subtítulos transparentes", ".mov")
+                destination = system.unique_path(target, f"{stem} - subtítulos transparentes", ".mov")
                 exporter = media.export_transparent_mov
             else:
-                destination = system.unique_path(system.export_dir(), f"{stem} - subtitulado", ".mp4")
+                destination = system.unique_path(target, f"{stem} - subtitulado", ".mp4")
                 exporter = media.export_mp4
             progress(0.3, "Creando el video… (no cierres esta ventana)")
             partial = destination.with_name(destination.stem + ".parcial" + destination.suffix)
@@ -354,6 +371,7 @@ def start_export(request: ExportRequest):
                 partial.replace(destination)
             finally:
                 partial.unlink(missing_ok=True)
+            state["exported"].add(str(destination))
             return {"path": str(destination)}
         finally:
             shutil.rmtree(folder, ignore_errors=True)
@@ -439,6 +457,9 @@ def start_batch(request: BatchRequest):
                     on_progress=lambda value: step(0.6 + value * 0.1, "Preparando las imágenes del texto…"),
                     is_canceled=canceled,
                 )
+                if system.same_folder(system.export_dir(), Path(path).parent):
+                    failed.append({"name": name, "error": "Está en la misma carpeta de destino; elige otra carpeta para no guardarlo junto al original."})
+                    continue
                 destination = system.unique_path(system.export_dir(), f"{Path(path).stem} - subtitulado", ".mp4")
                 partial = destination.with_name(destination.stem + ".parcial" + destination.suffix)
                 try:
@@ -448,6 +469,7 @@ def start_batch(request: BatchRequest):
                     partial.replace(destination)
                 finally:
                     partial.unlink(missing_ok=True)
+                state["exported"].add(str(destination))
                 done.append({"name": name, "path": str(destination), "lines": len(lines)})
             except media.Canceled:
                 raise
@@ -464,11 +486,29 @@ def start_batch(request: BatchRequest):
 @app.post("/api/reveal")
 def reveal(request: RevealRequest):
     path = Path(request.path)
-    # Solo se muestran archivos que la app creó en su carpeta de exportación.
-    if path.parent != system.export_dir() or not path.exists():
+    # Solo se muestran archivos que la app creó en esta sesión.
+    if str(path) not in state["exported"] or not path.exists():
         raise HTTPException(status_code=404, detail="No encontré ese archivo.")
     system.reveal(str(path))
     return {"ok": True}
+
+
+@app.post("/api/export-folder")
+def export_folder(request: ExportFolderRequest):
+    if request.action == "reset":
+        return {"exportFolder": str(system.set_export_dir(None))}
+    chosen = system.choose_folder()
+    if not chosen:
+        return {"exportFolder": str(system.export_dir()), "canceled": True}
+    video = state["video"]
+    if video and system.same_folder(chosen, Path(video["path"]).parent):
+        raise HTTPException(status_code=400, detail=(
+            "Esa es la carpeta del video original. Elige otra: si la vigila Gota Flow, "
+            "el video subtitulado se publicaría solo."
+        ))
+    folder = system.set_export_dir(chosen)
+    write_log(f"Carpeta de destino: {folder}")
+    return {"exportFolder": str(folder)}
 
 
 @app.post("/api/open-export-folder")
