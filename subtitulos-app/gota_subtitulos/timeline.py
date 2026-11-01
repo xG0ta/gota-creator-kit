@@ -21,8 +21,25 @@ def _finite(value, fallback=None):
     return number if math.isfinite(number) else fallback
 
 
+# Una pausa más larga que esto dentro de una frase empieza otra línea: si no,
+# la palabra destacada se quedaba pegada mientras nadie hablaba.
+PAUSE_SECONDS = 0.6
+# Al terminar de decirse, la palabra sigue destacada este tiempo como máximo;
+# después la línea queda sin destacar hasta la siguiente palabra.
+HIGHLIGHT_TAIL_SECONDS = 0.3
+
+
+def _line(words: list[str], timed: list[dict]) -> dict:
+    return {"startSeconds": float(timed[0]["startSeconds"]), "endSeconds": float(timed[-1]["endSeconds"]),
+            "text": " ".join(words), "words": timed}
+
+
 def split_lines(segments: list[dict], maximum_words: int) -> list[dict]:
-    """Corta cada frase de Whisper en líneas de pocas palabras."""
+    """Corta cada frase de Whisper en líneas de pocas palabras.
+
+    Con el tiempo de cada palabra también se corta en las pausas y al final
+    de una oración, para que cada línea sea algo que se dice de corrido.
+    """
     limit = max(2, min(16, round(_finite(maximum_words, 6))))
     result = []
     for segment in segments or []:
@@ -35,6 +52,35 @@ def split_lines(segments: list[dict], maximum_words: int) -> list[dict]:
         ]
         start = _finite(segment.get("startSeconds"), 0.0)
         end = _finite(segment.get("endSeconds"), start)
+        if words and len(timed) == len(words):
+            first = 0
+            index = 1
+            while index <= len(words):
+                if index < len(words):
+                    gap = float(timed[index]["startSeconds"]) - float(timed[index - 1]["endSeconds"])
+                    sentence_end = words[index - 1][-1:] in ".?!…" and index - first >= 2 and gap > 0.15
+                    if index - first < limit and gap <= PAUSE_SECONDS and not sentence_end:
+                        index += 1
+                        continue
+                    if index - first >= limit:
+                        # Línea llena: mejor cortar después de un signo (¿…?, coma)
+                        # que partir la frase a la mitad.
+                        ahead = next((stop for stop in range(index + 1, min(len(words), index + 2) + 1)
+                                      if words[stop - 1][-1:] in ".?!…"
+                                      and all(float(timed[k]["startSeconds"]) - float(timed[k - 1]["endSeconds"])
+                                              <= PAUSE_SECONDS for k in range(index, stop))), None)
+                        if ahead:
+                            # A una o dos palabras termina la pregunta: se deja junta.
+                            index = ahead
+                        else:
+                            for cut in range(index - 1, first + 1, -1):
+                                if words[cut - 1][-1:] in ".?!…,;:":
+                                    index = cut
+                                    break
+                result.append(_line(words[first:index], timed[first:index]))
+                first = index
+                index += 1
+            continue
         if len(words) <= limit:
             result.append({"startSeconds": start, "endSeconds": end, "text": " ".join(words), "words": timed})
             continue
@@ -65,8 +111,10 @@ def build_units(lines: list[dict], highlight_words: bool) -> list[dict]:
             units.append({"text": text, "startSeconds": start, "endSeconds": end, "highlightIndex": -1, "lineStart": True})
             continue
         timed = line.get("words") or []
+        ends = None
         if len(timed) == len(words):
             starts = [_finite(word.get("startSeconds")) for word in timed]
+            ends = [_finite(word.get("endSeconds")) for word in timed]
         else:
             # El usuario cambió las palabras: el tiempo se reparte por longitud.
             total = sum(len(word) for word in words) or 1
@@ -87,13 +135,23 @@ def build_units(lines: list[dict], highlight_words: bool) -> list[dict]:
             previous = min(latest, max(previous + minimum, wanted))
             safe.append(previous)
         for index in range(len(words)):
+            following = safe[index + 1] if index + 1 < len(words) else end
+            stop = following
+            # Si la palabra ya se dijo y viene un silencio, se quita el
+            # destacado en vez de dejarlo pegado hasta la siguiente.
+            spoken_end = ends[index] if ends else None
+            if spoken_end is not None:
+                stop = min(following, max(safe[index] + minimum, spoken_end + HIGHLIGHT_TAIL_SECONDS))
             units.append({
                 "text": text,
                 "startSeconds": safe[index],
-                "endSeconds": safe[index + 1] if index + 1 < len(words) else end,
+                "endSeconds": stop,
                 "highlightIndex": index,
                 "lineStart": index == 0,
             })
+            if following - stop > 0.05:
+                units.append({"text": text, "startSeconds": stop, "endSeconds": following,
+                              "highlightIndex": -1, "lineStart": False})
     units.sort(key=lambda unit: unit["startSeconds"])
     return units
 

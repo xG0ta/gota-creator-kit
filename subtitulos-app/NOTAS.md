@@ -1,5 +1,10 @@
 **Gota Subtítulos** es una app aparte del plugin: pone subtítulos animados y un título con IA a tus videos **sin necesitar Premiere**. Todo se procesa en tu computadora.
 
+## Novedades de 1.1.2
+- **Subtítulos más correctos:** nueva calidad «Máxima» (recomendada) con un modelo de voz más grande. Se equivoca mucho menos con habla rápida, groserías o niños. La primera vez descarga 1.6 GB; en una Mac Intel tarda más o menos lo que dura el video.
+- **La palabra destacada ya no se atora:** si hay una pausa, el destacado se suelta en vez de quedarse pegado en la última palabra.
+- **Líneas mejor cortadas:** cada línea corta en las pausas y al final de las preguntas u oraciones, sin partir la frase a la mitad.
+
 ## Novedades de 1.1.1
 - **Más ajustes del estilo:** grosor del contorno, color y difuminado de la sombra, alineación (centro, izquierda, derecha) y animación de entrada (pop, golpe, fundido o sin animación), además de tipografía, tamaño, altura y colores.
 - **Mis estilos:** guarda cómo dejaste los subtítulos con un nombre y úsalo después con un clic.
