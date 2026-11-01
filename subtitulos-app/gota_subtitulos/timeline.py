@@ -8,22 +8,9 @@ from __future__ import annotations
 
 import math
 
-# Entradas: [segundos, valor]. Iguales a CAPTION_ENTRANCES del panel.
-ENTRANCES = {
-    "gota-pop": {"scale": [[0, 80], [0.08, 108], [0.16, 100]], "opacity": [[0, 0], [0.06, 100]]},
-    "impact": {"scale": [[0, 60], [0.09, 115], [0.18, 100]], "opacity": [[0, 0], [0.05, 100]]},
-    "minimal": {"scale": None, "opacity": [[0, 0], [0.15, 100]]},
-    "none": {"scale": None, "opacity": None},
-}
-
-
-def entrance_name(style: dict) -> str:
-    """La entrada que eligió el usuario o, en «auto», la propia del estilo."""
-    wanted = str(style.get("entrance") or "auto")
-    if wanted in ENTRANCES:
-        return wanted
-    name = str(style.get("style") or "minimal")
-    return name if name in ENTRANCES else "minimal"
+# La animación de entrada vive en service/caption_motion.py: la comparte el
+# motor del plugin. Se reexporta aquí para el resto de la app.
+from service.caption_motion import ENTRANCES, entrance_keys, entrance_name, interpolate  # noqa: F401
 
 
 def _finite(value, fallback=None):
@@ -109,32 +96,6 @@ def build_units(lines: list[dict], highlight_words: bool) -> list[dict]:
             })
     units.sort(key=lambda unit: unit["startSeconds"])
     return units
-
-
-def entrance_keys(style_name: str, duration: float) -> dict:
-    """Keyframes de entrada comprimidos si la imagen dura poco."""
-    entrance = ENTRANCES.get(style_name) or ENTRANCES["minimal"]
-    limit = max(0.04, float(duration) * 0.9)
-
-    def fit(keys):
-        if not keys:
-            return None
-        factor = min(1.0, limit / keys[-1][0]) if keys[-1][0] > 0 else 1.0
-        return [[seconds * factor, value] for seconds, value in keys]
-
-    return {"scale": fit(entrance["scale"]), "opacity": fit(entrance["opacity"])}
-
-
-def interpolate(keys, seconds: float, fallback: float = 100.0) -> float:
-    if not keys:
-        return fallback
-    if seconds <= keys[0][0]:
-        return keys[0][1]
-    for (t0, v0), (t1, v1) in zip(keys, keys[1:]):
-        if seconds <= t1:
-            ratio = (seconds - t0) / (t1 - t0) if t1 > t0 else 1.0
-            return v0 + (v1 - v0) * ratio
-    return keys[-1][1]
 
 
 def to_srt(lines: list[dict]) -> str:

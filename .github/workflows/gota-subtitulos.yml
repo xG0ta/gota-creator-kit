@@ -24,7 +24,7 @@ jobs:
             label: Windows
           - os: macos-15-intel
             label: macOS-Intel
-          - os: macos-14
+          - os: macos-15
             label: macOS-AppleSilicon
     defaults:
       run:
@@ -44,7 +44,7 @@ jobs:
       - name: Pruebas
         timeout-minutes: 8
         # Si una prueba se traba, faulthandler escribe dónde a los 120 s.
-        run: python -m pytest -v -p no:cacheprovider -o faulthandler_timeout=120 service/tests/test_captions.py subtitulos-app/tests > pruebas.log 2>&1
+        run: python -m pytest -v -p no:cacheprovider -o faulthandler_timeout=120 service/tests/test_captions.py service/tests/test_caption_motion.py subtitulos-app/tests > pruebas.log 2>&1
 
       - name: Compilar
         working-directory: subtitulos-app
