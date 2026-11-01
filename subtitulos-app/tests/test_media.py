@@ -16,11 +16,11 @@ class MediaTests(unittest.TestCase):
             flat = Path(folder) / "plano.mp4"
             source = Path(folder) / "girado.mp4"
             subprocess.run([
-                media.ffmpeg(), "-y", "-loglevel", "error", "-f", "lavfi", "-i", "testsrc2=size=320x180:rate=30:duration=1",
+                media.ffmpeg(), "-nostdin", "-y", "-loglevel", "error", "-f", "lavfi", "-i", "testsrc2=size=320x180:rate=30:duration=1",
                 "-c:v", "libx264", "-pix_fmt", "yuv420p", str(flat),
             ], check=True)
             # Así guarda el iPhone sus videos verticales: 1920x1080 con giro aparte.
-            subprocess.run([media.ffmpeg(), "-y", "-loglevel", "error", "-display_rotation", "-90", "-i", str(flat),
+            subprocess.run([media.ffmpeg(), "-nostdin", "-y", "-loglevel", "error", "-display_rotation", "-90", "-i", str(flat),
                             "-c", "copy", str(source)], check=True)
             info = media.probe(str(source))
             self.assertEqual((info["width"], info["height"]), (180, 320))
@@ -30,7 +30,7 @@ class MediaTests(unittest.TestCase):
             folder = Path(folder)
             source = folder / "base.mp4"
             subprocess.run([
-                media.ffmpeg(), "-y", "-loglevel", "error", "-f", "lavfi", "-i", "color=c=black:size=360x640:rate=30:duration=2",
+                media.ffmpeg(), "-nostdin", "-y", "-loglevel", "error", "-f", "lavfi", "-i", "color=c=black:size=360x640:rate=30:duration=2",
                 "-f", "lavfi", "-i", "anullsrc=r=44100:cl=mono", "-shortest",
                 "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", str(source),
             ], check=True)
@@ -51,7 +51,7 @@ class MediaTests(unittest.TestCase):
             frames = {}
             for seconds in (0.5, 1.2, 1.8):
                 frame = folder / f"f{seconds}.png"
-                subprocess.run([media.ffmpeg(), "-y", "-loglevel", "error", "-ss", str(seconds), "-i", str(output),
+                subprocess.run([media.ffmpeg(), "-nostdin", "-y", "-loglevel", "error", "-ss", str(seconds), "-i", str(output),
                                 "-frames:v", "1", str(frame)], check=True)
                 frames[seconds] = Image.open(frame).convert("RGB")
             top = lambda image: image.crop((0, 0, 360, 200)).getextrema()

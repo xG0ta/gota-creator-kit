@@ -1,6 +1,7 @@
 """Servidor local: la pantalla de la app corre en el navegador del usuario."""
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import tempfile
@@ -88,6 +89,19 @@ class RevealRequest(BaseModel):
     path: str
 
 
+class SavedStylesRequest(BaseModel):
+    styles: list[dict] = Field(default_factory=list)
+
+
+class BatchRequest(BaseModel):
+    paths: list[str] = Field(default_factory=list)
+    language: str = "es"
+    quality: str = "precisa"
+    maxWords: int = 6
+    style: dict = Field(default_factory=dict)
+    title: dict = Field(default_factory=dict)
+
+
 def _start_job(kind: str, target, *args) -> dict:
     with job_lock:
         if job["status"] == "running":
@@ -134,8 +148,8 @@ def _require_video() -> dict:
     return state["video"]
 
 
-def _style_for_video(style: dict) -> dict:
-    video = _require_video()
+def _style_for_video(style: dict, video: dict | None = None) -> dict:
+    video = video or _require_video()
     font = style.get("fontPath") or system.default_font()
     return {**style, "frameWidth": video["width"], "frameHeight": video["height"], "fontPath": font}
 
@@ -294,6 +308,7 @@ def start_export(request: ExportRequest):
     video = _require_video()
     style = _style_for_video(request.style)
     style_name = str(style.get("style") or "minimal")
+    entrance = timeline.entrance_name(style)
     lines = [line for line in request.lines if str(line.get("text") or "").strip()]
     title_text = str(request.title.get("text") or "").strip()
     if not lines and not title_text:
@@ -319,7 +334,7 @@ def start_export(request: ExportRequest):
             overlay = media.build_overlay(
                 units,
                 render=lambda unit: _render(unit["text"], style, unit["highlightIndex"]),
-                keys_for=lambda unit: timeline.entrance_keys(style_name, unit["endSeconds"] - unit["startSeconds"]),
+                keys_for=lambda unit: timeline.entrance_keys(entrance, unit["endSeconds"] - unit["startSeconds"]),
                 title=title, video=video, folder=folder,
                 on_progress=lambda value: progress(0.02 + value * 0.28, "Preparando las imágenes del texto…"),
                 is_canceled=canceled,
@@ -344,6 +359,106 @@ def start_export(request: ExportRequest):
             shutil.rmtree(folder, ignore_errors=True)
 
     return _start_job("export", work)
+
+
+def styles_path() -> Path:
+    return system.data_dir() / "mis-estilos.json"
+
+
+@app.get("/api/styles")
+def saved_styles():
+    # Se guardan junto a la app y no en el navegador: el puerto puede cambiar
+    # entre aperturas y con él se perdería lo guardado en el navegador.
+    try:
+        return {"styles": json.loads(styles_path().read_text(encoding="utf-8"))}
+    except (OSError, ValueError):
+        return {"styles": []}
+
+
+@app.post("/api/styles")
+def save_styles(request: SavedStylesRequest):
+    styles = [item for item in request.styles if isinstance(item, dict) and str(item.get("name") or "").strip()][:40]
+    temporary = styles_path().with_suffix(".tmp")
+    temporary.write_text(json.dumps(styles, ensure_ascii=False, indent=1), encoding="utf-8")
+    temporary.replace(styles_path())
+    return {"styles": styles}
+
+
+@app.post("/api/batch/choose")
+def choose_batch():
+    paths = system.choose_videos(True)
+    videos = []
+    for path in paths:
+        info = media.probe(path)
+        if info["hasVideo"] and info["width"]:
+            videos.append(info)
+    return {"videos": videos, "skipped": len(paths) - len(videos)}
+
+
+@app.post("/api/batch")
+def start_batch(request: BatchRequest):
+    paths = [path for path in request.paths if Path(path).is_file()]
+    if not paths:
+        raise HTTPException(status_code=400, detail="Elige al menos un video.")
+    style_name = str(request.style.get("style") or "minimal")
+    entrance = timeline.entrance_name(request.style)
+    title_text = str(request.title.get("text") or "").strip()
+
+    def work(progress, canceled):
+        done, failed = [], []
+        share = 1.0 / len(paths)
+        for number, path in enumerate(paths):
+            base = number * share
+            name = Path(path).name
+
+            def step(value, message, base=base, name=name, number=number):
+                progress(base + value * share, f"Video {number + 1} de {len(paths)} · {name}\n{message}")
+
+            folder = Path(tempfile.mkdtemp(prefix="gota-lote-"))
+            try:
+                video = media.probe(path)
+                step(0.0, "Escuchando el video…")
+                result = transcribe.transcribe(path, video["duration"], request.language, request.quality,
+                                               lambda value, message=None: step(value * 0.6, message or "Escuchando el video…"),
+                                               canceled)
+                lines = timeline.split_lines(result["segments"], request.maxWords)
+                if not lines and not title_text:
+                    failed.append({"name": name, "error": "No encontré voz en el video."})
+                    continue
+                style = _style_for_video(request.style, video)
+                title = None
+                if title_text:
+                    title_path, _ = _render(title_text, _style_for_video(request.title.get("style") or {}, video))
+                    seconds = float(request.title.get("seconds") or 0)
+                    title = (title_path, seconds if seconds > 0 else video["duration"] + 1)
+                overlay = media.build_overlay(
+                    timeline.build_units(lines, style_name != "minimal"),
+                    render=lambda unit: _render(unit["text"], style, unit["highlightIndex"]),
+                    keys_for=lambda unit: timeline.entrance_keys(entrance, unit["endSeconds"] - unit["startSeconds"]),
+                    title=title, video=video, folder=folder,
+                    on_progress=lambda value: step(0.6 + value * 0.1, "Preparando las imágenes del texto…"),
+                    is_canceled=canceled,
+                )
+                destination = system.unique_path(system.export_dir(), f"{Path(path).stem} - subtitulado", ".mp4")
+                partial = destination.with_name(destination.stem + ".parcial" + destination.suffix)
+                try:
+                    media.export_mp4(video, overlay, partial,
+                                     on_progress=lambda value: step(0.7 + value * 0.3, "Creando el video…"),
+                                     is_canceled=canceled)
+                    partial.replace(destination)
+                finally:
+                    partial.unlink(missing_ok=True)
+                done.append({"name": name, "path": str(destination), "lines": len(lines)})
+            except media.Canceled:
+                raise
+            except Exception as error:  # un video malo no detiene a los demás
+                write_log(f"Lote: {name} falló: {error}\n{traceback.format_exc()}")
+                failed.append({"name": name, "error": str(error) or type(error).__name__})
+            finally:
+                shutil.rmtree(folder, ignore_errors=True)
+        return {"done": done, "failed": failed}
+
+    return _start_job("batch", work)
 
 
 @app.post("/api/reveal")
