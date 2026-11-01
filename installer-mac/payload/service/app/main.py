@@ -1,3 +1,9 @@
+# La descarga «xet» de Hugging Face falló y se quedó trabada al bajar
+# large-v3-turbo; la normal por HTTP sí funciona. huggingface_hub lee esta
+# variable al importarse, por eso va antes de cualquier otro import.
+import os
+os.environ.setdefault("HF_HUB_DISABLE_XET", "1")
+
 from pathlib import Path
 import base64
 from functools import lru_cache
@@ -221,7 +227,7 @@ class TranscribeRequest(BaseModel):
     startSeconds: float = Field(default=0, ge=0)
     endSeconds: float | None = Field(default=None, gt=0)
     language: str = Field(default="es", min_length=2, max_length=12)
-    model: str = Field(default="base", pattern="^(tiny|base|small)$")
+    model: str = Field(default="base", pattern="^(tiny|base|small|large-v3-turbo)$")
 
 
 class CaptionMogrtRequest(BaseModel):
@@ -525,11 +531,9 @@ def transcribe_local_media(request: TranscribeRequest) -> dict:
                     message = completed.stderr.decode("utf-8", errors="replace").strip()
                     raise RuntimeError(message or "No se pudo preparar el audio para los subtítulos.")
                 try:
-                    fallback_models = [active_model_name]
-                    if active_model_name == "small":
-                        fallback_models.extend(["base", "tiny"])
-                    elif active_model_name == "base":
-                        fallback_models.append("tiny")
+                    # Si falta memoria se baja a un modelo más ligero.
+                    order = ["large-v3-turbo", "small", "base", "tiny"]
+                    fallback_models = order[order.index(active_model_name):]
 
                     for candidate_index, candidate_name in enumerate(fallback_models):
                         segments = None
@@ -539,7 +543,11 @@ def transcribe_local_media(request: TranscribeRequest) -> dict:
                             model = load_model(candidate_name)
                             segments, info = model.transcribe(
                                 read_wav_samples(segment_path), language=None if request.language == "auto" else request.language, vad_filter=True,
-                                beam_size=1, best_of=1, temperature=0.0,
+                                # Con turbo, la búsqueda de 5 caminos acertó mucho más
+                                # en habla rápida; en small inventaba repeticiones.
+                                beam_size=5 if candidate_name == "large-v3-turbo" else 1,
+                                best_of=5 if candidate_name == "large-v3-turbo" else 1,
+                                temperature=0.0,
                                 condition_on_previous_text=False, word_timestamps=True,
                                 # La pista de estilo solo ayuda en español; en
                                 # inglés o «detectar» empujaría a traducir.
@@ -573,7 +581,10 @@ def transcribe_local_media(request: TranscribeRequest) -> dict:
                             break
                         except Exception as chunk_error:
                             has_fallback = candidate_index + 1 < len(fallback_models)
-                            if not is_memory_exhaustion(chunk_error) or not has_fallback:
+                            # Turbo pesa 1.6 GB: si no se pudo descargar o cargar
+                            # (internet, disco), se sigue con small en vez de fallar.
+                            turbo_failed = candidate_name == "large-v3-turbo"
+                            if not (is_memory_exhaustion(chunk_error) or turbo_failed) or not has_fallback:
                                 raise
                             transcription_models.pop(candidate_name, None)
                             model = None
@@ -582,7 +593,7 @@ def transcribe_local_media(request: TranscribeRequest) -> dict:
                             chunk_results = []
                             gc.collect()
                             write_silence_diagnostic(
-                                "transcription_memory_fallback",
+                                "transcription_model_fallback" if turbo_failed else "transcription_memory_fallback",
                                 requestedModel=request.model,
                                 failedModel=candidate_name,
                                 fallbackModel=fallback_models[candidate_index + 1],
