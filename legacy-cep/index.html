@@ -10,12 +10,12 @@
 <body>
   <main>
     <header>
-      <div><h1>Gota Creator Kit <span>☔</span></h1><p>Compatibilidad para Premiere Pro 2024</p></div>
+      <div><h1>Gota Creator Kit <span>☔</span></h1><p>Para Premiere Pro 2021 a 2025.5</p></div>
       <span id="host-version" class="pill">Comprobando…</span>
     </header>
     <section class="notice">
       <strong>Modo Legacy</strong>
-      <span>Diseñado para Premiere 2024 (24.x). La edición moderna UXP sigue siendo la recomendada para Premiere 25.6 o posterior.</span>
+      <span>Para Premiere 2021 a 2025.5. En Premiere 25.6 o posterior usa la edición moderna (UXP), que además trae el reencuadre automático.</span>
     </section>
     <section class="card">
       <div class="section-title"><h2>Biblioteca local</h2><button id="add-root" class="secondary">+ Añadir carpeta</button></div>
@@ -29,16 +29,50 @@
       <p class="hint">Se añade al marcador en las primeras pistas vacías disponibles; no sobrescribe clips existentes.</p>
     </section>
     <section class="card">
+      <div class="section-title"><h2>Subtítulos automáticos</h2><span class="pill">nuevo</span></div>
+      <p class="hint">Selecciona en la línea de tiempo uno o varios clips con voz. Cada línea se coloca como un video transparente ya animado.</p>
+      <div class="grid2">
+        <label>Idioma<select id="cap-language"><option value="es">Español</option><option value="en">Inglés</option><option value="auto">Detectar solo</option></select></label>
+        <label>Palabras por línea<input id="cap-words" type="number" min="2" max="16" value="6"></label>
+      </div>
+      <button id="cap-transcribe" class="primary">Generar subtítulos</button>
+      <div id="cap-lines" class="lines" style="display:none"></div>
+      <div class="grid2">
+        <label>Estilo<select id="cap-style"><option value="gota-pop">Gota Pop (palabra destacada)</option><option value="impact">Impacto (recuadro)</option><option value="minimal">Minimal (limpio)</option></select></label>
+        <label>Tipografía<input id="cap-font" type="text" value="Arial Black"></label>
+        <label>Tamaño<input id="cap-size" type="number" min="12" max="180" value="46"></label>
+        <label>Altura en pantalla (%)<input id="cap-position" type="number" min="5" max="95" value="70"></label>
+        <label>Mayúsculas<select id="cap-case"><option value="upper">MAYÚSCULAS</option><option value="">Como se escribió</option><option value="title">Tipo Título</option><option value="lower">minúsculas</option></select></label>
+        <label class="colors">Colores
+          <span><input id="cap-color" type="color" value="#ffffff" title="Texto"><span id="cap-accent-wrap"><input id="cap-accent" type="color" value="#20b7ff" title="Palabra destacada"></span></span>
+        </label>
+      </div>
+      <button id="cap-place" class="primary" disabled>Colocar en la secuencia</button>
+      <p id="cap-status" class="status">Listo para transcribir.</p>
+    </section>
+    <section class="card">
+      <div class="section-title"><h2>Quitar silencios</h2><span class="pill">nuevo</span></div>
+      <p class="hint">Selecciona los clips. Se crea una secuencia nueva solo con las partes con voz; la tuya no se toca.</p>
+      <div class="grid3">
+        <label>Silencio debajo de (dB)<input id="sil-threshold" type="number" min="-96" max="0" step="1" value="-42"></label>
+        <label>Silencio mínimo (s)<input id="sil-minimum" type="number" min="0.1" max="5" step="0.05" value="0.4"></label>
+        <label>Margen (s)<input id="sil-padding" type="number" min="0" max="1" step="0.02" value="0.12"></label>
+      </div>
+      <button id="sil-run" class="primary">Crear copia sin silencios</button>
+      <p id="sil-status" class="status">Listo.</p>
+    </section>
+    <section class="card">
       <div class="section-title"><h2>Herramientas</h2><span class="pill">motor local</span></div>
       <button id="check-engine" class="secondary">Comprobar motor local</button>
-      <p id="engine-status" class="hint">La detección facial y silencios se ejecutan con el motor local incluido por el instalador.</p>
+      <p id="engine-status" class="hint">Subtítulos y silencios usan el motor local que instala el instalador completo de Gota Creator Kit.</p>
     </section>
     <section class="card compact">
-      <h2>Actualiza Premiere para todas las funciones</h2>
-      <p>Reencuadre automático, silencios automatizados y subtítulos editables dependen de las APIs UXP oficiales de Premiere 25.6+.</p>
+      <h2>Reencuadre automático</h2>
+      <p>El reencuadre con detección de caras necesita Premiere 25.6 o posterior (edición moderna UXP).</p>
     </section>
     <p id="status" class="status">Listo.</p>
   </main>
   <script src="js/panel.js"></script>
+  <script src="js/tools.js"></script>
 </body>
 </html>

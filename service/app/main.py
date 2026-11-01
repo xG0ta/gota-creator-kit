@@ -37,6 +37,7 @@ from service_v2.detector import analyze_identities
 from service_v2.editorial import EditorialFrame, PROFILES, build_shot_plan
 from service.silence import analyze_silences
 from service.captions import build_caption_png as render_caption_png
+from service.caption_motion import entrance_name, line_clip
 from service.licensing import LicenseError, default_store
 from service.offline_license import OfflineLicenseError
 from service.hybrid_license import (
@@ -228,6 +229,13 @@ class CaptionMogrtRequest(BaseModel):
     templatePath: str = Field(min_length=1, max_length=4096)
     text: str = Field(min_length=1, max_length=600)
     style: dict = Field(default_factory=dict)
+
+
+class CaptionClipRequest(BaseModel):
+    """Una línea de subtítulo completa: sus imágenes (una por palabra) y el estilo."""
+    units: list[dict] = Field(min_length=1, max_length=200)
+    style: dict = Field(default_factory=dict)
+    fps: float = Field(default=30.0, gt=0, le=120)
 
 
 class CaptionSvgRequest(BaseModel):
@@ -514,13 +522,15 @@ def transcribe_local_media(request: TranscribeRequest) -> dict:
                         try:
                             model = load_model(candidate_name)
                             segments, info = model.transcribe(
-                                str(segment_path), language=request.language, vad_filter=True,
+                                str(segment_path), language=None if request.language == "auto" else request.language, vad_filter=True,
                                 beam_size=1, best_of=1, temperature=0.0,
                                 condition_on_previous_text=False, word_timestamps=True,
+                                # La pista de estilo solo ayuda en español; en
+                                # inglés o «detectar» empujaría a traducir.
                                 initial_prompt=(
                                     "Transcripción en español mexicano. Conserva nombres propios, "
                                     "muletillas y palabras coloquiales; no traduzcas al inglés."
-                                ),
+                                ) if request.language == "es" else None,
                             )
                             info_language = getattr(info, "language", request.language)
                             for segment in segments:
@@ -1574,6 +1584,36 @@ def build_caption_png(text: str, style: dict | None = None) -> tuple[Path, dict]
     return render_caption_png(
         text, style, preview_cache_dir.parent / "caption-pngs", _caption_font_path(style.get("font"))
     )
+
+
+@app.post("/v1/caption-clip")
+def caption_clip(request: CaptionClipRequest):
+    """MOV transparente de una línea con la entrada y la palabra destacada ya animadas.
+
+    Reemplaza colocar una imagen por palabra con keyframes de Premiere: el
+    panel importa un solo clip por línea.
+    """
+    import imageio_ffmpeg
+
+    style = dict(request.style or {})
+    font_path = _caption_font_path(style.get("font"))
+    try:
+        path, duration = line_clip(
+            request.units,
+            render=lambda unit: render_caption_png(
+                str(unit.get("text") or "").strip(), {**style, "highlightIndex": unit.get("highlightIndex", -1)},
+                preview_cache_dir.parent / "caption-pngs", font_path,
+            ),
+            entrance=entrance_name(style), fps=request.fps, ffmpeg=imageio_ffmpeg.get_ffmpeg_exe(),
+            cache_dir=preview_cache_dir.parent / "caption-clips", signature={"style": style, "font": font_path},
+        )
+        return {"movPath": str(path), "durationSeconds": round(duration, 4)}
+    except Exception as error:
+        logger.exception("caption_clip_failed")
+        raise HTTPException(
+            status_code=422,
+            detail=f"No se pudo preparar el video del subtítulo: {type(error).__name__}: {error}",
+        ) from error
 
 
 @app.post("/v1/caption-png")

@@ -9,12 +9,17 @@ Funciones incluidas en el panel Legacy:
 - Biblioteca local con varias carpetas raíz, búsqueda y vista previa básica.
 - Importar y colocar archivos en el cabezal de reproducción sin sobrescribir
   clips que ya estén en la pista.
+- Subtítulos automáticos (desde 3.3.12): transcribe los clips seleccionados con
+  el motor local y coloca cada línea como un MOV transparente ya animado
+  (`/v1/caption-clip`, códec Animation), en una pista libre y en la carpeta
+  «Gota Subtítulos». No usa keyframes ni las APIs UXP.
+- Quitar silencios (desde 3.3.12): analiza los clips con el motor local y arma
+  una secuencia NUEVA solo con las partes con voz (`buildWithoutSilences` en
+  `jsx/host.jsx`). La secuencia original no se modifica.
 - Verificación del motor local instalado por Gota Creator Kit.
 
-La automatización avanzada de reencuadre, eliminación de silencios y subtítulos
-editables se distribuye en la edición UXP para Premiere 25.6 o posterior. No se
-declara compatibilidad falsa con 2024: esos flujos dependen de las APIs nuevas
-de Adobe (`premierepro`, transacciones y `SequenceEditor`).
+El reencuadre automático con detección de caras sigue siendo exclusivo de la
+edición UXP para Premiere 25.6 o posterior.
 
 ## Empaquetado
 
