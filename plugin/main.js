@@ -140,6 +140,55 @@ function buildCaptionUnits(segments, highlightWords) {
   return units.sort((left, right) => left.startSeconds - right.startSeconds);
 }
 
+// Cuadros por segundo de la secuencia para que el video del subtítulo no
+// salte cuadros. Premiere mide el tiempo en ticks: 254016000000 por segundo.
+async function getSequenceFps(sequence) {
+  const fromTicks = (ticks) => {
+    const value = 254016000000 / Number(ticks && ticks.ticks !== undefined ? ticks.ticks : ticks);
+    return Number.isFinite(value) && value >= 1 && value <= 120 ? value : null;
+  };
+  try {
+    const fps = fromTicks(await sequence.getTimebase());
+    if (fps) return fps;
+  } catch (_) { /* se intenta la otra API */ }
+  try {
+    const settings = await sequence.getSettings();
+    const rate = await settings.getVideoFrameRate();
+    const fps = fromTicks(rate) || (Number(rate && rate.value) > 0 ? Number(rate.value) : null);
+    if (fps) return fps;
+  } catch (_) { /* Premiere sin esa API */ }
+  return 30;
+}
+
+/**
+ * Una línea completa como MOV transparente (entrada y palabra destacada ya
+ * animadas). Así Premiere recibe un clip por línea en vez de una imagen por
+ * palabra con keyframes.
+ */
+async function makeCaptionClip(lineUnits, style, fps) {
+  const response = await fetch(`${SERVICE_URL}/v1/caption-clip`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ units: lineUnits, style: style || {}, fps })
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok || !payload.movPath) {
+    throw new Error(payload.detail || "El motor local no pudo preparar el video del subtítulo.");
+  }
+  return { movPath: String(payload.movPath), durationSeconds: Number(payload.durationSeconds) };
+}
+
+// Agrupa las imágenes de buildCaptionUnits por línea (cada línea empieza
+// con lineStart).
+function groupCaptionUnitsByLine(units) {
+  const lines = [];
+  for (const unit of units) {
+    if (unit.lineStart || !lines.length) lines.push([]);
+    lines[lines.length - 1].push(unit);
+  }
+  return lines;
+}
+
 async function getSequenceFrameSize(sequence) {
   const readRect = (rect) => {
     const width = Math.round(Number(rect && rect.width));
@@ -1635,6 +1684,24 @@ async function collectSelectedVideoClips(sequence) {
     clips.push(clipInfo);
   }
   return clips;
+}
+
+/**
+ * Clips a transcribir para subtítulos, en orden de la línea de tiempo.
+ * Si dos clips ocupan el mismo momento (video y su audio en otra pista, o
+ * ángulos de multicámara) se usa solo el primero, para no duplicar texto.
+ */
+function pickCaptionClips(clips) {
+  const ordered = [...clips].sort((left, right) =>
+    left.startSeconds - right.startSeconds || (left.mediaKind === "audio") - (right.mediaKind === "audio"));
+  const picked = [];
+  for (const clip of ordered) {
+    const length = Math.max(0.001, clip.endSeconds - clip.startSeconds);
+    const overlaps = picked.some((other) =>
+      Math.min(clip.endSeconds, other.endSeconds) - Math.max(clip.startSeconds, other.startSeconds) > length * 0.5);
+    if (!overlaps) picked.push(clip);
+  }
+  return picked;
 }
 
 async function collectSelectedSilenceClips(sequence) {
@@ -5176,6 +5243,17 @@ let silenceDiagnosticLogs = [];
     .forEach(([value, text]) => { const option = makeElement("option", text); option.value = value; captionsCase.appendChild(option); });
   captionsCaseLabel.appendChild(captionsCase);
   captionsBody.appendChild(captionsCaseLabel);
+  const captionsLanguageLabel = makeElement("label", "Idioma del video");
+  captionsLanguageLabel.style.fontSize = "11px";
+  const captionsLanguage = makeElement("select");
+  [["es", "Español"], ["en", "Inglés"], ["auto", "Detectar solo"]]
+    .forEach(([value, text]) => { const option = makeElement("option", text); option.value = value; captionsLanguage.appendChild(option); });
+  try { captionsLanguage.value = window.localStorage.getItem("gckCaptionsLanguage") || "es"; } catch (_) { captionsLanguage.value = "es"; }
+  captionsLanguage.addEventListener("change", () => {
+    try { window.localStorage.setItem("gckCaptionsLanguage", captionsLanguage.value); } catch (_) { /* solo esta sesión */ }
+  });
+  captionsLanguageLabel.appendChild(captionsLanguage);
+  captionsBody.appendChild(captionsLanguageLabel);
   const hexToHsv = (hex) => {
     const value = String(hex || "#ffffff").replace("#", "");
     const r = parseInt(value.slice(0, 2), 16) / 255;
@@ -5824,52 +5902,65 @@ let silenceDiagnosticLogs = [];
       const project = await ppro.Project.getActiveProject();
       const sequence = await project.getActiveSequence();
       if (!sequence) throw new Error("Abre una secuencia y selecciona un clip o tramo antes de transcribir.");
-      const clips = await collectSelectedSilenceClips(sequence);
+      const clips = pickCaptionClips(await collectSelectedSilenceClips(sequence));
       if (!clips.length) throw new Error("Selecciona un clip de video o audio en la línea de tiempo.");
-      // La primera selección define el tramo. Así no transcribimos por accidente
-      // todo el archivo fuente si el usuario solo montó unos segundos.
-      const clip = clips[0];
-      setCaptionsStartupProgress(30, "Preparando audio y cargando el modelo local…");
       captionsStatus.textContent = "Transcribiendo… La primera vez puede tardar unos minutos.";
-      let shownProgress = 30;
-      transcriptionTimer = setInterval(() => {
-        shownProgress = Math.min(88, shownProgress + 2);
-        setCaptionsStartupProgress(shownProgress, "Cargando modelo local / transcribiendo…");
-      }, 450);
-      const response = await fetch(`${SERVICE_URL}/v1/transcribe`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          mediaPath: clip.mediaPath,
-          startSeconds: clip.inPointSeconds,
-          endSeconds: clip.outPointSeconds,
-          language: "es",
-          // El modelo small mejora bastante la precisión en español y se
-          // descarga una sola vez en la caché local del motor.
-          model: "small"
-        })
-      });
-      if (transcriptionTimer) { clearInterval(transcriptionTimer); transcriptionTimer = null; }
-      setCaptionsStartupProgress(94, "Procesando resultados…");
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(payload.detail || "No se pudo transcribir el medio seleccionado.");
-      const segments = Array.isArray(payload.segments) ? payload.segments : [];
-      if (!segments.length) {
-        captionsStatus.textContent = "No detecté diálogo en este tramo. Prueba con otro clip o revisa que su audio no esté silenciado.";
-        return;
-      }
-      editableCaptionSegments = splitCaptionByWords(segments.map((segment) => ({
+      const timelineSegments = [];
+      for (let index = 0; index < clips.length; index += 1) {
+        const clip = clips[index];
+        const label = clips.length > 1 ? ` (clip ${index + 1} de ${clips.length})` : "";
+        // Cada clip avanza su parte de la barra; dentro de él la barra se
+        // mueve sola porque el motor no informa avance.
+        const from = 30 + (58 * index) / clips.length;
+        const to = 30 + (58 * (index + 1)) / clips.length;
+        setCaptionsStartupProgress(from, `Preparando audio y cargando el modelo local…${label}`);
+        let shownProgress = from;
+        transcriptionTimer = setInterval(() => {
+          shownProgress = Math.min(to - 1, shownProgress + 1);
+          setCaptionsStartupProgress(shownProgress, `Cargando modelo local / transcribiendo…${label}`);
+        }, 450);
+        const response = await fetch(`${SERVICE_URL}/v1/transcribe`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            mediaPath: clip.mediaPath,
+            startSeconds: clip.inPointSeconds,
+            endSeconds: clip.outPointSeconds,
+            language: captionsLanguage.value || "es",
+            // El modelo small mejora bastante la precisión en español y se
+            // descarga una sola vez en la caché local del motor.
+            model: "small"
+          })
+        });
+        clearInterval(transcriptionTimer);
+        transcriptionTimer = null;
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(`${payload.detail || "No se pudo transcribir el medio seleccionado."}${label}`);
+        const scale = clip.sourceToTimelineScale || 1;
         // Conversión de tiempo fuente a tiempo de la secuencia; evita que un
         // SRT del tramo seleccionado se desplace al inicio de la edición.
-        startSeconds: clip.startSeconds + (segment.startSeconds - clip.inPointSeconds) * (clip.sourceToTimelineScale || 1),
-        endSeconds: clip.startSeconds + (segment.endSeconds - clip.inPointSeconds) * (clip.sourceToTimelineScale || 1),
-        text: String(segment.text || ""),
-        words: (Array.isArray(segment.words) ? segment.words : []).map((word) => ({
-          text: String(word.text || ""),
-          startSeconds: clip.startSeconds + (Number(word.startSeconds) - clip.inPointSeconds) * (clip.sourceToTimelineScale || 1),
-          endSeconds: clip.startSeconds + (Number(word.endSeconds) - clip.inPointSeconds) * (clip.sourceToTimelineScale || 1)
-        }))
-      })), captionsWords.value);
+        const toTimeline = (seconds) => clip.startSeconds + (Number(seconds) - clip.inPointSeconds) * scale;
+        (Array.isArray(payload.segments) ? payload.segments : []).forEach((segment) => {
+          timelineSegments.push({
+            startSeconds: Math.max(clip.startSeconds, toTimeline(segment.startSeconds)),
+            endSeconds: Math.min(clip.endSeconds, toTimeline(segment.endSeconds)),
+            text: String(segment.text || ""),
+            words: (Array.isArray(segment.words) ? segment.words : []).map((word) => ({
+              text: String(word.text || ""),
+              startSeconds: toTimeline(word.startSeconds),
+              endSeconds: toTimeline(word.endSeconds)
+            }))
+          });
+        });
+      }
+      setCaptionsStartupProgress(94, "Procesando resultados…");
+      const segments = timelineSegments.filter((segment) => segment.endSeconds > segment.startSeconds);
+      if (!segments.length) {
+        captionsStatus.textContent = "No detecté diálogo en lo seleccionado. Prueba con otro clip o revisa que su audio no esté silenciado.";
+        return;
+      }
+      segments.sort((left, right) => left.startSeconds - right.startSeconds);
+      editableCaptionSegments = splitCaptionByWords(segments, captionsWords.value);
       captionsTranscript.innerHTML = "";
       editableCaptionSegments.forEach((segment) => {
         const row = makeElement("div");
@@ -5897,7 +5988,7 @@ let silenceDiagnosticLogs = [];
       captionsNeedReapply = placedCaptionGraphics.length > 0;
       exportCaptions.style.display = "block";
       refreshCaptionPlacementButton();
-      captionsStatus.textContent = `Transcripción lista: ${editableCaptionSegments.length} líneas. Corrige lo que quieras y luego colócalas como texto.`;
+      captionsStatus.textContent = `Transcripción lista${clips.length > 1 ? ` de ${clips.length} clips` : ""}: ${editableCaptionSegments.length} líneas. Corrige lo que quieras y luego colócalas como texto.`;
       setCaptionsStartupProgress(100, "Transcripción lista.");
     } catch (error) {
       const message = String(error && error.message ? error.message : error);
@@ -5960,23 +6051,72 @@ let silenceDiagnosticLogs = [];
         frameWidth: frame.width,
         frameHeight: frame.height
       };
-      const images = [];
-      for (let index = 0; index < units.length; index += 1) {
-        if (index % 5 === 0) captionsStatus.textContent = `Preparando imágenes: ${index + 1}/${units.length}…`;
-        images.push(await makeCaptionPng(units[index].text, { ...baseStyle, highlightIndex: units[index].highlightIndex }));
-      }
-      captionsStatus.textContent = `Importando imágenes a la carpeta «${CAPTION_BIN_NAME}»…`;
       const { bin, dedicated } = await getCaptionBin(project);
-      const imported = await importCaptionPngs(
-        project, bin, !dedicated, images.map((image) => image.pngPath),
-        (done, total) => { captionsStatus.textContent = `Importando imágenes: ${done}/${total}…`; }
-      );
       // Todos los subtítulos van en una sola pista libre durante todo el
       // tramo. El margen cubre la duración inicial de una imagen fija en
       // Premiere, que se recorta justo después de colocarla.
       const firstStart = Math.min(...units.map((unit) => unit.startSeconds));
       const lastEnd = Math.max(...units.map((unit) => unit.endSeconds));
       const trackIndex = await findFreeTrackForRange(sequence, "video", firstStart, lastEnd + 30);
+      const binName = dedicated ? CAPTION_BIN_NAME : "activa del proyecto";
+      const notes = [];
+      if (!frame.known) notes.push("No pude leer el tamaño de la secuencia y usé 1080×1920.");
+
+      // Primero, un video por línea con la animación ya hecha. Si el motor
+      // es anterior o Premiere no acepta el video, se colocan imágenes como
+      // antes (una por palabra, con keyframes).
+      try {
+        const fps = await getSequenceFps(sequence);
+        const lineGroups = groupCaptionUnitsByLine(units);
+        const clips = [];
+        for (let index = 0; index < lineGroups.length; index += 1) {
+          if (index % 3 === 0) captionsStatus.textContent = `Preparando subtítulos animados: ${index + 1}/${lineGroups.length}…`;
+          clips.push(await makeCaptionClip(lineGroups[index], baseStyle, fps));
+        }
+        captionsStatus.textContent = `Importando ${clips.length} subtítulos a la carpeta «${CAPTION_BIN_NAME}»…`;
+        const imported = await importCaptionPngs(
+          project, bin, !dedicated, clips.map((clip) => clip.movPath),
+          (done, total) => { captionsStatus.textContent = `Importando subtítulos: ${done}/${total}…`; }
+        );
+        if (!clips.every((clip) => imported.has(clip.movPath.toLowerCase()))) {
+          throw new Error("Premiere no importó los videos de subtítulos.");
+        }
+        for (let index = 0; index < lineGroups.length; index += 1) {
+          const line = lineGroups[index];
+          const start = line[0].startSeconds;
+          const end = Math.max(...line.map((unit) => unit.endSeconds));
+          const graphic = await placeCaptionItem(
+            project, sequence, imported.get(clips[index].movPath.toLowerCase()),
+            ppro.TickTime.createWithSeconds(start), trackIndex
+          );
+          placedCaptionGraphics.push(graphic);
+          try { await trimPlacedCaptionItem(project, graphic, end - start); } catch (_) {}
+          if (index % 5 === 0 || index + 1 === lineGroups.length) {
+            captionsStatus.textContent = `Colocando subtítulos: ${index + 1}/${lineGroups.length}…`;
+          }
+        }
+        captionsPlaced = true;
+        captionsNeedReapply = false;
+        captionsStatus.textContent =
+          `Listo: ${lineGroups.length} líneas animadas en la pista V${trackIndex + 1}, ` +
+          `formato ${frame.width}×${frame.height} a ${Math.round(fps * 100) / 100} cps. Los videos están en la carpeta «${binName}».` +
+          (notes.length ? `\n${notes.join("\n")}` : "");
+        return;
+      } catch (error) {
+        if (placedCaptionGraphics.length) await removePlacedCaptionGraphics(project, sequence);
+        notes.push(`Usé imágenes porque el video animado falló: ${error.message || error}`);
+      }
+
+      const images = [];
+      for (let index = 0; index < units.length; index += 1) {
+        if (index % 5 === 0) captionsStatus.textContent = `Preparando imágenes: ${index + 1}/${units.length}…`;
+        images.push(await makeCaptionPng(units[index].text, { ...baseStyle, highlightIndex: units[index].highlightIndex }));
+      }
+      captionsStatus.textContent = `Importando imágenes a la carpeta «${CAPTION_BIN_NAME}»…`;
+      const imported = await importCaptionPngs(
+        project, bin, !dedicated, images.map((image) => image.pngPath),
+        (done, total) => { captionsStatus.textContent = `Importando imágenes: ${done}/${total}…`; }
+      );
       let placed = 0;
       let lines = 0;
       let withoutEntrance = 0;
@@ -6004,12 +6144,10 @@ let silenceDiagnosticLogs = [];
       if (!placed) throw new Error("Premiere no pudo insertar el texto del subtítulo.");
       captionsPlaced = true;
       captionsNeedReapply = false;
-      const notes = [];
       if (withoutEntrance) notes.push(`${withoutEntrance} de ${lines} líneas quedaron sin animación de entrada porque Premiere no aceptó sus keyframes.`);
-      if (!frame.known) notes.push("No pude leer el tamaño de la secuencia y usé 1080×1920.");
       captionsStatus.textContent =
         `Listo: ${lines} líneas (${placed} imágenes) en la pista V${trackIndex + 1}, ` +
-        `formato ${frame.width}×${frame.height}. Las imágenes están en la carpeta «${dedicated ? CAPTION_BIN_NAME : "activa del proyecto"}».` +
+        `formato ${frame.width}×${frame.height}. Las imágenes están en la carpeta «${binName}».` +
         (notes.length ? `\n${notes.join("\n")}` : "");
     } catch (error) {
       captionsStatus.textContent = `No se pudieron colocar los gráficos: ${error.message || error}`;
