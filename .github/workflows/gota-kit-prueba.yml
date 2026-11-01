@@ -1,0 +1,65 @@
+# Arma los paquetes de prueba del plugin (Windows, macOS y Legacy) SIN
+# publicarlos: quedan como «artefactos» de la ejecución en la pestaña Actions
+# (se descargan con la sesión de GitHub iniciada). Se activa al subir una
+# etiqueta gota-kit-prueba-vX.Y.Z.
+#
+# El ZXP de Legacy sale SIN firmar (la firma vive solo en la laptop Windows):
+# sirve para probar con el modo de depuración de CEP, no para distribuirlo.
+name: Gota Kit (paquetes de prueba)
+
+on:
+  push:
+    tags: ["gota-kit-prueba-v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    name: Armar paquetes
+    runs-on: windows-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "9.0.x"
+
+      - name: Versión
+        id: version
+        run: |
+          $version = "${{ github.ref_name }}".Replace('gota-kit-prueba-v', '')
+          "version=$version" >> $env:GITHUB_OUTPUT
+
+      - name: Panel, motor y paquete de macOS
+        run: ./tools/Build-ReleasePackages.ps1 -Version ${{ steps.version.outputs.version }}
+
+      - name: Instalador de Windows
+        run: |
+          $version = '${{ steps.version.outputs.version }}'
+          # NuGet.Config del instalador limpia las fuentes (la laptop usa su
+          # caché); aquí hay que bajar el runtime de nuget.org.
+          dotnet publish installer/AutoFrameInstaller.csproj -c Release -o build-installer `
+            --source https://api.nuget.org/v3/index.json
+          Copy-Item "build-installer/Instalar Gota Creator Kit.exe" "outputs/GotaCreatorKit-$version-Windows.exe"
+          ./tools/Build-WindowsManualInstallZip.ps1 -Version $version
+
+      - name: Legacy sin firmar
+        run: |
+          $version = '${{ steps.version.outputs.version }}'
+          ./tools/build-legacy-cep.ps1 -Output "outputs/GotaCreatorKit-Legacy-$version-SIN-FIRMAR.zxp"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: GotaCreatorKit-${{ steps.version.outputs.version }}-prueba
+          path: |
+            outputs/GotaCreatorKit-${{ steps.version.outputs.version }}-Windows.exe
+            outputs/GotaCreatorKit-${{ steps.version.outputs.version }}-macOS.zip
+            outputs/GotaCreatorKit-${{ steps.version.outputs.version }}-Premiere-2026-sin-Creative-Cloud.zip
+            outputs/GotaCreatorKit-Legacy-${{ steps.version.outputs.version }}-SIN-FIRMAR.zxp
+          if-no-files-found: error
+          retention-days: 30

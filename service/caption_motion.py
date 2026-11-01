@@ -23,7 +23,7 @@ ENTRANCES = {
 }
 
 # Cambiar cuando cambie cómo se arma el video de una línea (llave de caché).
-CAPTION_CLIP_SCHEMA = "clip-v1"
+CAPTION_CLIP_SCHEMA = "clip-v3"
 NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 
 
@@ -160,16 +160,41 @@ def line_clip(units: list[dict], render: Callable[[dict], tuple[Path, dict]], en
             cursor = stop
         if not timeline:
             raise ValueError("La línea dura menos de un cuadro.")
-        listing = write_concat(timeline, folder / "linea.ffconcat")
+        # Cada cuadro se calcula aquí y se le pasa a FFmpeg tal cual. Con una
+        # lista ffconcat de imágenes fijas los tiempos no salían exactos y el
+        # clip quedaba más largo o más corto que la línea.
+        from PIL import Image
+
+        width, height = Image.open(timeline[0][0]).size
+        count = max(1, round((end - origin) * fps))
         partial = destination.with_suffix(".parcial.mov")
-        result = subprocess.run(
-            [ffmpeg, "-nostdin", "-y", "-hide_banner", "-loglevel", "error", "-f", "concat", "-safe", "0",
-             "-i", str(listing), "-r", f"{fps:.3f}", "-c:v", "qtrle", "-pix_fmt", "argb", str(partial)],
-            stdin=subprocess.DEVNULL, capture_output=True, text=True, encoding="utf-8", errors="replace",
-            creationflags=NO_WINDOW, check=False,
-        )
-        if result.returncode != 0 or not partial.is_file():
-            partial.unlink(missing_ok=True)
-            raise RuntimeError(result.stderr.strip()[-400:] or "FFmpeg no pudo crear el video del subtítulo.")
+        pixels: dict[Path, bytes] = {}
+        with tempfile.TemporaryFile() as errors:
+            process = subprocess.Popen(
+                [ffmpeg, "-nostdin", "-y", "-hide_banner", "-loglevel", "error",
+                 "-f", "rawvideo", "-pix_fmt", "rgba", "-s", f"{width}x{height}", "-r", f"{fps:.5f}", "-i", "-",
+                 "-c:v", "qtrle", "-pix_fmt", "argb", str(partial)],
+                stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=errors, creationflags=NO_WINDOW,
+            )
+            try:
+                entry = 0
+                for index in range(count):
+                    middle = (index + 0.5) / fps
+                    while entry + 1 < len(timeline) and timeline[entry + 1][1] <= middle:
+                        entry += 1
+                    path = timeline[entry][0]
+                    if path not in pixels:
+                        pixels[path] = Image.open(path).convert("RGBA").tobytes()
+                    process.stdin.write(pixels[path])
+                process.stdin.close()
+                code = process.wait()
+            finally:
+                if process.poll() is None:
+                    process.kill()
+            if code != 0 or not partial.is_file():
+                errors.seek(0)
+                partial.unlink(missing_ok=True)
+                message = errors.read().decode("utf-8", errors="replace").strip()
+                raise RuntimeError(message[-400:] or "FFmpeg no pudo crear el video del subtítulo.")
         partial.replace(destination)
     return destination, end - origin
