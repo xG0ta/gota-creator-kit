@@ -90,6 +90,79 @@ function applyCaptionCase(text, mode) {
  * Con palabra destacada hay una imagen por palabra, desde que empieza esa
  * palabra hasta que empieza la siguiente; sin ella, una sola por línea.
  */
+// Una pausa más larga que esto dentro de una frase empieza otra línea, y la
+// palabra destacada se suelta este tiempo después de decirse.
+const CAPTION_PAUSE_SECONDS = 0.6;
+const CAPTION_HIGHLIGHT_TAIL_SECONDS = 0.3;
+
+/**
+ * Corta las frases de Whisper en líneas cortas. Con el tiempo de cada palabra
+ * también corta en las pausas y al final de una oración; una línea llena
+ * prefiere cortar después de un signo o dejar junta una pregunta que termina
+ * a una o dos palabras. Misma lógica que split_lines de Gota Subtítulos.
+ */
+function splitCaptionLines(segments, maximumWords) {
+  const limit = Math.max(2, Math.min(16, Math.round(Number(maximumWords) || 6)));
+  const result = [];
+  for (const segment of segments || []) {
+    const words = String(segment.text || "").trim().split(/\s+/).filter(Boolean);
+    const timed = Array.isArray(segment.words) ? segment.words.filter((word) => (
+      word && String(word.text || "").trim()
+        && Number.isFinite(Number(word.startSeconds))
+        && Number.isFinite(Number(word.endSeconds))
+    )) : [];
+    if (words.length && timed.length === words.length) {
+      const gapBefore = (index) => Number(timed[index].startSeconds) - Number(timed[index - 1].endSeconds);
+      let first = 0;
+      let index = 1;
+      while (index <= words.length) {
+        if (index < words.length) {
+          const gap = gapBefore(index);
+          const sentenceEnd = /[.?!…]$/.test(words[index - 1]) && index - first >= 2 && gap > 0.15;
+          if (index - first < limit && gap <= CAPTION_PAUSE_SECONDS && !sentenceEnd) { index += 1; continue; }
+          if (index - first >= limit) {
+            let ahead = null;
+            for (let stop = index + 1; stop <= Math.min(words.length, index + 2); stop += 1) {
+              let together = true;
+              for (let k = index; k < stop; k += 1) if (gapBefore(k) > CAPTION_PAUSE_SECONDS) together = false;
+              if (together && /[.?!…]$/.test(words[stop - 1])) { ahead = stop; break; }
+            }
+            if (ahead) index = ahead;
+            else {
+              for (let cut = index - 1; cut > first + 1; cut -= 1) {
+                if (/[.?!…,;:]$/.test(words[cut - 1])) { index = cut; break; }
+              }
+            }
+          }
+        }
+        const chunk = timed.slice(first, index);
+        result.push({
+          startSeconds: Number(chunk[0].startSeconds),
+          endSeconds: Number(chunk[chunk.length - 1].endSeconds),
+          text: words.slice(first, index).join(" "),
+          words: chunk
+        });
+        first = index;
+        index += 1;
+      }
+      continue;
+    }
+    if (words.length <= limit) { result.push({ ...segment, text: words.join(" "), words: timed }); continue; }
+    const duration = Math.max(0.1, Number(segment.endSeconds) - Number(segment.startSeconds));
+    for (let start = 0; start < words.length; start += limit) {
+      const end = Math.min(words.length, start + limit);
+      const chunk = timed.slice(start, end);
+      result.push({
+        startSeconds: chunk.length ? Number(chunk[0].startSeconds) : Number(segment.startSeconds) + duration * (start / words.length),
+        endSeconds: chunk.length ? Number(chunk[chunk.length - 1].endSeconds) : Number(segment.startSeconds) + duration * (end / words.length),
+        text: words.slice(start, end).join(" "),
+        words: chunk
+      });
+    }
+  }
+  return result;
+}
+
 function buildCaptionUnits(segments, highlightWords) {
   const units = [];
   for (const segment of segments || []) {
@@ -104,8 +177,10 @@ function buildCaptionUnits(segments, highlightWords) {
     }
     const timed = Array.isArray(segment.words) ? segment.words : [];
     let starts;
+    let ends = null;
     if (timed.length === words.length) {
       starts = timed.map((word) => Number(word.startSeconds));
+      ends = timed.map((word) => Number(word.endSeconds));
     } else {
       // El usuario cambió las palabras de la línea: el tiempo se reparte
       // según la longitud de cada palabra.
@@ -128,13 +203,17 @@ function buildCaptionUnits(segments, highlightWords) {
       return previous;
     });
     words.forEach((_, index) => {
-      units.push({
-        text,
-        startSeconds: starts[index],
-        endSeconds: index + 1 < words.length ? starts[index + 1] : end,
-        highlightIndex: index,
-        lineStart: index === 0
-      });
+      const following = index + 1 < words.length ? starts[index + 1] : end;
+      // Si la palabra ya se dijo y viene un silencio, se quita el destacado
+      // en vez de dejarlo pegado hasta la siguiente (igual que Gota Subtítulos).
+      let stop = following;
+      if (ends && Number.isFinite(ends[index])) {
+        stop = Math.min(following, Math.max(starts[index] + minimum, ends[index] + CAPTION_HIGHLIGHT_TAIL_SECONDS));
+      }
+      units.push({ text, startSeconds: starts[index], endSeconds: stop, highlightIndex: index, lineStart: index === 0 });
+      if (following - stop > 0.05) {
+        units.push({ text, startSeconds: stop, endSeconds: following, highlightIndex: -1, lineStart: false });
+      }
     });
   }
   return units.sort((left, right) => left.startSeconds - right.startSeconds);
@@ -5859,31 +5938,7 @@ let silenceDiagnosticLogs = [];
     const total = Math.max(0, Math.floor(Number(seconds) || 0));
     return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
   };
-  const splitCaptionByWords = (segments, maximumWords) => {
-    const limit = Math.max(2, Math.min(16, Math.round(Number(maximumWords) || 6)));
-    const result = [];
-    for (const segment of segments) {
-      const words = String(segment.text || "").trim().split(/\s+/).filter(Boolean);
-      const timedWords = Array.isArray(segment.words) ? segment.words.filter((word) => (
-        word && String(word.text || "").trim()
-          && Number.isFinite(Number(word.startSeconds))
-          && Number.isFinite(Number(word.endSeconds))
-      )) : [];
-      if (words.length <= limit) { result.push({ ...segment, words: timedWords }); continue; }
-      const duration = Math.max(0.1, Number(segment.endSeconds) - Number(segment.startSeconds));
-      for (let start = 0; start < words.length; start += limit) {
-        const end = Math.min(words.length, start + limit);
-        const timedChunk = timedWords.slice(start, end);
-        result.push({
-          startSeconds: timedChunk.length ? Number(timedChunk[0].startSeconds) : Number(segment.startSeconds) + duration * (start / words.length),
-          endSeconds: timedChunk.length ? Number(timedChunk[timedChunk.length - 1].endSeconds) : Number(segment.startSeconds) + duration * (end / words.length),
-          text: words.slice(start, end).join(" "),
-          words: timedChunk
-        });
-      }
-    }
-    return result;
-  };
+  const splitCaptionByWords = splitCaptionLines;
   createCaptions.addEventListener("click", async () => {
     if (createCaptions.dataset.busy === "true") return;
     createCaptions.dataset.busy = "true";
@@ -5927,9 +5982,9 @@ let silenceDiagnosticLogs = [];
             startSeconds: clip.inPointSeconds,
             endSeconds: clip.outPointSeconds,
             language: captionsLanguage.value || "es",
-            // El modelo small mejora bastante la precisión en español y se
-            // descarga una sola vez en la caché local del motor.
-            model: "small"
+            // large-v3-turbo (1.6 GB, se baja una vez) acierta mucho más que
+            // small en habla rápida; si no se puede bajar, el motor usa small.
+            model: "large-v3-turbo"
           })
         });
         clearInterval(transcriptionTimer);

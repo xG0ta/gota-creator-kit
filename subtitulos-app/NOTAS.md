@@ -1,5 +1,9 @@
 **Gota Subtítulos** es una app aparte del plugin: pone subtítulos animados y un título con IA a tus videos **sin necesitar Premiere**. Todo se procesa en tu computadora.
 
+## Novedades de 1.1.3
+- **Elige dónde guardar:** en «Guardar» toca **Cambiar carpeta…**; la app la recuerda. **Usar la de siempre** vuelve a *Películas/Gota Subtítulos* (Mac) o *Videos\Gota Subtítulos* (Windows). Por seguridad no deja guardar en la misma carpeta del video original.
+- El modelo de voz grande se descarga de forma más confiable.
+
 ## Novedades de 1.1.2
 - **Subtítulos más correctos:** nueva calidad «Máxima» (recomendada) con un modelo de voz más grande. Se equivoca mucho menos con habla rápida, groserías o niños. La primera vez descarga 1.6 GB; en una Mac Intel tarda más o menos lo que dura el video.
 - **La palabra destacada ya no se atora:** si hay una pausa, el destacado se suelta en vez de quedarse pegado en la última palabra.
@@ -46,5 +50,5 @@ Opcional, para que la IA también «vea» el video cuando casi no hay diálogo: 
 
 ## Bueno saber
 - La primera transcripción descarga el modelo de voz (unos 480 MB, una sola vez).
-- Los videos terminados se guardan en *Películas/Gota Subtítulos* (Mac) o *Videos\Gota Subtítulos* (Windows).
+- Los videos terminados se guardan en *Películas/Gota Subtítulos* (Mac) o *Videos\Gota Subtítulos* (Windows), o en la carpeta que elijas.
 - Los emojis de bandera y los que combinan varias figuras (familias, tonos de piel) se dibujan como el emoji base.

@@ -22,18 +22,86 @@ def data_dir() -> Path:
     return root
 
 
-def export_dir() -> Path:
-    """Los videos terminados van a su propia carpeta.
-
-    Nunca junto al original: esa carpeta puede ser la que vigila Gota Flow
-    para programar TikTok y un video nuevo ahí se publicaría solo.
-    """
+def default_export_dir() -> Path:
     if sys.platform == "darwin":
-        root = Path.home() / "Movies" / "Gota Subtítulos"
-    else:
-        root = Path.home() / "Videos" / "Gota Subtítulos"
+        return Path.home() / "Movies" / "Gota Subtítulos"
+    return Path.home() / "Videos" / "Gota Subtítulos"
+
+
+def _settings_path() -> Path:
+    return data_dir() / "ajustes.json"
+
+
+def _read_settings() -> dict:
+    import json
+
+    try:
+        data = json.loads(_settings_path().read_text(encoding="utf-8"))
+        return data if isinstance(data, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def _write_settings(settings: dict) -> None:
+    import json
+
+    temporary = _settings_path().with_suffix(".tmp")
+    temporary.write_text(json.dumps(settings, ensure_ascii=False, indent=1), encoding="utf-8")
+    temporary.replace(_settings_path())
+
+
+def export_dir() -> Path:
+    """Carpeta donde se guardan los videos: la que eligió el usuario o la de siempre.
+
+    Nunca se guarda junto al original (ver `same_folder`): esa carpeta puede
+    ser la que vigila Gota Flow para programar TikTok y un video nuevo ahí se
+    publicaría solo.
+    """
+    chosen = str(_read_settings().get("exportFolder") or "")
+    root = Path(chosen) if chosen and Path(chosen).is_dir() else default_export_dir()
     root.mkdir(parents=True, exist_ok=True)
     return root
+
+
+def set_export_dir(folder: str | None) -> Path:
+    settings = _read_settings()
+    if folder:
+        settings["exportFolder"] = str(Path(folder).expanduser().resolve())
+    else:
+        settings.pop("exportFolder", None)
+    _write_settings(settings)
+    return export_dir()
+
+
+def same_folder(first: str | Path, second: str | Path) -> bool:
+    try:
+        return Path(first).resolve() == Path(second).resolve()
+    except OSError:
+        return False
+
+
+def choose_folder() -> str | None:
+    """Selector de carpetas del sistema; None si se canceló."""
+    prompt = "Elige dónde guardar los videos subtitulados"
+    if sys.platform == "darwin":
+        script = f'activate\nPOSIX path of (choose folder with prompt "{prompt}")'
+        result = subprocess.run(["osascript", "-e", script], capture_output=True, text=True, check=False)
+        return result.stdout.strip() or None
+    if os.name == "nt":
+        script = (
+            "[Console]::OutputEncoding = [Text.Encoding]::UTF8; "
+            "Add-Type -AssemblyName System.Windows.Forms; "
+            "$owner = New-Object System.Windows.Forms.Form -Property @{TopMost = $true}; "
+            "$dialog = New-Object System.Windows.Forms.FolderBrowserDialog; "
+            f"$dialog.Description = '{prompt}'; "
+            "if ($dialog.ShowDialog($owner) -eq 'OK') { $dialog.SelectedPath }"
+        )
+        result = subprocess.run(
+            ["powershell", "-NoProfile", "-STA", "-Command", script],
+            capture_output=True, text=True, encoding="utf-8", creationflags=NO_WINDOW, check=False,
+        )
+        return result.stdout.strip() or None
+    return None
 
 
 def unique_path(folder: Path, stem: str, extension: str) -> Path:
