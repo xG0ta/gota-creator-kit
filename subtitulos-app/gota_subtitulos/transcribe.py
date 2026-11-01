@@ -11,7 +11,12 @@ from typing import Callable
 from .media import Canceled, extract_audio
 from .system import data_dir
 
-MODELS = {"rapida": "base", "precisa": "small"}
+# «Máxima» usa large-v3-turbo: en un video real con habla rápida y un niño
+# acertó mucho más que small (que inventaba palabras); en una Mac Intel tarda
+# casi lo mismo que dura el video y el modelo pesa ~1.6 GB (se baja una vez).
+MODELS = {"rapida": "base", "precisa": "small", "maxima": "large-v3-turbo"}
+BEAMS = {"rapida": 1, "precisa": 5, "maxima": 5}
+SIZES = {"base": "140 MB", "small": "480 MB", "large-v3-turbo": "1.6 GB"}
 PROMPTS = {
     "es": "Transcripción en español mexicano. Conserva nombres propios, muletillas y palabras coloquiales.",
     "en": None,
@@ -65,8 +70,11 @@ def _load(name: str):
 def transcribe(path: str, duration: float, language: str, quality: str,
                on_progress: Callable[[float, str], None], is_canceled: Callable[[], bool]) -> dict:
     """Devuelve las frases con el tiempo de cada palabra."""
-    requested = MODELS.get(quality, "small")
-    candidates = [requested] + [name for name in ("base", "tiny") if name != requested and requested != "tiny"]
+    requested = MODELS.get(quality, "large-v3-turbo")
+    beam = BEAMS.get(quality, 5)
+    # Si no alcanza la memoria se prueba con modelos más ligeros.
+    order = ["large-v3-turbo", "small", "base", "tiny"]
+    candidates = order[order.index(requested):] if requested in order else [requested, "base", "tiny"]
     lang = language if language in ("es", "en") else None
     with tempfile.TemporaryDirectory(prefix="gota-subtitulos-") as folder:
         on_progress(0.02, "Leyendo el audio del video…")
@@ -76,14 +84,15 @@ def transcribe(path: str, duration: float, language: str, quality: str,
             if is_canceled():
                 raise Canceled()
             if not model_downloaded(name):
-                on_progress(0.05, "Descargando el modelo de voz (solo la primera vez, puede tardar unos minutos)…")
+                size = SIZES.get(name, "")
+                on_progress(0.05, f"Descargando el modelo de voz{f' ({size})' if size else ''}: solo la primera vez, puede tardar unos minutos…")
             else:
                 on_progress(0.05, "Cargando el modelo de voz…")
             try:
                 model = _load(name)
                 segments, info = model.transcribe(
                     audio, language=lang, vad_filter=True, word_timestamps=True,
-                    beam_size=1, best_of=1, temperature=0.0, condition_on_previous_text=False,
+                    beam_size=beam, best_of=beam, temperature=0.0, condition_on_previous_text=False,
                     initial_prompt=PROMPTS.get(lang or "", None),
                 )
                 result = []

@@ -51,7 +51,7 @@ class StyleModel(BaseModel):
 
 class TranscribeRequest(BaseModel):
     language: str = "es"
-    quality: str = "precisa"
+    quality: str = "maxima"
     maxWords: int = 6
 
 
@@ -96,7 +96,7 @@ class SavedStylesRequest(BaseModel):
 class BatchRequest(BaseModel):
     paths: list[str] = Field(default_factory=list)
     language: str = "es"
-    quality: str = "precisa"
+    quality: str = "maxima"
     maxWords: int = 6
     style: dict = Field(default_factory=dict)
     title: dict = Field(default_factory=dict)
