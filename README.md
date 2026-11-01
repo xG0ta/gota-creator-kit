@@ -17,15 +17,15 @@ Herramientas para Adobe Premiere Pro: reencuadre automático, edición de silenc
 
 Pone subtítulos animados (palabra destacada), un **título gracioso hecho con IA local** y **emojis** a cualquier video, sin abrir Premiere. Todo se procesa en tu computadora y el original no se modifica.
 
-Nuevo en 1.1.0: ajusta grosor del contorno, sombra, alineación y animación; guarda **tus propios estilos**; y subtitula **varios videos a la vez** con un clic.
+Nuevo en 1.1.1: ajusta grosor del contorno, sombra, alineación y animación; guarda **tus propios estilos**; y subtitula **varios videos a la vez** con un clic.
 
 | Tu computadora | Descarga esto |
 | --- | --- |
-| **Windows 10/11** | [GotaSubtitulos-1.1.0-Windows.zip](https://github.com/xG0ta/gota-creator-kit/releases/download/gota-subtitulos-v1.1.0/GotaSubtitulos-1.1.0-Windows.zip) |
-| **Mac con Intel** | [GotaSubtitulos-1.1.0-macOS-Intel.zip](https://github.com/xG0ta/gota-creator-kit/releases/download/gota-subtitulos-v1.1.0/GotaSubtitulos-1.1.0-macOS-Intel.zip) |
-| **Mac con Apple (M1, M2…)** | [GotaSubtitulos-1.1.0-macOS-AppleSilicon.zip](https://github.com/xG0ta/gota-creator-kit/releases/download/gota-subtitulos-v1.1.0/GotaSubtitulos-1.1.0-macOS-AppleSilicon.zip) |
+| **Windows 10/11** | [GotaSubtitulos-1.1.1-Windows.zip](https://github.com/xG0ta/gota-creator-kit/releases/download/gota-subtitulos-v1.1.1/GotaSubtitulos-1.1.1-Windows.zip) |
+| **Mac con Intel** | [GotaSubtitulos-1.1.1-macOS-Intel.zip](https://github.com/xG0ta/gota-creator-kit/releases/download/gota-subtitulos-v1.1.1/GotaSubtitulos-1.1.1-macOS-Intel.zip) |
+| **Mac con Apple (M1, M2…)** | [GotaSubtitulos-1.1.1-macOS-AppleSilicon.zip](https://github.com/xG0ta/gota-creator-kit/releases/download/gota-subtitulos-v1.1.1/GotaSubtitulos-1.1.1-macOS-AppleSilicon.zip) |
 
-Cómo abrirla, qué necesita el título con IA (Ollama) y qué hace cada estilo: [notas de Gota Subtítulos 1.1.0](https://github.com/xG0ta/gota-creator-kit/releases/tag/gota-subtitulos-v1.1.0).
+Cómo abrirla, qué necesita el título con IA (Ollama) y qué hace cada estilo: [notas de Gota Subtítulos 1.1.1](https://github.com/xG0ta/gota-creator-kit/releases/tag/gota-subtitulos-v1.1.1).
 
 ## Novedades de 3.3.11
 
