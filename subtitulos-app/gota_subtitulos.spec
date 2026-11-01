@@ -15,7 +15,7 @@ datas = [(str(ROOT / "gota_subtitulos" / "web"), "gota_subtitulos/web")]
 datas += collect_data_files("faster_whisper")
 datas += collect_data_files("imageio_ffmpeg", subdir="binaries")
 binaries = collect_dynamic_libs("ctranslate2") + collect_dynamic_libs("onnxruntime")
-hiddenimports = ["service.captions"] + collect_submodules("uvicorn")
+hiddenimports = ["service.captions", "service.caption_motion"] + collect_submodules("uvicorn")
 
 a = Analysis(
     [str(ROOT / "run.py")],

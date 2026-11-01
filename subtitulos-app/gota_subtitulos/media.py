@@ -1,12 +1,13 @@
 """Lectura de videos y exportación con FFmpeg (incluido en imageio-ffmpeg)."""
 from __future__ import annotations
 
-import math
 import re
 import subprocess
 import tempfile
 from pathlib import Path
 from typing import Callable
+
+from service.caption_motion import entrance_frames, write_concat
 
 from .system import NO_WINDOW
 
@@ -114,50 +115,6 @@ def _run_with_progress(command: list[str], duration: float, on_progress: Callabl
                 process.kill()
 
 
-def _entrance_frames(base_path: Path, info: dict, keys: dict, fps: float, duration: float,
-                     folder: Path) -> list[tuple[Path, float]]:
-    """Cuadros de la animación de entrada: escala desde el centro del texto y fundido."""
-    from PIL import Image
-
-    from .timeline import interpolate
-
-    last_key = max((keys[name][-1][0] for name in ("scale", "opacity") if keys.get(name)), default=0.0)
-    count = min(int(math.ceil(last_key * fps)), max(0, int(duration * fps) - 1))
-    if count <= 0:
-        return []
-    base = Image.open(base_path).convert("RGBA")
-    width, height = base.size
-    box = base.getchannel("A").getbbox()
-    if not box:
-        return []
-    region = base.crop(box)
-    center_x = info["textCenterX"] * width
-    center_y = info["textCenterY"] * height
-    frames = []
-    for index in range(count):
-        seconds = index / fps
-        scale = interpolate(keys.get("scale"), seconds) / 100.0
-        opacity = interpolate(keys.get("opacity"), seconds) / 100.0
-        frame = Image.new("RGBA", (width, height), (0, 0, 0, 0))
-        if scale > 0.01 and opacity > 0.003:
-            size = (max(1, round(region.width * scale)), max(1, round(region.height * scale)))
-            piece = region.resize(size, Image.BILINEAR)
-            if opacity < 0.999:
-                alpha = piece.getchannel("A").point(lambda value: round(value * opacity))
-                piece.putalpha(alpha)
-            left = round(center_x + (box[0] - center_x) * scale)
-            top = round(center_y + (box[1] - center_y) * scale)
-            # alpha_composite no acepta posiciones negativas: se recorta lo
-            # que quedaría fuera del cuadro.
-            crop_left, crop_top = max(0, -left), max(0, -top)
-            if crop_left < piece.width and crop_top < piece.height:
-                frame.alpha_composite(piece, (max(0, left), max(0, top)), (crop_left, crop_top))
-        destination = folder / f"{base_path.stem}-entrada-{index}.png"
-        frame.save(destination, "PNG", compress_level=1)
-        frames.append((destination, 1.0 / fps))
-    return frames
-
-
 def build_overlay(units: list[dict], render: Callable[[dict], tuple[Path, dict]], keys_for: Callable[[dict], dict],
                   title: tuple[Path, float] | None, video: dict, folder: Path,
                   on_progress: Callable[[float], None] | None = None,
@@ -188,7 +145,7 @@ def build_overlay(units: list[dict], render: Callable[[dict], tuple[Path, dict]]
             timeline.append((blank, cursor, start))
         image_path, info = render(unit)
         if unit.get("lineStart"):
-            for frame_path, length in _entrance_frames(image_path, info, keys_for(unit), fps, end - start, folder):
+            for frame_path, length in entrance_frames(image_path, info, keys_for(unit), fps, end - start, folder):
                 timeline.append((frame_path, start, start + length))
                 start += length
         timeline.append((image_path, start, end))
@@ -201,21 +158,7 @@ def build_overlay(units: list[dict], render: Callable[[dict], tuple[Path, dict]]
     if title:
         timeline = _with_title(timeline, title[0], title[1], folder)
 
-    lines = ["ffconcat version 1.0"]
-    for path, start, end in timeline:
-        if end - start <= 0:
-            continue
-        lines.append(f"file '{_concat_path(path)}'")
-        lines.append(f"duration {end - start:.6f}")
-    # FFmpeg ignora la duración de la última entrada si no se repite.
-    lines.append(f"file '{_concat_path(timeline[-1][0])}'")
-    listing = folder / "pista.ffconcat"
-    listing.write_text("\n".join(lines) + "\n", encoding="utf-8")
-    return listing
-
-
-def _concat_path(path: Path) -> str:
-    return str(path.resolve()).replace("\\", "/").replace("'", "'\\''")
+    return write_concat(timeline, folder / "pista.ffconcat")
 
 
 def _with_title(timeline, title_path: Path, title_end: float, folder: Path):
