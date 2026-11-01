@@ -25,6 +25,9 @@ class LineClipTests(unittest.TestCase):
                 entrance=entrance_name(style), fps=30, ffmpeg=ffmpeg, cache_dir=folder / "clips", signature={"style": style},
             )
             self.assertAlmostEqual(duration, 1.2)
+            probe = subprocess.run([imageio_ffmpeg.get_ffmpeg_exe(), "-nostdin", "-i", str(path)],
+                                   capture_output=True, text=True).stderr
+            self.assertIn("Duration: 00:00:01.2", probe)
             self.assertEqual(path.suffix, ".mov")
             # Pedirlo otra vez reutiliza el mismo archivo.
             again, _ = line_clip(units, render=lambda unit: self.fail("no debía volver a dibujar"),

@@ -46,7 +46,7 @@ from service.hybrid_license import (
     remove_license,
 )
 
-APP_VERSION = "3.3.11"
+APP_VERSION = "3.3.12"
 # Increment this whenever the binary contents of generated caption MOGRTs
 # change.  Including it in the cache key prevents an older cached MOGRT (with
 # the placeholder text) from being reused after an update.
@@ -441,6 +441,22 @@ def make_uxp_preview(source: Path, token: str) -> tuple[Path, str]:
     return target, media_type
 
 
+def read_wav_samples(path: Path):
+    """WAV mono de 16 kHz (lo deja así FFmpeg) a números para Whisper.
+
+    No se usa el lector de audio de faster-whisper: depende de PyAV y con
+    PyAV 15 o posterior (lo que pip instala hoy) falla con «unexpected keyword
+    argument 'metadata_errors'».
+    """
+    import wave
+
+    import numpy as np
+
+    with wave.open(str(path), "rb") as handle:
+        frames = handle.readframes(handle.getnframes())
+    return np.frombuffer(frames, dtype=np.int16).astype(np.float32) / 32768.0
+
+
 def transcribe_local_media(request: TranscribeRequest) -> dict:
     """Transcribe con Whisper local solo el tramo montado en la secuencia.
 
@@ -522,7 +538,7 @@ def transcribe_local_media(request: TranscribeRequest) -> dict:
                         try:
                             model = load_model(candidate_name)
                             segments, info = model.transcribe(
-                                str(segment_path), language=None if request.language == "auto" else request.language, vad_filter=True,
+                                read_wav_samples(segment_path), language=None if request.language == "auto" else request.language, vad_filter=True,
                                 beam_size=1, best_of=1, temperature=0.0,
                                 condition_on_previous_text=False, word_timestamps=True,
                                 # La pista de estilo solo ayuda en español; en
