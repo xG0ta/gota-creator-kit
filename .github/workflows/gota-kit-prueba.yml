@@ -1,7 +1,7 @@
 # Arma los paquetes de prueba del plugin (Windows, macOS y Legacy) SIN
 # publicarlos: quedan como «artefactos» de la ejecución en la pestaña Actions
 # (se descargan con la sesión de GitHub iniciada). Se activa al subir una
-# etiqueta gota-kit-prueba-vX.Y.Z.
+# etiqueta gota-kit-prueba-vX.Y.Z (o -vX.Y.Z-2, -3… para repetirla).
 #
 # El ZXP de Legacy sale SIN firmar (la firma vive solo en la laptop Windows):
 # sirve para probar con el modo de depuración de CEP, no para distribuirlo.
@@ -32,7 +32,8 @@ jobs:
       - name: Versión
         id: version
         run: |
-          $version = "${{ github.ref_name }}".Replace('gota-kit-prueba-v', '')
+          # gota-kit-prueba-v3.3.12-2 → 3.3.12: el sufijo solo permite repetir la prueba.
+          $version = ("${{ github.ref_name }}" -replace '^gota-kit-prueba-v', '') -replace '-.*$', ''
           "version=$version" >> $env:GITHUB_OUTPUT
 
       - name: Panel, motor y paquete de macOS
