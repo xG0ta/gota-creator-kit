@@ -368,7 +368,7 @@ async function placeCaptionItem(project, sequence, projectItem, start, videoTrac
   let inserted = false;
   project.lockedAccess(() => {
     inserted = project.executeTransaction((compoundAction) => {
-      compoundAction.addAction(editor.createOverwriteProjectItemAction(projectItem, start, trackIndex, -1));
+      compoundAction.addAction(overwriteProjectItemAction(editor, projectItem, start, trackIndex, -1));
     }, "Gota Creator Kit: colocar subtítulo nativo");
   });
   if (!inserted) throw new Error("Premiere no pudo colocar el texto en la pista de subtítulos.");
@@ -643,82 +643,6 @@ async function findMatchingAudioTrackItem(sequence, clip) {
   return null;
 }
 
-function isPremiereReferenceExpired(error) {
-  return /script object is no longer valid|object is no longer valid|referencia.*v[aá]lid|objeto.*v[aá]lid/i
-    .test(String(error?.message || error || ""));
-}
-
-async function recoverSilenceSourcePair(project, sequence, clip, attempts = 10) {
-  // En proyectos largos Premiere renueva sus colecciones mientras se añaden
-  // los fragmentos. Nunca reutilizamos un TrackItem de una vuelta anterior:
-  // recuperamos la pareja fuente justo antes de solicitar el siguiente clon.
-  let lastError = null;
-  for (let attempt = 0; attempt < attempts; attempt += 1) {
-    if (attempt) await pauseForPremiere(Math.min(420, 80 * (attempt + 1)));
-    try {
-      const live = await getLiveSequenceContext(project, sequence);
-      const originalAudio = await findMatchingAudioTrackItem(live.sequence, clip);
-      const originalVideo = clip.mediaKind === "audio"
-        ? null
-        : await findClonedTrackItem(live.sequence, clip);
-      if (originalAudio && (clip.mediaKind === "audio" || originalVideo)) {
-        return { ...live, originalVideo, originalAudio };
-      }
-    } catch (error) {
-      lastError = error;
-      if (!isPremiereReferenceExpired(error)) throw error;
-    }
-  }
-  if (lastError) throw lastError;
-  throw new Error(`Premiere no pudo recuperar el clip fuente ${clip.name}.`);
-}
-
-// El modo que compacta silencios no puede volver a buscar los originales en
-// todas las pistas: una vez que Gota crea los nuevos fragmentos, estos usan el
-// mismo archivo y pueden parecerse al clip fuente. Buscamos únicamente en la
-// pista en la que estaba montado el elemento seleccionado.
-async function findOriginalSilenceTrackItem(sequence, clip, mediaKind) {
-  const isVideo = mediaKind === "video";
-  const trackIndex = isVideo ? clip.trackIndex : clip.audioTrackIndex;
-  if (!Number.isInteger(trackIndex)) return null;
-  const track = isVideo
-    ? await sequence.getVideoTrack(trackIndex)
-    : await sequence.getAudioTrack(trackIndex);
-  if (!track) return null;
-  const items = track.getTrackItems(ppro.Constants.TrackItemType.CLIP, false);
-  let best = null;
-  let bestScore = Number.POSITIVE_INFINITY;
-  for (const item of items) {
-    try {
-      const projectItem = await item.getProjectItem();
-      const media = ppro.ClipProjectItem.cast(projectItem);
-      const mediaPath = await media.getMediaFilePath();
-      if (String(mediaPath).toLowerCase() !== String(clip.mediaPath).toLowerCase()) {
-        continue;
-      }
-      const start = await item.getStartTime();
-      const end = await item.getEndTime();
-      const inPoint = await item.getInPoint();
-      const sourceScore = Math.abs(inPoint.seconds - clip.inPointSeconds);
-      const positionScore = Math.abs(start.seconds - clip.startSeconds);
-      const durationScore = Math.abs(
-        (end.seconds - start.seconds) - (clip.timelineDurationSeconds || 0)
-      );
-      const score = sourceScore * 30 + positionScore * 10 + durationScore * 4;
-      if (score < bestScore) {
-        best = item;
-        bestScore = score;
-      }
-    } catch (_) {
-      // Premiere puede reconstruir la colección de clips mientras editamos.
-    }
-  }
-  // Si el clip original ya se retiró puede existir otro uso del mismo archivo
-  // en esta misma pista. No lo confundimos con la fuente: debe coincidir tanto
-  // su punto de origen como su posición inicial.
-  return bestScore <= 6 ? best : null;
-}
-
 async function findTrackItemAt(track, timelineStart, mediaPath) {
   if (!track) return null;
   const items = track.getTrackItems(ppro.Constants.TrackItemType.CLIP, false);
@@ -738,67 +662,8 @@ async function findTrackItemAt(track, timelineStart, mediaPath) {
   return null;
 }
 
-// Tras un recorte Premiere puede conservar el nuevo bloque pero asignarle un
-// identificador y un inicio ligeramente distintos. En las pistas reservadas
-// para Gota buscamos además por el punto de origen, que es estable aunque el
-// clip se haya desplazado internamente durante la transacción.
-async function findTrackItemBySource(track, mediaPath, sourceStart, expectedStart) {
-  if (!track) return null;
-  const items = track.getTrackItems(ppro.Constants.TrackItemType.CLIP, false);
-  let best = null;
-  let bestScore = Number.POSITIVE_INFINITY;
-  for (const item of items) {
-    try {
-      const projectItem = await item.getProjectItem();
-      const media = ppro.ClipProjectItem.cast(projectItem);
-      const candidatePath = await media.getMediaFilePath();
-      if (candidatePath.toLowerCase() !== mediaPath.toLowerCase()) continue;
-      const inPoint = await item.getInPoint();
-      const start = await item.getStartTime();
-      const sourceDistance = Math.abs(inPoint.seconds - sourceStart);
-      const timelineDistance = Math.abs(start.seconds - expectedStart);
-      const score = sourceDistance * 100 + timelineDistance;
-      if (score < bestScore) {
-        best = item;
-        bestScore = score;
-      }
-    } catch (_) {
-      // Premiere puede invalidar una referencia mientras reconstruye la pista.
-    }
-  }
-  return best;
-}
-
 function pauseForPremiere(milliseconds) {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
-}
-
-// En montajes largos Premiere puede tardar varios ciclos de interfaz en volver
-// a exponer el TrackItem que acaba de crear. Nunca conservamos una Track ni un
-// TrackItem entre esos ciclos: se vuelve a obtener la secuencia viva y se
-// busca el bloque por su punto de origen, que permanece estable tras un trim.
-async function waitForSilenceTrackItem(
-  project, sequence, kind, trackIndex, timelineStart, mediaPath, sourceStart,
-  // Los proyectos cortos suelen devolver el TrackItem en el primer intento.
-  // En una secuencia larga Premiere puede reconstruir pistas durante varios
-  // segundos después de un lote de cortes. Preferimos esperar y recuperar el
-  // objeto vivo antes que abortar el trabajo con "object is no longer valid".
-  attempts = 18
-) {
-  for (let attempt = 0; attempt < attempts; attempt += 1) {
-    if (attempt) await pauseForPremiere(Math.min(360, 45 * (attempt + 1)));
-    const live = await getLiveSequenceContext(project, sequence);
-    project = live.project;
-    sequence = live.sequence;
-    const track = kind === "video"
-      ? await sequence.getVideoTrack(trackIndex)
-      : await sequence.getAudioTrack(trackIndex);
-    if (!track) continue;
-    const item = await findTrackItemAt(track, timelineStart, mediaPath) ||
-      await findTrackItemBySource(track, mediaPath, sourceStart, timelineStart);
-    if (item) return { project, sequence, item, attempts: attempt + 1 };
-  }
-  return null;
 }
 
 async function findLowestAvailableTrack(sequence, kind, position) {
@@ -863,41 +728,6 @@ async function findFreeTrackForRange(
   // La API de Premiere crea una pista nueva cuando la clonación apunta al
   // siguiente índice. Así conservamos intactas las pistas con edición.
   return count;
-}
-
-async function pickSilenceDestinationTracks(
-  sequence, originalVideo, originalAudio, startSeconds, endSeconds
-) {
-  const audioSourceTrack = await originalAudio.getTrackIndex();
-  const audioTrackIndex = await findFreeTrackForRange(
-    sequence, "audio", startSeconds, endSeconds, audioSourceTrack
-  );
-  if (!originalVideo) return { videoTrackIndex: null, audioTrackIndex };
-  const videoSourceTrack = await originalVideo.getTrackIndex();
-  const videoTrackIndex = await findFreeTrackForRange(
-    sequence, "video", startSeconds, endSeconds, videoSourceTrack
-  );
-  return { videoTrackIndex, audioTrackIndex };
-}
-
-// Premiere invalida con frecuencia los objetos obtenidos antes de una
-// transacción (sobre todo TrackItem y, en algunas versiones, Sequence). No
-// debemos conservarlos entre un clon, un recorte y un movimiento: cada fase
-// vuelve a tomar la secuencia viva para que el eliminador no se detenga a
-// mitad del montaje con "The script object is no longer valid".
-async function getLiveSequenceContext(fallbackProject, fallbackSequence) {
-  try {
-    const activeProject = await ppro.Project.getActiveProject();
-    const activeSequence = activeProject
-      ? await activeProject.getActiveSequence()
-      : null;
-    if (activeProject && activeSequence) {
-      return { project: activeProject, sequence: activeSequence };
-    }
-  } catch (_) {
-    // Conservamos el contexto recibido solo como último respaldo.
-  }
-  return { project: fallbackProject, sequence: fallbackSequence };
 }
 
 function buildCutKeyframes(keyframes, sceneCuts) {
@@ -1864,781 +1694,221 @@ async function refreshAnalysisLocations(sequence, analyses) {
   return refreshed;
 }
 
-async function cloneTrimmedSegmentOnce(
-  project, sequence, originalVideo, originalAudio, sourceStart, sourceEnd,
-  timelineStart, targetVideoTrackIndex, targetAudioTrackIndex, name
-) {
-  let live = await getLiveSequenceContext(project, sequence);
-  project = live.project;
-  sequence = live.sequence;
-  const editor = ppro.SequenceEditor.getEditor(sequence);
-  if (!editor) {
-    throw new Error("Premiere no pudo abrir el editor de la secuencia activa.");
-  }
-  if (!originalAudio) {
-    throw new Error(
-      "No se encontró el audio correspondiente al video seleccionado."
-    );
-  }
-  const originalVideoTrackIndex = await originalVideo.getTrackIndex();
-  const originalAudioTrackIndex = await originalAudio.getTrackIndex();
-  const originalVideoStart = await originalVideo.getStartTime();
-  const originalAudioStart = await originalAudio.getStartTime();
-  const originalAudioInPoint = await originalAudio.getInPoint();
-  // Premiere invalida las referencias de origen cuando crea el primer bloque
-  // en una pista. Todo dato del original que usaremos después debe leerse
-  // antes de la clonación; consultar getSpeed() después era la causa de
-  // "The script object is no longer valid" y dejaba el original sin retirar.
-  const rawSpeed = Math.abs(Number(await originalVideo.getSpeed()) || 1);
-  const speedFactor = rawSpeed > 10 ? rawSpeed / 100 : rawSpeed;
-  // Se obtiene antes de clonar: el TrackItem original puede quedar inválido
-  // en cuanto Premiere crea el nuevo bloque.
-  const mediaProjectItem = await originalVideo.getProjectItem();
-  const media = ppro.ClipProjectItem.cast(mediaProjectItem);
-  const mediaPath = await media.getMediaFilePath();
-  // Si Premiere perdió una referencia justo después de crear el bloque, no
-  // volvemos a duplicarlo. Primero recuperamos ese mismo bloque por su pista,
-  // instante y punto de origen y continuamos el recorte desde ahí. En clips
-  // largos esto evita duplicados y permite retomar el trabajo tras una
-  // reconstrucción interna de la secuencia.
-  const existingVideo = await waitForSilenceTrackItem(
-    project, sequence, "video", targetVideoTrackIndex,
-    timelineStart, mediaPath, sourceStart, 1
-  );
-  const existingAudio = await waitForSilenceTrackItem(
-    existingVideo ? existingVideo.project : project,
-    existingVideo ? existingVideo.sequence : sequence,
-    "audio", targetAudioTrackIndex,
-    timelineStart, mediaPath, sourceStart, 1
-  );
-  const videoOffset = ppro.TickTime.createWithSeconds(
-    timelineStart - originalVideoStart.seconds
-  );
-  const audioOffset = ppro.TickTime.createWithSeconds(
-    timelineStart - originalAudioStart.seconds
-  );
-  let duplicateVideo = existingVideo ? existingVideo.item : null;
-  let duplicateAudio = existingAudio ? existingAudio.item : null;
-  if (existingVideo) {
-    project = existingVideo.project;
-    sequence = existingVideo.sequence;
-  }
-  if (existingAudio) {
-    project = existingAudio.project;
-    sequence = existingAudio.sequence;
-  }
-  if (!duplicateVideo || !duplicateAudio) {
-    let cloned = false;
-    project.lockedAccess(() => {
-      cloned = project.executeTransaction((compoundAction) => {
-        // Al clonar desde el video, Premiere conserva el vínculo con el audio
-        // cuando ambos elementos provienen del mismo clip. Hacer dos clones
-        // independientes era la causa de que se separaran al moverlos.
-        compoundAction.addAction(editor.createCloneTrackItemAction(
-          originalVideo, videoOffset,
-          targetVideoTrackIndex - originalVideoTrackIndex,
-          targetAudioTrackIndex - originalAudioTrackIndex, true, false
-        ));
-      }, "Gota Kit: crear segmento de video y audio");
-    });
-    if (!cloned) {
-      throw new Error("Premiere no pudo duplicar el video con su audio.");
-    }
+// ---------------------------------------------------------------------------
+// Eliminar silencios (rehecho en 3.3.12).
+//
+// Antes se clonaba el clip completo una vez por cada parte con voz y luego se
+// buscaba «a ciegas» cuál recortar y mover. Cuando Premiere tardaba en mostrar
+// el clon, se recortaba una parte anterior: el resultado se iba comiendo y al
+// final no quedaba nada. Ahora:
+//   1. Se duplica la secuencia activa (conserva tamaño y cuadros por segundo)
+//      y se vacía la copia. La secuencia original no se toca.
+//   2. Por cada parte con voz se marcan entrada y salida en el clip del
+//      proyecto y se coloca con «sobrescribir» justo al final de la anterior.
+//   3. Se devuelven las marcas del clip como estaban y se abre la copia.
+// No hay que localizar clips recién creados: cada parte se coloca sola.
+// ---------------------------------------------------------------------------
 
-    const locatedVideo = await waitForSilenceTrackItem(
-      project, sequence, "video", targetVideoTrackIndex,
-      timelineStart, mediaPath, sourceStart
-    );
-    if (!locatedVideo) {
-      throw new Error(
-        "Premiere creó el segmento, pero no pudo localizar el video duplicado."
-      );
-    }
-    project = locatedVideo.project;
-    sequence = locatedVideo.sequence;
-    duplicateVideo = locatedVideo.item;
-    const locatedAudio = await waitForSilenceTrackItem(
-      project, sequence, "audio", targetAudioTrackIndex,
-      timelineStart, mediaPath, sourceStart
-    );
-    duplicateAudio = locatedAudio ? locatedAudio.item : null;
-    if (locatedAudio) {
-      project = locatedAudio.project;
-      sequence = locatedAudio.sequence;
-    }
+function overwriteProjectItemAction(editor, projectItem, time, videoTrackIndex, audioTrackIndex) {
+  // El nombre documentado es createOverwriteItemAction; versiones previas del
+  // plugin usaban otro nombre que no existe en la API pública de Premiere.
+  const create = typeof editor.createOverwriteItemAction === "function"
+    ? editor.createOverwriteItemAction
+    : editor.createOverwriteProjectItemAction;
+  if (typeof create !== "function") {
+    throw new Error("Esta versión de Premiere no permite colocar clips desde el plugin.");
   }
-  // Algunos montajes no conservan el vínculo interno (por ejemplo material
-  // importado con audio separado). En ese caso duplicamos solamente su audio
-  // como respaldo, siempre en la pista reservada para el segmento.
-  if (!duplicateAudio) {
-    // La clonación de vídeo pudo invalidar el objeto de audio original. Lo
-    // recuperamos desde la secuencia viva antes de crear el respaldo.
-    live = await getLiveSequenceContext(project, sequence);
-    project = live.project;
-    sequence = live.sequence;
-    const originalAudioTrack = await sequence.getAudioTrack(originalAudioTrackIndex);
-    const freshOriginalAudio = await findTrackItemBySource(
-      originalAudioTrack,
-      mediaPath,
-      originalAudioInPoint.seconds,
-      originalAudioStart.seconds
-    );
-    if (!freshOriginalAudio) {
-      throw new Error("Premiere no pudo recuperar el audio original para el segmento.");
-    }
-    const fallbackEditor = ppro.SequenceEditor.getEditor(sequence);
-    if (!fallbackEditor) {
-      throw new Error("Premiere no pudo reabrir el editor para el audio del segmento.");
-    }
-    let audioCloned = false;
-    project.lockedAccess(() => {
-      audioCloned = project.executeTransaction((compoundAction) => {
-        compoundAction.addAction(fallbackEditor.createCloneTrackItemAction(
-          freshOriginalAudio, audioOffset, 0,
-          targetAudioTrackIndex - originalAudioTrackIndex, false, false
-        ));
-      }, "Gota Kit: respaldo de audio del segmento");
-    });
-    if (!audioCloned) {
-      throw new Error("Premiere no pudo duplicar el audio del segmento.");
-    }
-    const recoveredAudio = await waitForSilenceTrackItem(
-      project, sequence, "audio", targetAudioTrackIndex,
-      timelineStart, mediaPath, sourceStart
-    );
-    duplicateAudio = recoveredAudio ? recoveredAudio.item : null;
-    if (recoveredAudio) {
-      project = recoveredAudio.project;
-      sequence = recoveredAudio.sequence;
-    }
-  }
-  if (!duplicateAudio) {
-    throw new Error(
-      "Premiere creó el video, pero no pudo emparejar su audio."
-    );
-  }
-
-  const timelineDuration = Math.max(
-    0.001, (sourceEnd - sourceStart) / Math.max(0.001, speedFactor)
-  );
-  const timelineEnd = timelineStart + timelineDuration;
-  let trimmed = false;
-  project.lockedAccess(() => {
-    trimmed = project.executeTransaction((compoundAction) => {
-      for (const duplicate of [duplicateVideo, duplicateAudio]) {
-        const inAction = duplicate.createSetInPointAction(
-          ppro.TickTime.createWithSeconds(sourceStart)
-        );
-        const outAction = duplicate.createSetOutPointAction(
-          ppro.TickTime.createWithSeconds(sourceEnd)
-        );
-        if (!inAction || !outAction) {
-          throw new Error(
-            "Premiere rechazó los límites del video o de su audio."
-          );
-        }
-        compoundAction.addAction(inAction);
-        compoundAction.addAction(outAction);
-        if (typeof duplicate.createSetNameAction === "function") {
-          const nameAction = duplicate.createSetNameAction(name);
-          if (nameAction) compoundAction.addAction(nameAction);
-        }
-      }
-    }, "Gota Kit: ajustar video y audio detectados");
-  });
-  if (!trimmed) {
-    throw new Error("Premiere no pudo recortar el video con su audio.");
-  }
-
-  // Premiere debe terminar el trim antes de calcular correctamente el nuevo
-  // inicio y final. En clips largos la colección puede tardar varios ciclos.
-  const trimmedVideo = await waitForSilenceTrackItem(
-    project, sequence, "video", targetVideoTrackIndex,
-    timelineStart, mediaPath, sourceStart
-  );
-  const trimmedAudio = await waitForSilenceTrackItem(
-    trimmedVideo ? trimmedVideo.project : project,
-    trimmedVideo ? trimmedVideo.sequence : sequence,
-    "audio", targetAudioTrackIndex, timelineStart, mediaPath, sourceStart
-  );
-  if (trimmedVideo) {
-    project = trimmedVideo.project;
-    sequence = trimmedVideo.sequence;
-    duplicateVideo = trimmedVideo.item;
-  } else {
-    duplicateVideo = null;
-  }
-  if (trimmedAudio) {
-    project = trimmedAudio.project;
-    sequence = trimmedAudio.sequence;
-    duplicateAudio = trimmedAudio.item;
-  } else {
-    duplicateAudio = null;
-  }
-  if (!duplicateVideo || !duplicateAudio) {
-    // El corte sí se aplicó. Algunas ediciones de Premiere todavía no exponen
-    // el TrackItem nuevo al terminar la transacción; abortar aquí dejaba el
-    // resto del diálogo sin procesar. El bloque ya se creó en la pista
-    // reservada y el siguiente segmento volverá a obtener una secuencia viva.
-    return { video: null, audio: null, pendingVerification: true };
-  }
-  const trimmedVideoStart = await duplicateVideo.getStartTime();
-  const trimmedAudioStart = await duplicateAudio.getStartTime();
-  const videoMove = timelineStart - trimmedVideoStart.seconds;
-  const audioMove = timelineStart - trimmedAudioStart.seconds;
-  const needsMove =
-    Math.abs(videoMove) > 0.000001 || Math.abs(audioMove) > 0.000001;
-  let positioned = !needsMove;
-  if (needsMove) project.lockedAccess(() => {
-    positioned = project.executeTransaction((compoundAction) => {
-      const moves = [
-        [duplicateVideo, videoMove],
-        [duplicateAudio, audioMove]
-      ];
-      for (const [duplicate, delta] of moves) {
-        if (Math.abs(delta) <= 0.000001) continue;
-        const moveAction = duplicate.createMoveAction(
-          ppro.TickTime.createWithSeconds(delta)
-        );
-        if (!moveAction) {
-          throw new Error(
-            "Premiere rechazó la posición compactada del fragmento."
-          );
-        }
-        compoundAction.addAction(moveAction);
-      }
-    }, "Gota Kit: cerrar hueco de video y audio");
-  });
-  if (!positioned) {
-    throw new Error("Premiere no pudo cerrar el hueco del fragmento.");
-  }
-
-  const positionedVideo = await waitForSilenceTrackItem(
-    project, sequence, "video", targetVideoTrackIndex,
-    timelineStart, mediaPath, sourceStart
-  );
-  const positionedAudio = await waitForSilenceTrackItem(
-    positionedVideo ? positionedVideo.project : project,
-    positionedVideo ? positionedVideo.sequence : sequence,
-    "audio", targetAudioTrackIndex, timelineStart, mediaPath, sourceStart
-  );
-  if (positionedVideo) {
-    project = positionedVideo.project;
-    sequence = positionedVideo.sequence;
-    duplicateVideo = positionedVideo.item;
-  } else {
-    duplicateVideo = null;
-  }
-  if (positionedAudio) {
-    project = positionedAudio.project;
-    sequence = positionedAudio.sequence;
-    duplicateAudio = positionedAudio.item;
-  } else {
-    duplicateAudio = null;
-  }
-  if (!duplicateVideo || !duplicateAudio) {
-    return { video: null, audio: null, pendingVerification: true };
-  }
-  for (const duplicate of [duplicateVideo, duplicateAudio]) {
-    const actualStart = await duplicate.getStartTime();
-    const actualEnd = await duplicate.getEndTime();
-    if (
-      Math.abs(actualStart.seconds - timelineStart) > 0.05 ||
-      Math.abs(actualEnd.seconds - timelineEnd) > 0.05
-    ) {
-      // No interrumpimos todo el lote por la confirmación de un solo bloque:
-      // Premiere redondea algunos clips a cuadro y puede variar unos ticks.
-      return { video: duplicateVideo, audio: duplicateAudio, pendingVerification: true };
-    }
-  }
-  return { video: duplicateVideo, audio: duplicateAudio };
+  const action = create.call(editor, projectItem, time, videoTrackIndex, audioTrackIndex);
+  if (!action) throw new Error("Premiere no preparó la colocación del clip.");
+  return action;
 }
 
-async function disableTrackItem(project, item, label) {
-  if (!item || typeof item.createSetDisabledAction !== "function") {
-    throw new Error(`Premiere no permite desactivar ${label}.`);
-  }
-  let disabled = false;
+function runPremiereTransaction(project, label, build) {
+  let done = false;
   project.lockedAccess(() => {
-    disabled = project.executeTransaction((compoundAction) => {
-      const action = item.createSetDisabledAction(true);
-      if (!action) throw new Error(`Premiere rechazó desactivar ${label}.`);
-      compoundAction.addAction(action);
-    }, `AutoFrame: desactivar ${label}`);
+    done = project.executeTransaction(build, label);
   });
-  if (!disabled) throw new Error(`No se pudo desactivar ${label}.`);
+  return done;
 }
 
-async function recordSilenceOperation(event, details = {}) {
-  // El registro vive en el motor local, no dentro del proyecto. Así podemos
-  // saber exactamente en qué fase de Premiere falló un montaje sin pedir al
-  // usuario que adivine ni exponer la ruta completa de sus medios.
+async function findSilenceSourceProjectItem(sequence, clip) {
+  // Se toma del clip que el usuario seleccionó en la línea de tiempo.
   try {
-    const response = await fetch(`${SERVICE_URL}/v3/silence-diagnostics`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ event, details })
-    });
-    const payload = await response.json().catch(() => ({}));
-    return payload.diagnosticLogPath || "";
-  } catch (_) {
-    // El registro nunca debe detener la edición si el motor acaba de reiniciar.
-    return "";
-  }
-}
-
-async function suppressOriginalSilenceComponent(project, sequence, analysis, mediaKind) {
-  let lastError = null;
-  for (let attempt = 0; attempt < 6; attempt += 1) {
-    if (attempt) await pauseForPremiere(140 * attempt);
-    try {
-      const live = await getLiveSequenceContext(project, sequence);
-      let item = await findOriginalSilenceTrackItem(
-        live.sequence, analysis.clip, mediaKind
-      );
-      if (!item && mediaKind === "audio") {
-        item = await findMatchingAudioTrackItem(live.sequence, analysis.clip);
-      }
-      if (!item) return { changed: false, reason: "not-found" };
-      await disableTrackItem(
-        live.project,
-        item,
-        mediaKind === "video" ? "el video original" : "el audio original"
-      );
-      return { changed: true, reason: "disabled", attempts: attempt + 1 };
-    } catch (error) {
-      lastError = error;
-    }
-  }
-  throw lastError || new Error("Premiere no pudo desactivar el original.");
-}
-
-async function cloneTrimmedAudioSegment(
-  project, sequence, originalAudio, sourceStart, sourceEnd,
-  timelineStart, targetAudioTrackIndex, name
-) {
-  if (!originalAudio) {
-    throw new Error("No se encontró el audio seleccionado.");
-  }
-  let live = await getLiveSequenceContext(project, sequence);
-  project = live.project;
-  sequence = live.sequence;
-  const editor = ppro.SequenceEditor.getEditor(sequence);
-  if (!editor) throw new Error("Premiere no pudo abrir el editor de audio.");
-  const originalStart = await originalAudio.getStartTime();
-  const sourceItem = await originalAudio.getProjectItem();
-  const sourceMedia = ppro.ClipProjectItem.cast(sourceItem);
-  const mediaPath = await sourceMedia.getMediaFilePath();
-  const originalTrackIndex = await originalAudio.getTrackIndex();
-  const offset = ppro.TickTime.createWithSeconds(timelineStart - originalStart.seconds);
-  let cloned = false;
-  project.lockedAccess(() => {
-    cloned = project.executeTransaction((compoundAction) => {
-      compoundAction.addAction(editor.createCloneTrackItemAction(
-        originalAudio, offset, 0,
-        targetAudioTrackIndex - originalTrackIndex, false, false
-      ));
-    }, "Gota Kit: crear segmento de audio");
-  });
-  if (!cloned) throw new Error("Premiere no pudo duplicar el audio.");
-  const locatedAudio = await waitForSilenceTrackItem(
-    project, sequence, "audio", targetAudioTrackIndex,
-    timelineStart, mediaPath, sourceStart
-  );
-  project = locatedAudio ? locatedAudio.project : project;
-  sequence = locatedAudio ? locatedAudio.sequence : sequence;
-  let duplicate = locatedAudio ? locatedAudio.item : null;
-  if (!duplicate) throw new Error("Premiere no pudo localizar el audio duplicado.");
-  let trimmed = false;
-  project.lockedAccess(() => {
-    trimmed = project.executeTransaction((compoundAction) => {
-      const inAction = duplicate.createSetInPointAction(
-        ppro.TickTime.createWithSeconds(sourceStart)
-      );
-      const outAction = duplicate.createSetOutPointAction(
-        ppro.TickTime.createWithSeconds(sourceEnd)
-      );
-      if (!inAction || !outAction) throw new Error("Premiere rechazó el recorte de audio.");
-      compoundAction.addAction(inAction);
-      compoundAction.addAction(outAction);
-      if (typeof duplicate.createSetNameAction === "function") {
-        const nameAction = duplicate.createSetNameAction(name);
-        if (nameAction) compoundAction.addAction(nameAction);
-      }
-    }, "Gota Kit: ajustar segmento de audio");
-  });
-  if (!trimmed) throw new Error("Premiere no pudo recortar el audio.");
-  const trimmedAudio = await waitForSilenceTrackItem(
-    project, sequence, "audio", targetAudioTrackIndex,
-    timelineStart, mediaPath, sourceStart
-  );
-  project = trimmedAudio ? trimmedAudio.project : project;
-  sequence = trimmedAudio ? trimmedAudio.sequence : sequence;
-  duplicate = trimmedAudio ? trimmedAudio.item : null;
-  // Al igual que con video, el recorte ya quedó aplicado aunque Premiere no
-  // entregue de inmediato el nuevo TrackItem. No detenemos el resto del lote.
-  if (!duplicate) return null;
-  const trimmedStart = await duplicate.getStartTime();
-  const correction = timelineStart - trimmedStart.seconds;
-  if (Math.abs(correction) > 0.000001) {
-    let moved = false;
-    project.lockedAccess(() => {
-      moved = project.executeTransaction((compoundAction) => {
-        const action = duplicate.createMoveAction(
-          ppro.TickTime.createWithSeconds(correction)
-        );
-        if (!action) throw new Error("Premiere rechazó mover el audio.");
-        compoundAction.addAction(action);
-      }, "Gota Kit: cerrar hueco de audio");
-    });
-    if (!moved) throw new Error("Premiere no pudo compactar el audio.");
-  }
-  // No devolvemos una referencia usada dentro de una transacción: para el
-  // siguiente corte se vuelve a localizar el elemento desde la secuencia viva.
-  return null;
-}
-
-async function cloneSilenceKeptSegment(
-  project, sequence, analysis, sourceStart, sourceEnd, timelineStart,
-  reservedDestinations = null
-) {
-  // Cada reintento vuelve a encontrar el video y audio de origen. No basta
-  // con reintentar el clon: si Premiere ya reconstruyó la secuencia, los
-  // TrackItem recibidos en el intento anterior también están vencidos.
-  let lastError = null;
-  for (let attempt = 0; attempt < 5; attempt += 1) {
-    try {
-      if (attempt) await pauseForPremiere(Math.min(900, 180 * (attempt + 1)));
-      const recovered = await recoverSilenceSourcePair(
-        project, sequence, analysis.clip
-      );
-      project = recovered.project;
-      sequence = recovered.sequence;
-      const originalVideo = recovered.originalVideo;
-      const originalAudio = recovered.originalAudio;
-      const timelineScale = Number(analysis.clip.sourceToTimelineScale || 1);
-      const timelineEnd = timelineStart +
-        Math.max(0.001, (sourceEnd - sourceStart) * timelineScale);
-      const destinations = reservedDestinations ||
-        await pickSilenceDestinationTracks(
-          sequence, originalVideo, originalAudio, timelineStart, timelineEnd
-        );
-      const name = `DIÁLOGO ${formatTimecode(timelineStart)}`;
-      if (!originalVideo) {
-        return await cloneTrimmedAudioSegment(
-          project, sequence, originalAudio, sourceStart, sourceEnd,
-          timelineStart, destinations.audioTrackIndex, name
-        );
-      }
-      return await cloneTrimmedSegmentOnce(
-        project, sequence, originalVideo, originalAudio, sourceStart, sourceEnd,
-        timelineStart, destinations.videoTrackIndex, destinations.audioTrackIndex, name
-      );
-    } catch (error) {
-      lastError = error;
-      if (!isPremiereReferenceExpired(error)) throw error;
-    }
-  }
-  throw new Error(
-    `Premiere perdió la referencia del segmento ${formatTimecode(timelineStart)} ` +
-    `después de cinco intentos: ${lastError?.message || String(lastError)}`
-  );
-}
-
-async function removeOriginalSilenceComponent(project, sequence, analysis, mediaKind) {
-  // Un TrackItem deja de ser válido cada vez que Premiere reconstruye una
-  // pista. Retiramos vídeo y audio en transacciones independientes y volvemos
-  // a localizar cada uno antes de tocarlo. Esto evita que borrar el vídeo
-  // invalide la referencia de su audio enlazado.
-  let lastError = null;
-  for (let attempt = 0; attempt < 4; attempt += 1) {
-    try {
-      if (attempt) await new Promise((resolve) => setTimeout(resolve, 180 * attempt));
-      const live = await getLiveSequenceContext(project, sequence);
-      let item = await findOriginalSilenceTrackItem(
-        live.sequence, analysis.clip, mediaKind
-      );
-      if (!item && mediaKind === "audio") {
-        item = await findMatchingAudioTrackItem(live.sequence, analysis.clip);
-      }
-      // Si el vídeo enlazado ya retiró también su audio, no hay nada pendiente.
-      if (!item) return 0;
-      const editor = ppro.SequenceEditor.getEditor(live.sequence);
-      if (!editor) throw new Error("Premiere no pudo abrir el editor de la secuencia.");
-      let removed = false;
-      live.project.lockedAccess(() => {
-        removed = live.project.executeTransaction((compoundAction) => {
-          // La selección se crea dentro de la transacción. Premiere puede
-          // invalidarla cuando se crea entre operaciones de edición.
-          const selection = createEmptyTrackSelectionNow();
-          if (!selection.addItem(item, false)) {
-            throw new Error("Premiere no pudo preparar el original para retirarlo.");
-          }
-          const action = editor.createRemoveItemsAction(
-            selection, false, ppro.Constants.MediaType.ANY, false
-          );
-          if (!action) throw new Error("Premiere no preparó el retiro del original.");
-          compoundAction.addAction(action);
-        }, `Gota Kit: retirar ${mediaKind} original tras compactar silencios`);
-      });
-      if (removed) return 1;
-      lastError = new Error("Premiere rechazó retirar el original.");
-    } catch (error) {
-      lastError = error;
-    }
-  }
-  throw lastError || new Error("Premiere no pudo retirar el material original.");
-}
-
-async function removeOriginalSilencePair(project, sequence, analysis) {
-  // Premiere maneja vídeo y audio vinculados como una sola unidad. Quitarlos
-  // por separado puede invalidar el segundo TrackItem, que era exactamente la
-  // causa del mensaje "The script object is no longer valid". Primero
-  // intentamos un único retiro con los dos elementos frescos en una misma
-  // transacción. Si la pareja no está vinculada, el respaldo anterior seguirá
-  // intentando quitarlos uno por uno.
-  let lastError = null;
-  for (let attempt = 0; attempt < 4; attempt += 1) {
-    try {
-      if (attempt) await new Promise((resolve) => setTimeout(resolve, 220 * attempt));
-      const live = await getLiveSequenceContext(project, sequence);
-      const video = analysis.clip.mediaKind === "audio"
-        ? null
-        : await findOriginalSilenceTrackItem(live.sequence, analysis.clip, "video");
-      let audio = await findOriginalSilenceTrackItem(
-        live.sequence, analysis.clip, "audio"
-      );
-      if (!audio) audio = await findMatchingAudioTrackItem(live.sequence, analysis.clip);
-      if (!video && !audio) return { removed: 0, alreadyGone: true };
-
-      const editor = ppro.SequenceEditor.getEditor(live.sequence);
-      if (!editor) throw new Error("Premiere no pudo abrir el editor de la secuencia.");
-      let removed = false;
-      let selectedCount = 0;
-      live.project.lockedAccess(() => {
-        removed = live.project.executeTransaction((compoundAction) => {
-          // Selección, elementos y acción nacen en la misma transacción. Así
-          // no sobreviven referencias de TrackItem de un corte anterior.
-          const selection = createEmptyTrackSelectionNow();
-          if (video && selection.addItem(video, false)) selectedCount += 1;
-          if (audio && selection.addItem(audio, false)) selectedCount += 1;
-          if (!selectedCount) {
-            throw new Error("Premiere no pudo preparar los originales para retirarlos.");
-          }
-          const action = editor.createRemoveItemsAction(
-            selection, false, ppro.Constants.MediaType.ANY, false
-          );
-          if (!action) throw new Error("Premiere no preparó el retiro del material original.");
-          compoundAction.addAction(action);
-        }, "Gota Kit: retirar video y audio originales tras compactar silencios");
-      });
-      if (removed) return { removed: selectedCount, alreadyGone: false };
-      lastError = new Error("Premiere rechazó retirar el material original.");
-    } catch (error) {
-      lastError = error;
-    }
-  }
-  throw lastError || new Error("Premiere no pudo retirar los originales.");
-}
-
-async function removeOriginalSilenceClip(project, sequence, analysis) {
-  // No eliminamos físicamente el original durante la misma operación que
-  // crea, recorta y mueve los nuevos bloques. En varias versiones de Premiere
-  // (sobre todo macOS) ese último borrado reconstruye las pistas e invalida los
-  // TrackItem recién creados: el resultado era el aviso "script object is no
-  // longer valid" y una edición a medias. En su lugar lo desactivamos con
-  // referencias frescas; visual y auditivamente equivale a retirarlo, mantiene
-  // el audio/vídeo sincronizados y deja un Deshacer completamente seguro.
-  let disabled = 0;
-  const failures = [];
-  const parts = analysis.clip.mediaKind === "audio" ? ["audio"] : ["video", "audio"];
-  for (const mediaKind of parts) {
-    try {
-      const result = await suppressOriginalSilenceComponent(
-        project, sequence, analysis, mediaKind
-      );
-      if (result.changed) disabled += 1;
-      await recordSilenceOperation("original_suppressed", {
-        mediaKind,
-        clipName: analysis.clip.name,
-        result: result.reason
-      });
-    } catch (error) {
-      failures.push(`${mediaKind}: ${error.message || String(error)}`);
-      await recordSilenceOperation("original_suppression_failed", {
-        mediaKind,
-        clipName: analysis.clip.name,
-        error: error.message || String(error)
-      });
-    }
-  }
-  return {
-    removed: 0,
-    disabled,
-    cleanupError: failures.length ? new Error(failures.join(" | ")) : null
-  };
-}
-
-async function applySilenceEdit(project, sequence, analyses, mode) {
-  const removalSummary = { removed: 0, disabled: 0, pendingCleanup: 0 };
-  for (const analysis of analyses) {
-    let live = await getLiveSequenceContext(project, sequence);
-    project = live.project;
-    sequence = live.sequence;
-    const audioOnly = analysis.clip.mediaKind === "audio";
-    const initialOriginal = audioOnly
-      ? null
-      : await findClonedTrackItem(sequence, analysis.clip);
-    const initialOriginalAudio = await findMatchingAudioTrackItem(
-      sequence, analysis.clip
-    );
-    if ((!audioOnly && !initialOriginal) || !initialOriginalAudio) {
-      throw new Error(
-        `No se encontró el audio vinculado de ${analysis.clip.name}.`
-      );
-    }
-    // Se reserva una sola pareja de pistas para todo el tramo del clip. De
-    // esta forma todos los cortes permanecen juntos, no pisan la edición que
-    // ya exista y los segmentos de video y audio siguen el mismo destino.
-    const reservedDestinations = await pickSilenceDestinationTracks(
-      sequence,
-      initialOriginal,
-      initialOriginalAudio,
-      analysis.clip.startSeconds,
-      analysis.clip.endSeconds
-    );
-    await recordSilenceOperation("edit_started", {
-      mode,
-      clipName: analysis.clip.name,
-      mediaKind: analysis.clip.mediaKind,
-      sourceStart: analysis.clip.inPointSeconds,
-      sourceEnd: analysis.clip.outPointSeconds,
-      timelineStart: analysis.clip.startSeconds,
-      timelineEnd: analysis.clip.endSeconds,
-      videoTrack: analysis.clip.trackIndex,
-      audioTrack: analysis.clip.audioTrackIndex,
-      destinationVideoTrack: reservedDestinations.videoTrackIndex,
-      destinationAudioTrack: reservedDestinations.audioTrackIndex,
-      keptSegments: analysis.result.keptSegments?.length || 0,
-      silenceSegments: analysis.result.silenceCount || 0
-    });
-    if (mode === "review") {
-      const timeScale = Number(analysis.clip.sourceToTimelineScale || 1);
-      for (let segmentIndex = 0; segmentIndex < analysis.result.keptSegments.length; segmentIndex += 1) {
-        const kept = analysis.result.keptSegments[segmentIndex];
-        live = await getLiveSequenceContext(project, sequence);
-        project = live.project;
-        sequence = live.sequence;
-        const localStart = kept.startSeconds - analysis.clip.inPointSeconds;
-        const timelineStart =
-          analysis.clip.startSeconds + localStart * timeScale;
-        await cloneSilenceKeptSegment(
-          project, sequence, analysis,
-          kept.startSeconds, kept.endSeconds, timelineStart,
-          reservedDestinations
-        );
-        // Cada bloque de ocho segmentos cedemos un instante a Premiere para
-        // que reconstruya sus colecciones. No es un límite: permite procesar
-        // clips de cualquier duración sin acumular referencias vencidas.
-        // En clips muy largos cedemos el ciclo de interfaz después de cada
-        // bloque. No limita su duración: evita que Premiere acumule objetos
-        // de pista vencidos mientras recompone la secuencia.
-        const longEdit = analysis.result.keptSegments.length > 24;
-        if (longEdit || (segmentIndex + 1) % 3 === 0) {
-          await pauseForPremiere(longEdit ? 280 : 220);
-        }
-      }
-      if (!audioOnly) {
-        live = await getLiveSequenceContext(project, sequence);
-        project = live.project;
-        sequence = live.sequence;
-        const currentOriginal = await findClonedTrackItem(
-          sequence, analysis.clip
-        );
-        await disableTrackItem(project, currentOriginal, "el clip original");
-      }
-      live = await getLiveSequenceContext(project, sequence);
-      project = live.project;
-      sequence = live.sequence;
-      const currentOriginalAudio = await findMatchingAudioTrackItem(
-        sequence, analysis.clip
-      );
-      await disableTrackItem(
-        project, currentOriginalAudio, "el audio original"
-      );
-    } else {
-      const timeScale = Number(analysis.clip.sourceToTimelineScale || 1);
-      if (!analysis.result.keptSegments || !analysis.result.keptSegments.length) {
-        throw new Error(
-          `No se encontró diálogo que conservar en ${analysis.clip.name}; el original no se modificó.`
-        );
-      }
-      let compactedStart = analysis.clip.startSeconds;
-      for (let segmentIndex = 0; segmentIndex < analysis.result.keptSegments.length; segmentIndex += 1) {
-        const kept = analysis.result.keptSegments[segmentIndex];
-        live = await getLiveSequenceContext(project, sequence);
-        project = live.project;
-        sequence = live.sequence;
+    let item = null;
+    if (clip.mediaKind !== "audio") {
+      item = await findClonedTrackItem(sequence, clip);
+    } else if (Number.isInteger(clip.audioTrackIndex)) {
+      const track = await sequence.getAudioTrack(clip.audioTrackIndex);
+      const items = track ? track.getTrackItems(ppro.Constants.TrackItemType.CLIP, false) : [];
+      let best = Infinity;
+      for (const candidate of items) {
         try {
-          const created = await cloneSilenceKeptSegment(
-            project, sequence, analysis,
-            kept.startSeconds, kept.endSeconds, compactedStart,
-            reservedDestinations
-          );
-          // Para clips largos guardamos puntos de control útiles, no cientos
-          // de peticiones locales que pueden retrasar a Premiere. El primer,
-          // cada décimo y el último segmento bastan para diagnosticar un fallo.
-          if (
-            segmentIndex === 0 ||
-            (segmentIndex + 1) % 10 === 0 ||
-            segmentIndex + 1 === analysis.result.keptSegments.length
-          ) {
-            await recordSilenceOperation("segment_checkpoint", {
-              clipName: analysis.clip.name,
-              segmentIndex: segmentIndex + 1,
-              totalSegments: analysis.result.keptSegments.length,
-              sourceStart: kept.startSeconds,
-              sourceEnd: kept.endSeconds,
-              timelineStart: compactedStart,
-              pendingVerification: !!created?.pendingVerification
-            });
-          }
-        } catch (error) {
-          await recordSilenceOperation("segment_failed", {
-            clipName: analysis.clip.name,
-            segmentIndex: segmentIndex + 1,
-            sourceStart: kept.startSeconds,
-            sourceEnd: kept.endSeconds,
-            timelineStart: compactedStart,
-            error: error.message || String(error)
-          });
-          throw error;
-        }
-        compactedStart += kept.durationSeconds * timeScale;
-        const longEdit = analysis.result.keptSegments.length > 24;
-        if (longEdit || (segmentIndex + 1) % 3 === 0) {
-          await pauseForPremiere(longEdit ? 280 : 220);
-        }
+          const start = await candidate.getStartTime();
+          const inPoint = await candidate.getInPoint();
+          const score = Math.abs(start.seconds - clip.startSeconds) + Math.abs(inPoint.seconds - clip.inPointSeconds);
+          if (score < best) { best = score; item = candidate; }
+        } catch (_) { /* elemento inválido */ }
       }
-      // Ahora que todos los fragmentos están unidos en pistas nuevas, retiramos
-      // video y audio de la pista fuente. Antes se hacía en un lote global y
-      // una referencia vencida dejaba el original debajo del resultado.
-      const removal = await removeOriginalSilenceClip(project, sequence, analysis);
-      removalSummary.removed += removal.removed || 0;
-      removalSummary.disabled += removal.disabled || 0;
-      if (removal.cleanupError) removalSummary.pendingCleanup += 1;
-      await recordSilenceOperation("edit_completed", {
-        clipName: analysis.clip.name,
-        disabledOriginalParts: removal.disabled || 0,
-        cleanupWarning: removal.cleanupError ? removal.cleanupError.message : ""
+      if (best > 0.5) item = null;
+    }
+    if (item) {
+      const projectItem = ppro.ClipProjectItem.cast(await item.getProjectItem());
+      const path = String(await projectItem.getMediaFilePath()).toLowerCase();
+      if (path === String(clip.mediaPath).toLowerCase()) return projectItem;
+    }
+  } catch (_) { /* se busca en el proyecto */ }
+  // Respaldo: el mismo archivo dentro del panel Proyecto.
+  const root = ppro.FolderItem.cast(await (await ppro.Project.getActiveProject()).getRootItem());
+  const found = await collectImportedMedia(root, new Map(), true);
+  const item = found.get(String(clip.mediaPath).toLowerCase());
+  return item ? ppro.ClipProjectItem.cast(item) : null;
+}
+
+async function emptySequence(project, sequence) {
+  const editor = ppro.SequenceEditor.getEditor(sequence);
+  for (const kind of ["video", "audio"]) {
+    const count = kind === "video"
+      ? await sequence.getVideoTrackCount()
+      : await sequence.getAudioTrackCount();
+    for (let index = 0; index < count; index += 1) {
+      const track = kind === "video"
+        ? await sequence.getVideoTrack(index)
+        : await sequence.getAudioTrack(index);
+      if (!track) continue;
+      const items = track.getTrackItems(ppro.Constants.TrackItemType.CLIP, false);
+      if (!items.length) continue;
+      const ok = runPremiereTransaction(project, "Gota Kit: vaciar copia de la secuencia", (compoundAction) => {
+        const selection = createEmptyTrackSelectionNow();
+        let added = 0;
+        for (const item of items) {
+          try { if (selection.addItem(item, false)) added += 1; } catch (_) { /* ya no existe */ }
+        }
+        if (!added) return;
+        compoundAction.addAction(editor.createRemoveItemsAction(
+          selection, false, ppro.Constants.MediaType.ANY, false
+        ));
+      });
+      if (!ok) throw new Error("Premiere no pudo vaciar la copia de la secuencia.");
+    }
+  }
+}
+
+async function lastEndOnTrack(sequence, kind) {
+  const track = kind === "video" ? await sequence.getVideoTrack(0) : await sequence.getAudioTrack(0);
+  if (!track) return null;
+  const items = track.getTrackItems(ppro.Constants.TrackItemType.CLIP, false);
+  let end = null;
+  // Basta con revisar los últimos: cada parte se coloca después de la anterior.
+  for (let index = items.length - 1; index >= Math.max(0, items.length - 4); index -= 1) {
+    try {
+      const seconds = (await items[index].getEndTime()).seconds;
+      if (end === null || seconds > end) end = seconds;
+    } catch (_) { /* elemento inválido */ }
+  }
+  return end;
+}
+
+async function buildSequenceWithoutSilences(project, sequence, analyses, onProgress = () => {}) {
+  const ordered = [...analyses].sort((left, right) => left.clip.startSeconds - right.clip.startSeconds);
+  const pieces = [];
+  const sources = new Map();
+  let speedChanged = false;
+  for (const analysis of ordered) {
+    const kept = (analysis.result.keptSegments || []).filter(
+      (segment) => segment.endSeconds - segment.startSeconds >= 0.04
+    );
+    if (!kept.length) continue;
+    if (Math.abs(Number(analysis.clip.sourceToTimelineScale || 1) - 1) > 0.01) speedChanged = true;
+    const projectItem = await findSilenceSourceProjectItem(sequence, analysis.clip);
+    if (!projectItem) throw new Error(`No encontré ${analysis.clip.name} en el proyecto.`);
+    const key = String(analysis.clip.mediaPath).toLowerCase();
+    if (!sources.has(key)) sources.set(key, { projectItem, saved: null });
+    for (const segment of kept) {
+      pieces.push({
+        key,
+        audioOnly: analysis.clip.mediaKind === "audio",
+        inSeconds: segment.startSeconds,
+        outSeconds: segment.endSeconds
       });
     }
   }
+  if (!pieces.length) throw new Error("No quedó ninguna parte con voz; la secuencia no se modificó.");
 
-  return {
-    sequence: (await getLiveSequenceContext(project, sequence)).sequence,
-    removalSummary
-  };
+  // Premiere puede cerrarse si el monitor de origen tiene abierto el clip
+  // mientras se cambian sus marcas (error conocido de 26.x).
+  try {
+    if (ppro.SourceMonitor && typeof ppro.SourceMonitor.closeAllClips === "function") {
+      await ppro.SourceMonitor.closeAllClips();
+    }
+  } catch (_) { /* no es indispensable */ }
+
+  onProgress("Creando una copia de la secuencia…");
+  const copy = await cloneSequence(project, sequence);
+  const copyName = `${sequence.name} - sin silencios`;
+  try {
+    const copyItem = await copy.getProjectItem();
+    runPremiereTransaction(project, "Gota Kit: nombrar secuencia sin silencios", (compoundAction) => {
+      const action = copyItem.createSetNameAction(copyName);
+      if (action) compoundAction.addAction(action);
+    });
+  } catch (_) { /* conserva el nombre que le dio Premiere */ }
+  await emptySequence(project, copy);
+
+  for (const source of sources.values()) {
+    try {
+      const inPoint = await source.projectItem.getInPoint(ppro.Constants.MediaType.VIDEO);
+      const outPoint = await source.projectItem.getOutPoint(ppro.Constants.MediaType.VIDEO);
+      if (outPoint.seconds > inPoint.seconds) source.saved = { inPoint, outPoint };
+    } catch (_) { /* sin marcas previas */ }
+  }
+
+  const editor = ppro.SequenceEditor.getEditor(copy);
+  let cursor = 0;
+  try {
+    for (let index = 0; index < pieces.length; index += 1) {
+      const piece = pieces[index];
+      const { projectItem } = sources.get(piece.key);
+      if (index % 5 === 0 || index + 1 === pieces.length) {
+        onProgress(`Uniendo partes con voz: ${index + 1}/${pieces.length}…`);
+      }
+      const marked = runPremiereTransaction(project, "Gota Kit: marcar parte con voz", (compoundAction) => {
+        compoundAction.addAction(projectItem.createSetInOutPointsAction(
+          ppro.TickTime.createWithSeconds(piece.inSeconds),
+          ppro.TickTime.createWithSeconds(piece.outSeconds)
+        ));
+      });
+      if (!marked) throw new Error(`Premiere no aceptó las marcas de la parte ${index + 1}.`);
+      const placed = runPremiereTransaction(project, "Gota Kit: colocar parte con voz", (compoundAction) => {
+        compoundAction.addAction(overwriteProjectItemAction(
+          editor, projectItem, ppro.TickTime.createWithSeconds(cursor),
+          piece.audioOnly ? -1 : 0, 0
+        ));
+      });
+      if (!placed) throw new Error(`Premiere no pudo colocar la parte ${index + 1}.`);
+      // El final real (ajustado a cuadros por Premiere) es el inicio de la
+      // siguiente parte: así no quedan huecos ni se pisan.
+      const end = await lastEndOnTrack(copy, piece.audioOnly ? "audio" : "video");
+      const expected = cursor + (piece.outSeconds - piece.inSeconds);
+      cursor = end !== null && Math.abs(end - expected) < 0.5 ? end : expected;
+      if (index % 10 === 9) await pauseForPremiere(30);
+    }
+  } finally {
+    // Las marcas del clip vuelven a como estaban (o se limpian).
+    for (const source of sources.values()) {
+      try {
+        runPremiereTransaction(project, "Gota Kit: restaurar marcas del clip", (compoundAction) => {
+          compoundAction.addAction(source.saved
+            ? source.projectItem.createSetInOutPointsAction(source.saved.inPoint, source.saved.outPoint)
+            : source.projectItem.createClearInOutPointsAction());
+        });
+      } catch (_) { /* no es indispensable */ }
+    }
+  }
+
+  try { await project.openSequence(copy); } catch (_) {
+    try { await project.setActiveSequence(copy); } catch (__) { /* el usuario la abre */ }
+  }
+  return { sequence: copy, name: copyName, pieces: pieces.length, seconds: cursor, speedChanged };
 }
 
 function makeElement(tag, text) {
@@ -3024,8 +2294,8 @@ function buildPanel() {
 
   const silenceHelp = makeElement(
     "div",
-    "Detecta pausas por volumen y aplica el resultado a la secuencia activa. " +
-    "Guarda el proyecto antes de continuar."
+    "Detecta pausas por volumen y arma una secuencia NUEVA solo con las partes con voz. " +
+    "Tu secuencia original no se modifica."
   );
   silenceHelp.style.color = "#b8b8b8";
   silenceHelp.style.fontSize = "10px";
@@ -3183,18 +2453,6 @@ function buildPanel() {
     silencePadding.value = option ? option.value : "custom";
   });
 
-  const silenceModeLabel = makeElement("label", "Qué hacer con los silencios");
-  const silenceMode = makeElement("select");
-  [
-    ["delete", "Cortar silencios y moverlos (sin huecos)"],
-    ["review", "Vista previa en pista superior"]
-  ].forEach(([value, label]) => {
-    const option = makeElement("option", label);
-    option.value = value;
-    silenceMode.appendChild(option);
-  });
-  silenceModeLabel.appendChild(silenceMode);
-  silenceBody.appendChild(silenceModeLabel);
 
   const analyzeSilence = makeElement("div", "Analizar silencios");
   analyzeSilence.setAttribute("role", "button");
@@ -3209,7 +2467,7 @@ function buildPanel() {
   analyzeSilence.style.cursor = "pointer";
   silenceBody.appendChild(analyzeSilence);
 
-  const applySilence = makeElement("div", "Aplicar a la secuencia activa");
+  const applySilence = makeElement("div", "Crear secuencia sin silencios");
   applySilence.setAttribute("role", "button");
   applySilence.setAttribute("tabindex", "0");
   applySilence.style.height = "34px";
@@ -3352,8 +2610,8 @@ function buildPanel() {
     project.lockedAccess(() => {
       inserted = project.executeTransaction((compoundAction) => {
         // Overwrite en una pista libre no altera ni corta el montaje existente.
-        compoundAction.addAction(editor.createOverwriteProjectItemAction(
-          projectItem, marker, videoTrackIndex, -1
+        compoundAction.addAction(overwriteProjectItemAction(
+          editor, projectItem, marker, videoTrackIndex, -1
         ));
       }, "Gota Creator Kit: pegar imagen desde portapapeles");
     });
@@ -4640,7 +3898,7 @@ let silenceDiagnosticLogs = [];
       setSilenceApplyEnabled(silenceCount > 0);
       if (silenceCount > 0) {
         applySilence.textContent =
-          `Aplicar ${silenceCount} cortes y cerrar huecos`;
+          `Crear secuencia sin ${silenceCount} silencios`;
       }
     } catch (error) {
       const diagnosticPath = await recordSilenceOperation("analysis_panel_failed", {
@@ -4661,23 +3919,13 @@ let silenceDiagnosticLogs = [];
   });
 
   applySilence.addEventListener("click", async () => {
-    if (
-      silenceBusy || !silenceAnalyses.length ||
-      !silenceProject || !silenceSequence
-    ) return;
-    // El botón verde aplica directamente. La confirmación de dos clics hacía
-    // parecer que el módulo fallaba, porque el primer clic no editaba nada.
-    // Premiere guarda todo dentro de una operación reversible con Deshacer.
+    if (silenceBusy || !silenceAnalyses.length) return;
     setSilenceBusy(true);
     setSilenceApplyEnabled(false);
-    silenceStatus.textContent =
-      silenceMode.value === "delete"
-        ? "Cerrando silencios en la secuencia activa..."
-        : "Colocando silencios para revisión en la pista superior...";
+    silenceStatus.textContent = "Armando la secuencia sin silencios…";
     try {
-      // El análisis puede durar varios minutos. Antes de editar volvemos a
-      // tomar el proyecto y la secuencia actual, ya que Premiere invalida el
-      // objeto anterior si el usuario hizo cualquier cambio mientras tanto.
+      // El análisis puede durar varios minutos: se vuelve a tomar la
+      // secuencia activa antes de editar.
       const activeProject = await ppro.Project.getActiveProject();
       const activeSequence = activeProject
         ? await activeProject.getActiveSequence()
@@ -4687,37 +3935,38 @@ let silenceDiagnosticLogs = [];
       }
       silenceProject = activeProject;
       silenceSequence = activeSequence;
-      const refreshed = await refreshAnalysisLocations(
-        silenceSequence, silenceAnalyses
+      await refreshAnalysisLocations(silenceSequence, silenceAnalyses);
+      await recordSilenceOperation("build_started", {
+        clips: silenceAnalyses.map((item) => item.clip.name),
+        keptSegments: silenceAnalyses.reduce(
+          (sum, item) => sum + (item.result.keptSegments?.length || 0), 0
+        )
+      });
+      const built = await buildSequenceWithoutSilences(
+        silenceProject, silenceSequence, silenceAnalyses,
+        (message) => { silenceStatus.textContent = message; }
       );
-      if (refreshed) {
-        silenceStatus.textContent +=
-          `\nSe actualizaron ${refreshed} clips movidos en la línea de tiempo.`;
-      }
-      const edited = await applySilenceEdit(
-        silenceProject, silenceSequence, silenceAnalyses, silenceMode.value
-      );
+      await recordSilenceOperation("build_completed", {
+        pieces: built.pieces, seconds: built.seconds
+      });
       silenceStatus.textContent =
-        `Secuencia actualizada: ${edited.sequence.name}\n` +
-        (silenceMode.value === "delete"
-          ? "Los fragmentos con diálogo quedaron unidos sin huecos. " +
-            (edited.removalSummary.pendingCleanup
-              ? "Premiere no permitió retirar un original al primer intento; el diálogo nuevo ya quedó creado. Usa Deshacer si ves un duplicado."
-              : edited.removalSummary.disabled
-              ? "Premiere protegió el borrado de un original; quedó desactivado para que no se duplique."
-              : "Los clips originales se retiraron.") +
-            " Si quieres volver atrás, usa Deshacer en Premiere."
-          : "La pista superior muestra los diálogos conservados y el video " +
-            "original quedó desactivado.");
+        `Listo: «${built.name}» con ${built.pieces} partes con voz ` +
+        `(${formatTimecode(built.seconds)}).\n` +
+        "Tu secuencia original quedó igual. Si no te gusta el resultado, " +
+        "borra la secuencia nueva y vuelve a analizar con otros ajustes." +
+        (built.speedChanged
+          ? "\nOjo: un clip tenía la velocidad cambiada; en la secuencia nueva va a velocidad normal."
+          : "");
+      // El mismo análisis se puede volver a aplicar si hiciera falta.
+      setSilenceApplyEnabled(true);
     } catch (error) {
       const diagnosticPath = await recordSilenceOperation("apply_failed", {
-        mode: silenceMode.value,
         error: error.message || String(error),
         analyzedClips: silenceAnalyses.map((item) => item.clip.name)
       });
       silenceStatus.textContent =
         `No se pudo aplicar: ${error.message || String(error)}\n` +
-        "Revisa la secuencia y usa Deshacer si Premiere alcanzó a crear algún bloque." +
+        "Tu secuencia original no se modificó." +
         (diagnosticPath ? `\nRegistro para diagnóstico: ${diagnosticPath}` : "");
       setSilenceApplyEnabled(true);
     } finally {
@@ -4872,7 +4121,7 @@ let silenceDiagnosticLogs = [];
     sensitivity, peopleMode, framing, editStyle,
     thresholdPreset, thresholdInput,
     minimumSilence, minimumSilenceInput,
-    silencePadding, silencePaddingInput, silenceMode
+    silencePadding, silencePaddingInput
   };
   const applyPreset = (presetName) => {
     if (presetName === "gota") {
@@ -6763,8 +6012,8 @@ function buildLibraryPanel() {
       inserted = project.executeTransaction((compoundAction) => {
         // Insertar desplaza y puede partir clips largos en las demás pistas.
         // Overwrite únicamente coloca el recurso sobre la pista libre elegida.
-        compoundAction.addAction(editor.createOverwriteProjectItemAction(
-          projectItem, marker, videoTrackIndex, audioTrackIndex
+        compoundAction.addAction(overwriteProjectItemAction(
+          editor, projectItem, marker, videoTrackIndex, audioTrackIndex
         ));
       }, "Biblioteca Gota: colocar archivo sin desplazar la edición");
     });
