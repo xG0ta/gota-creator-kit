@@ -4,14 +4,14 @@ Herramientas para Adobe Premiere Pro: reencuadre automático, edición de silenc
 
 > Este repositorio muestra únicamente la versión actual para evitar confusiones. Las versiones anteriores están en los Releases de GitHub y no se recomiendan para instalaciones nuevas.
 
-## Descarga correcta — versión 3.3.12
+## Descarga correcta — versión 3.3.13
 
 | Tu computadora | Descarga esto | Importante |
 | --- | --- | --- |
-| **Windows** | [Instalador completo para Windows — GotaCreatorKit-3.3.12-Windows.exe](https://github.com/xG0ta/gota-creator-kit/releases/download/v3.3.12/GotaCreatorKit-3.3.12-Windows.exe) | Recomendado. Instala el panel y el motor local. También elimina copias UXP antiguas antes de instalar. |
-| **Premiere 2026 sin Creative Cloud** | [ZIP completo: EXE + CCX — GotaCreatorKit-3.3.12-Premiere-2026-sin-Creative-Cloud.zip](https://github.com/xG0ta/gota-creator-kit/releases/download/v3.3.12/GotaCreatorKit-3.3.12-Premiere-2026-sin-Creative-Cloud.zip) | Ejecuta primero el EXE y luego instala el CCX con un gestor compatible. Así también queda instalado el motor local. |
-| **macOS** | [Instalador completo para macOS — GotaCreatorKit-3.3.12-macOS.zip](https://github.com/xG0ta/gota-creator-kit/releases/download/v3.3.12/GotaCreatorKit-3.3.12-macOS.zip) | Descomprime el ZIP completo y abre **Instalar Gota Creator Kit.app**. |
-| **Premiere Pro 2021–2025.5** | [Gota Creator Kit Legacy 3.3.12 — ZXP](https://github.com/xG0ta/gota-creator-kit/releases/download/v3.3.12/GotaCreatorKit-Legacy-Premiere-2021-a-2025.5-3.3.12.zxp) | Para Premiere 2024 y anteriores. Instálalo con ZXP Installer. |
+| **Windows** | [Instalador completo para Windows — GotaCreatorKit-3.3.13-Windows.exe](https://github.com/xG0ta/gota-creator-kit/releases/download/v3.3.13/GotaCreatorKit-3.3.13-Windows.exe) | Recomendado. Instala el panel y el motor local. También elimina copias UXP antiguas antes de instalar. |
+| **Premiere 2026 sin Creative Cloud** | [ZIP completo: EXE + CCX — GotaCreatorKit-3.3.13-Premiere-2026-sin-Creative-Cloud.zip](https://github.com/xG0ta/gota-creator-kit/releases/download/v3.3.13/GotaCreatorKit-3.3.13-Premiere-2026-sin-Creative-Cloud.zip) | Ejecuta primero el EXE y luego instala el CCX con un gestor compatible. Así también queda instalado el motor local. |
+| **macOS** | [Instalador completo para macOS — GotaCreatorKit-3.3.13-macOS.zip](https://github.com/xG0ta/gota-creator-kit/releases/download/v3.3.13/GotaCreatorKit-3.3.13-macOS.zip) | Descomprime el ZIP completo y abre **Instalar Gota Creator Kit.app**. |
+| **Premiere Pro 2021–2025.5** | [Gota Creator Kit Legacy 3.3.13 — ZXP](https://github.com/xG0ta/gota-creator-kit/releases/download/v3.3.13/GotaCreatorKit-Legacy-Premiere-2021-a-2025.5-3.3.13.zxp) | Para Premiere 2024 y anteriores. Instálalo con ZXP Installer. |
 
 ## Nuevo: Gota Subtítulos — app sin Premiere
 
@@ -26,6 +26,15 @@ Nuevo: calidad «Máxima» con menos palabras equivocadas, la palabra destacada 
 | **Mac con Apple (M1, M2…)** | [GotaSubtitulos-1.1.3-macOS-AppleSilicon.zip](https://github.com/xG0ta/gota-creator-kit/releases/download/gota-subtitulos-v1.1.3/GotaSubtitulos-1.1.3-macOS-AppleSilicon.zip) |
 
 Cómo abrirla, qué necesita el título con IA (Ollama) y qué hace cada estilo: [notas de Gota Subtítulos 1.1.3](https://github.com/xG0ta/gota-creator-kit/releases/tag/gota-subtitulos-v1.1.3).
+
+## Novedades de 3.3.13
+
+- **Otras pistas al quitar silencios:** la música, las imágenes y el B-roll de otras pistas se recortan igual que la voz, así todo sigue alineado en la secuencia nueva. Si prefieres solo la voz, elige «No incluirlas en la secuencia nueva» en «Otras pistas».
+- **Marcar silencios:** pone marcadores rojos en cada silencio para que veas qué se va a quitar antes de crear la secuencia. «Quitar marcadores» los borra.
+- Los textos y gráficos hechos en Premiere y las secuencias anidadas no se copian: el panel te dice cuántos se omitieron.
+- **Reportar un error:** junta la versión, tu sistema y el final de los registros en un archivo en el Escritorio, lo copia y abre Instagram para mandarlo. No incluye tu nombre de usuario ni tus rutas.
+- Tu secuencia original sigue sin tocarse.
+- **Legacy (Premiere 2021–2025.5):** ahora avisa cuando hay una versión nueva y abre la descarga.
 
 ## Novedades de 3.3.12 (versión de prueba abierta)
 
@@ -69,7 +78,7 @@ Cómo abrirla, qué necesita el título con IA (Ollama) y qué hace cada estilo:
 ### Windows
 
 1. Cierra Premiere Pro.
-2. Ejecuta `GotaCreatorKit-3.3.12-Windows.exe`.
+2. Ejecuta `GotaCreatorKit-3.3.13-Windows.exe`.
 3. Abre Premiere y entra a **Ventana > Plugins de UXP > Gota Creator Kit**.
 
 ### macOS
