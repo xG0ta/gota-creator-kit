@@ -29,8 +29,13 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  tests:
+    name: Pruebas
+    uses: ./.github/workflows/gota-kit-pruebas.yml
+
   build:
     name: Armar y firmar
+    needs: tests
     runs-on: windows-latest
     timeout-minutes: 40
     defaults:
@@ -105,11 +110,13 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: paquetes
+          # Nombres exactos: outputs/ guarda paquetes viejos en Git y un
+          # comodín los subiría al Release (pasó con la Legacy 3.3.12).
           path: |
-            outputs/GotaCreatorKit-*-Windows.exe
-            outputs/GotaCreatorKit-*-macOS.zip
-            outputs/GotaCreatorKit-*-Premiere-2026-sin-Creative-Cloud.zip
-            outputs/GotaCreatorKit-Legacy-*.zxp
+            outputs/GotaCreatorKit-${{ steps.version.outputs.version }}-Windows.exe
+            outputs/GotaCreatorKit-${{ steps.version.outputs.version }}-macOS.zip
+            outputs/GotaCreatorKit-${{ steps.version.outputs.version }}-Premiere-2026-sin-Creative-Cloud.zip
+            outputs/GotaCreatorKit-Legacy-Premiere-2021-a-2025.5-${{ steps.version.outputs.version }}.zxp
           if-no-files-found: error
           retention-days: 7
 
@@ -141,7 +148,7 @@ jobs:
       - name: Agregar la Legacy firmada
         if: needs.build.outputs.legacy_only == 'true'
         run: |
-          gh release upload "v$VERSION" paquetes/GotaCreatorKit-Legacy-*.zxp --clobber
+          gh release upload "v$VERSION" "paquetes/GotaCreatorKit-Legacy-Premiere-2021-a-2025.5-$VERSION.zxp" --clobber
           current=$(python3 -c "import json;print(json.load(open('latest.json'))['version'])")
           if [ "$current" = "$VERSION" ]; then
             python3 tools/publish-release-docs.py "$VERSION"

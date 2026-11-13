@@ -75,6 +75,7 @@ def update_manifests(version: str, legacy: str, summary: str) -> None:
         "windowsDownloadUrl": f"{base}/GotaCreatorKit-{version}-Windows.exe",
         "macDownloadUrl": f"{base}/GotaCreatorKit-{version}-macOS.zip",
         "legacyDownloadUrl": f"{REPO}/v{legacy}/{legacy_name(legacy)}",
+        "legacyVersion": legacy,
         "notes": summary,
     }
     for relative in ("latest.json", "updates/latest.json"):

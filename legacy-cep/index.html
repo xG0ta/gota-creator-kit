@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="utf-8">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self' http://127.0.0.1:8765; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; img-src 'self' data: http://127.0.0.1:8765; media-src 'self' file: http://127.0.0.1:8765;">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' http://127.0.0.1:8765; connect-src 'self' http://127.0.0.1:8765 https://raw.githubusercontent.com; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; img-src 'self' data: http://127.0.0.1:8765; media-src 'self' file: http://127.0.0.1:8765;">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Gota Creator Kit Legacy</title>
   <link rel="stylesheet" href="css/panel.css">
@@ -13,6 +13,11 @@
       <div><h1>Gota Creator Kit <span>☔</span></h1><p>Para Premiere Pro 2021 a 2025.5</p></div>
       <span id="host-version" class="pill">Comprobando…</span>
     </header>
+    <section id="update-notice" class="notice update" hidden>
+      <strong id="update-title">Hay una versión nueva</strong>
+      <span id="update-notes"></span>
+      <button id="update-download" class="primary">Descargar la actualización</button>
+    </section>
     <section class="notice">
       <strong>Modo Legacy</strong>
       <span>Para Premiere 2021 a 2025.5. En Premiere 25.6 o posterior usa la edición moderna (UXP), que además trae el reencuadre automático.</span>

@@ -1,0 +1,59 @@
+# Pruebas automáticas del plugin y del motor. Corren en cada cambio a main
+# y antes de publicar una versión (gota-kit-release.yml las llama).
+#
+#  - Motor (Python): pruebas de service/ y service_v2/.
+#  - Panel: revisa la sintaxis de plugin/main.js y del panel Legacy, y corre
+#    la simulación de «Quitar silencios» (tools/premiere-sim). La simulación
+#    NO sustituye probar dentro de Premiere.
+name: Gota Kit (pruebas)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "plugin/**"
+      - "legacy-cep/**"
+      - "service/**"
+      - "service_v2/**"
+      - "tools/premiere-sim/**"
+      - ".github/workflows/gota-kit-pruebas.yml"
+  pull_request:
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  motor:
+    name: Motor (Python)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Dependencias de las pruebas
+        run: pip install Pillow "imageio-ffmpeg>=0.6,<1" "cryptography==44.0.3" "requests>=2.31,<3"
+      - name: Pruebas
+        run: |
+          python -m compileall -q service service_v2
+          modules=$(ls service/tests/test_*.py service_v2/tests/test_*.py | sed 's/\.py$//; s#/#.#g')
+          python -m unittest -v $modules
+
+  panel:
+    name: Panel (JavaScript)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Sintaxis
+        run: |
+          node --check plugin/main.js
+          for f in legacy-cep/js/*.js; do node --check "$f"; done
+      - name: Simulación de «Quitar silencios»
+        run: python3 tools/premiere-sim/run.py

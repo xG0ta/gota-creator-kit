@@ -57,5 +57,41 @@
   $('add-root').onclick=chooseFolder; $('search').oninput=renderFiles;
   $('place').onclick=function(){ if(!selectedFile)return; setStatus('Añadiendo recurso…'); evalHost('$._GotaLegacy.importAtPlayhead('+escapeJs(selectedFile)+')',function(result){ try { var data=JSON.parse(result); setStatus(data.ok ? data.message : data.message,true); } catch (_) { setStatus('Premiere no confirmó la colocación.',true); } }); };
   $('check-engine').onclick=function(){ fetch('http://127.0.0.1:8765/health').then(function(r){return r.json()}).then(function(){ $('engine-status').textContent='Motor local conectado y listo.'; }).catch(function(){ $('engine-status').textContent='El motor local no responde. Ejecuta el instalador completo de Gota Creator Kit.'; }); };
-  loadRoots(); renderRoots(); if(roots.length){currentFolder=roots[0];renderFiles();} checkHost();
+  // Aviso de actualización: lee updates/latest.json del repo (el mismo que usa
+  // el panel moderno) y lo compara con la versión de este manifest.
+  var LATEST_URL = 'https://raw.githubusercontent.com/xG0ta/gota-creator-kit/main/updates/latest.json';
+  function ownVersion() {
+    try {
+      // file:///C:/… en Windows, file:///Library/… en Mac.
+      var folder = cep.getSystemPath('extension').replace(/^file:\/\//, '').replace(/^\/([A-Za-z]:)/, '$1');
+      var read = cepFs.readFile(decodeURIComponent(folder) + '/CSXS/manifest.xml');
+      var match = read && read.err === 0 && /ExtensionBundleVersion="([\d.]+)"/.exec(read.data);
+      return match ? match[1] : '';
+    } catch (_) { return ''; }
+  }
+  function newer(remote, local) {
+    var a = String(remote).split('.'), b = String(local).split('.');
+    for (var i = 0; i < Math.max(a.length, b.length); i++) {
+      var x = parseInt(a[i] || '0', 10), y = parseInt(b[i] || '0', 10);
+      if (x !== y) return x > y;
+    }
+    return false;
+  }
+  function checkUpdates() {
+    var local = ownVersion();
+    if (!local) return;
+    fetch(LATEST_URL + '?t=' + Date.now()).then(function (r) { return r.json(); }).then(function (data) {
+      var remote = data.legacyVersion || '';
+      var url = data.legacyDownloadUrl || '';
+      if (!remote && url) { var m = /-(\d+\.\d+\.\d+)\.zxp$/.exec(url); remote = m ? m[1] : ''; }
+      if (!remote || !url || !newer(remote, local)) return;
+      $('update-title').textContent = 'Hay una versión nueva: ' + remote + ' (tienes ' + local + ')';
+      $('update-notes').textContent = (data.notes || '') + ' Descarga el ZXP e instálalo con ZXP Installer.';
+      $('update-download').onclick = function () {
+        if (window.cep && window.cep.util && window.cep.util.openURLInDefaultBrowser) window.cep.util.openURLInDefaultBrowser(url);
+      };
+      $('update-notice').hidden = false;
+    }).catch(function () {});
+  }
+  loadRoots(); renderRoots(); if(roots.length){currentFolder=roots[0];renderFiles();} checkHost(); checkUpdates();
 }());
