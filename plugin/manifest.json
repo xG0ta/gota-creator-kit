@@ -2,7 +2,7 @@
   "manifestVersion": 5,
   "id": "com.autoframe.faces.dev",
   "name": "Gota Creator Kit ☔",
-  "version": "3.3.12",
+  "version": "3.3.13",
   "main": "main.js",
   "host": {
     "app": "premierepro",
@@ -37,6 +37,7 @@
       "schemes": ["https"],
       "extensions": [".zip", ".exe"]
     },
-    "localFileSystem": "request"
+    "localFileSystem": "request",
+    "clipboard": "readAndWrite"
   }
 }

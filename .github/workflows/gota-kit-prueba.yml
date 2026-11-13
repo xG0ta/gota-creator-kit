@@ -39,6 +39,9 @@ jobs:
       - name: Panel, motor y paquete de macOS
         run: ./tools/Build-ReleasePackages.ps1 -Version ${{ steps.version.outputs.version }}
 
+      - name: Revisar el ZIP de macOS
+        run: python tools/check-mac-zip.py "outputs/GotaCreatorKit-${{ steps.version.outputs.version }}-macOS.zip" ${{ steps.version.outputs.version }}
+
       - name: Instalador de Windows
         run: |
           $version = '${{ steps.version.outputs.version }}'

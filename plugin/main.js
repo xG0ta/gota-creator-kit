@@ -4,7 +4,7 @@ const os = require("os");
 const localFileSystem = storage.localFileSystem;
 
 const SERVICE_URL = "http://127.0.0.1:8765";
-const CURRENT_VERSION = "3.3.12";
+const CURRENT_VERSION = "3.3.13";
 const UPDATE_MANIFEST_URL =
   "https://api.github.com/repos/xG0ta/gota-creator-kit/contents/latest.json?ref=main";
 const OUTPUT_WIDTH = 1080;
@@ -1793,8 +1793,10 @@ async function emptySequence(project, sequence) {
   }
 }
 
-async function lastEndOnTrack(sequence, kind) {
-  const track = kind === "video" ? await sequence.getVideoTrack(0) : await sequence.getAudioTrack(0);
+async function lastEndOnTrack(sequence, kind, trackIndex = 0) {
+  const track = kind === "video"
+    ? await sequence.getVideoTrack(trackIndex)
+    : await sequence.getAudioTrack(trackIndex);
   if (!track) return null;
   const items = track.getTrackItems(ppro.Constants.TrackItemType.CLIP, false);
   let end = null;
@@ -1808,31 +1810,128 @@ async function lastEndOnTrack(sequence, kind) {
   return end;
 }
 
-async function buildSequenceWithoutSilences(project, sequence, analyses, onProgress = () => {}) {
+// Lee los clips de las demás pistas (música, títulos, B-roll) para recortarlos
+// junto con la voz. Solo se pueden copiar los que vienen de un archivo; los
+// textos, gráficos y secuencias anidadas se cuentan como omitidos.
+async function collectOtherTrackClips(sequence, analyses) {
+  const isAnalyzed = (kind, trackIndex, path, start, end) => analyses.some(({ clip }) => {
+    const sameTrack = kind === "video"
+      ? clip.mediaKind !== "audio" && clip.trackIndex === trackIndex
+      : clip.audioTrackIndex === trackIndex;
+    return sameTrack &&
+      String(clip.mediaPath).toLowerCase() === path &&
+      start < clip.endSeconds - 0.01 && end > clip.startSeconds + 0.01;
+  });
+  const others = [];
+  let skipped = 0;
+  for (const kind of ["video", "audio"]) {
+    const count = kind === "video"
+      ? await sequence.getVideoTrackCount()
+      : await sequence.getAudioTrackCount();
+    for (let trackIndex = 0; trackIndex < count; trackIndex += 1) {
+      const track = kind === "video"
+        ? await sequence.getVideoTrack(trackIndex)
+        : await sequence.getAudioTrack(trackIndex);
+      if (!track) continue;
+      for (const item of track.getTrackItems(ppro.Constants.TrackItemType.CLIP, false)) {
+        try {
+          const start = (await item.getStartTime()).seconds;
+          const end = (await item.getEndTime()).seconds;
+          let projectItem = null;
+          let path = "";
+          try {
+            projectItem = ppro.ClipProjectItem.cast(await item.getProjectItem());
+            path = String(await projectItem.getMediaFilePath() || "").toLowerCase();
+          } catch (_) { /* no viene de un archivo */ }
+          if (path && isAnalyzed(kind, trackIndex, path, start, end)) continue;
+          if (!path) { skipped += 1; continue; }
+          others.push({
+            kind, trackIndex, start, end, path, projectItem,
+            inPoint: (await item.getInPoint()).seconds
+          });
+        } catch (_) {
+          skipped += 1;
+        }
+      }
+    }
+  }
+  return { others, skipped };
+}
+
+async function saveProjectItemMarks(projectItem) {
+  for (const type of [ppro.Constants.MediaType.VIDEO, ppro.Constants.MediaType.AUDIO]) {
+    try {
+      const inPoint = await projectItem.getInPoint(type);
+      const outPoint = await projectItem.getOutPoint(type);
+      if (outPoint.seconds > inPoint.seconds) return { inPoint, outPoint };
+    } catch (_) { /* se prueba con el otro tipo */ }
+  }
+  return null;
+}
+
+async function placeMarkedRange(project, editor, projectItem, inSeconds, outSeconds, atSeconds, videoTrack, audioTrack) {
+  const marked = runPremiereTransaction(project, "Gota Kit: marcar parte", (compoundAction) => {
+    compoundAction.addAction(projectItem.createSetInOutPointsAction(
+      ppro.TickTime.createWithSeconds(inSeconds),
+      ppro.TickTime.createWithSeconds(outSeconds)
+    ));
+  });
+  if (!marked) throw new Error("Premiere no aceptó las marcas.");
+  const placed = runPremiereTransaction(project, "Gota Kit: colocar parte", (compoundAction) => {
+    compoundAction.addAction(overwriteProjectItemAction(
+      editor, projectItem, ppro.TickTime.createWithSeconds(atSeconds), videoTrack, audioTrack
+    ));
+  });
+  if (!placed) throw new Error("Premiere no pudo colocar la parte.");
+}
+
+async function buildSequenceWithoutSilences(project, sequence, analyses, onProgress = () => {}, options = {}) {
+  const includeOthers = options.includeOtherTracks !== false;
   const ordered = [...analyses].sort((left, right) => left.clip.startSeconds - right.clip.startSeconds);
   const pieces = [];
   const sources = new Map();
+  const remember = (path, projectItem) => {
+    if (!sources.has(path)) sources.set(path, { projectItem, saved: null });
+    return path;
+  };
   let speedChanged = false;
   for (const analysis of ordered) {
+    const clip = analysis.clip;
     const kept = (analysis.result.keptSegments || []).filter(
       (segment) => segment.endSeconds - segment.startSeconds >= 0.04
     );
     if (!kept.length) continue;
-    if (Math.abs(Number(analysis.clip.sourceToTimelineScale || 1) - 1) > 0.01) speedChanged = true;
-    const projectItem = await findSilenceSourceProjectItem(sequence, analysis.clip);
-    if (!projectItem) throw new Error(`No encontré ${analysis.clip.name} en el proyecto.`);
-    const key = String(analysis.clip.mediaPath).toLowerCase();
-    if (!sources.has(key)) sources.set(key, { projectItem, saved: null });
+    const scale = Number(clip.sourceToTimelineScale || 1);
+    if (Math.abs(scale - 1) > 0.01) speedChanged = true;
+    const projectItem = await findSilenceSourceProjectItem(sequence, clip);
+    if (!projectItem) throw new Error(`No encontré ${clip.name} en el proyecto.`);
+    const key = remember(String(clip.mediaPath).toLowerCase(), projectItem);
+    const audioOnly = clip.mediaKind === "audio";
     for (const segment of kept) {
       pieces.push({
         key,
-        audioOnly: analysis.clip.mediaKind === "audio",
+        audioOnly,
+        videoTrack: audioOnly ? -1 : (Number.isInteger(clip.trackIndex) ? clip.trackIndex : 0),
+        audioTrack: Number.isInteger(clip.audioTrackIndex) ? clip.audioTrackIndex : 0,
         inSeconds: segment.startSeconds,
-        outSeconds: segment.endSeconds
+        outSeconds: segment.endSeconds,
+        // Tramo que ocupaba en la secuencia original (para las demás pistas).
+        timelineStart: clip.startSeconds + (segment.startSeconds - clip.inPointSeconds) * scale,
+        timelineEnd: clip.startSeconds + (segment.endSeconds - clip.inPointSeconds) * scale
       });
     }
   }
   if (!pieces.length) throw new Error("No quedó ninguna parte con voz; la secuencia no se modificó.");
+
+  let others = [];
+  let skippedOthers = 0;
+  if (includeOthers) {
+    onProgress("Leyendo las demás pistas…");
+    const collected = await collectOtherTrackClips(sequence, ordered);
+    others = collected.others;
+    skippedOthers = collected.skipped;
+    for (const other of others) remember(other.path, other.projectItem);
+  }
 
   // Premiere puede cerrarse si el monitor de origen tiene abierto el clip
   // mientras se cambian sus marcas (error conocido de 26.x).
@@ -1854,16 +1953,12 @@ async function buildSequenceWithoutSilences(project, sequence, analyses, onProgr
   } catch (_) { /* conserva el nombre que le dio Premiere */ }
   await emptySequence(project, copy);
 
-  for (const source of sources.values()) {
-    try {
-      const inPoint = await source.projectItem.getInPoint(ppro.Constants.MediaType.VIDEO);
-      const outPoint = await source.projectItem.getOutPoint(ppro.Constants.MediaType.VIDEO);
-      if (outPoint.seconds > inPoint.seconds) source.saved = { inPoint, outPoint };
-    } catch (_) { /* sin marcas previas */ }
-  }
+  for (const source of sources.values()) source.saved = await saveProjectItemMarks(source.projectItem);
 
   const editor = ppro.SequenceEditor.getEditor(copy);
   let cursor = 0;
+  let otherPlaced = 0;
+  let otherFailed = 0;
   try {
     for (let index = 0; index < pieces.length; index += 1) {
       const piece = pieces[index];
@@ -1871,29 +1966,48 @@ async function buildSequenceWithoutSilences(project, sequence, analyses, onProgr
       if (index % 5 === 0 || index + 1 === pieces.length) {
         onProgress(`Uniendo partes con voz: ${index + 1}/${pieces.length}…`);
       }
-      const marked = runPremiereTransaction(project, "Gota Kit: marcar parte con voz", (compoundAction) => {
-        compoundAction.addAction(projectItem.createSetInOutPointsAction(
-          ppro.TickTime.createWithSeconds(piece.inSeconds),
-          ppro.TickTime.createWithSeconds(piece.outSeconds)
-        ));
-      });
-      if (!marked) throw new Error(`Premiere no aceptó las marcas de la parte ${index + 1}.`);
-      const placed = runPremiereTransaction(project, "Gota Kit: colocar parte con voz", (compoundAction) => {
-        compoundAction.addAction(overwriteProjectItemAction(
-          editor, projectItem, ppro.TickTime.createWithSeconds(cursor),
-          piece.audioOnly ? -1 : 0, 0
-        ));
-      });
-      if (!placed) throw new Error(`Premiere no pudo colocar la parte ${index + 1}.`);
+      const pieceStart = cursor;
+      try {
+        await placeMarkedRange(
+          project, editor, projectItem, piece.inSeconds, piece.outSeconds,
+          pieceStart, piece.videoTrack, piece.audioTrack
+        );
+      } catch (error) {
+        throw new Error(`Parte ${index + 1}: ${error.message || error}`);
+      }
       // El final real (ajustado a cuadros por Premiere) es el inicio de la
       // siguiente parte: así no quedan huecos ni se pisan.
-      const end = await lastEndOnTrack(copy, piece.audioOnly ? "audio" : "video");
-      const expected = cursor + (piece.outSeconds - piece.inSeconds);
+      const end = await lastEndOnTrack(
+        copy, piece.audioOnly ? "audio" : "video",
+        piece.audioOnly ? piece.audioTrack : piece.videoTrack
+      );
+      const expected = pieceStart + (piece.outSeconds - piece.inSeconds);
       cursor = end !== null && Math.abs(end - expected) < 0.5 ? end : expected;
+
+      // Lo que sonaba o se veía en las demás pistas durante esta parte se
+      // recorta igual y se coloca en su misma pista.
+      for (const other of others) {
+        const from = Math.max(other.start, piece.timelineStart);
+        const to = Math.min(other.end, piece.timelineEnd, piece.timelineStart + (cursor - pieceStart));
+        if (to - from < 0.02) continue;
+        const source = sources.get(other.path);
+        try {
+          await placeMarkedRange(
+            project, editor, source.projectItem,
+            other.inPoint + (from - other.start), other.inPoint + (to - other.start),
+            pieceStart + (from - piece.timelineStart),
+            other.kind === "video" ? other.trackIndex : -1,
+            other.kind === "audio" ? other.trackIndex : -1
+          );
+          otherPlaced += 1;
+        } catch (_) {
+          otherFailed += 1;
+        }
+      }
       if (index % 10 === 9) await pauseForPremiere(30);
     }
   } finally {
-    // Las marcas del clip vuelven a como estaban (o se limpian).
+    // Las marcas de cada clip vuelven a como estaban (o se limpian).
     for (const source of sources.values()) {
       try {
         runPremiereTransaction(project, "Gota Kit: restaurar marcas del clip", (compoundAction) => {
@@ -1908,7 +2022,63 @@ async function buildSequenceWithoutSilences(project, sequence, analyses, onProgr
   try { await project.openSequence(copy); } catch (_) {
     try { await project.setActiveSequence(copy); } catch (__) { /* el usuario la abre */ }
   }
-  return { sequence: copy, name: copyName, pieces: pieces.length, seconds: cursor, speedChanged };
+  return {
+    sequence: copy, name: copyName, pieces: pieces.length, seconds: cursor, speedChanged,
+    otherPlaced, otherFailed, skippedOthers
+  };
+}
+
+// Vista previa: marcadores rojos en la secuencia original donde se cortará.
+const SILENCE_MARKER_NAME = "Silencio (Gota)";
+
+async function clearSilenceMarkers(project, sequence) {
+  const markers = await ppro.Markers.getMarkers(sequence);
+  const ours = [];
+  for (const marker of markers.getMarkers()) {
+    try { if (String(await marker.getName()) === SILENCE_MARKER_NAME) ours.push(marker); } catch (_) { /* inválido */ }
+  }
+  if (!ours.length) return 0;
+  runPremiereTransaction(project, "Gota Kit: quitar marcadores de silencio", (compoundAction) => {
+    for (const marker of ours) compoundAction.addAction(markers.createRemoveMarkerAction(marker));
+  });
+  return ours.length;
+}
+
+async function markSilencesInSequence(project, sequence, analyses) {
+  await clearSilenceMarkers(project, sequence);
+  const markers = await ppro.Markers.getMarkers(sequence);
+  const ranges = [];
+  for (const { clip, result } of analyses) {
+    const scale = Number(clip.sourceToTimelineScale || 1);
+    for (const silence of result.silences || []) {
+      const start = clip.startSeconds + (silence.startSeconds - clip.inPointSeconds) * scale;
+      const duration = (silence.endSeconds - silence.startSeconds) * scale;
+      if (duration > 0.01) ranges.push([start, duration]);
+    }
+  }
+  if (!ranges.length) return 0;
+  const added = runPremiereTransaction(project, "Gota Kit: marcar silencios", (compoundAction) => {
+    for (const [start, duration] of ranges) {
+      compoundAction.addAction(markers.createAddMarkerAction(
+        SILENCE_MARKER_NAME, "Comment",
+        ppro.TickTime.createWithSeconds(start), ppro.TickTime.createWithSeconds(duration),
+        `Se quitará: ${duration.toFixed(2)} s`
+      ));
+    }
+  });
+  if (!added) throw new Error("Premiere no pudo agregar los marcadores.");
+  // Rojo (índice 1) para que se distingan de los marcadores propios.
+  try {
+    const fresh = await ppro.Markers.getMarkers(sequence);
+    const ours = [];
+    for (const marker of fresh.getMarkers()) {
+      if (String(await marker.getName()) === SILENCE_MARKER_NAME) ours.push(marker);
+    }
+    runPremiereTransaction(project, "Gota Kit: color de marcadores", (compoundAction) => {
+      for (const marker of ours) compoundAction.addAction(marker.createSetColorByIndexAction(1));
+    });
+  } catch (_) { /* quedan con el color por omisión */ }
+  return ranges.length;
 }
 
 function makeElement(tag, text) {
@@ -2453,6 +2623,18 @@ function buildPanel() {
     silencePadding.value = option ? option.value : "custom";
   });
 
+  const silenceOthersLabel = makeElement("label", "Otras pistas (música, títulos, B-roll)");
+  const silenceOthers = makeElement("select");
+  [
+    ["trim", "Recortarlas junto con la voz"],
+    ["skip", "No incluirlas en la secuencia nueva"]
+  ].forEach(([value, label]) => {
+    const option = makeElement("option", label);
+    option.value = value;
+    silenceOthers.appendChild(option);
+  });
+  silenceOthersLabel.appendChild(silenceOthers);
+  silenceBody.appendChild(silenceOthersLabel);
 
   const analyzeSilence = makeElement("div", "Analizar silencios");
   analyzeSilence.setAttribute("role", "button");
@@ -2479,6 +2661,30 @@ function buildPanel() {
   applySilence.style.opacity = "0.55";
   applySilence.style.cursor = "default";
   silenceBody.appendChild(applySilence);
+
+  // Vista previa sin editar nada: marcadores rojos donde se cortará.
+  const silenceMarkRow = makeElement("div");
+  silenceMarkRow.style.display = "flex";
+  silenceMarkRow.style.gap = "6px";
+  const makeSmallSilenceButton = (label) => {
+    const button = makeElement("div", label);
+    button.setAttribute("role", "button");
+    button.style.flex = "1";
+    button.style.height = "28px";
+    button.style.display = "flex";
+    button.style.alignItems = "center";
+    button.style.justifyContent = "center";
+    button.style.borderRadius = "7px";
+    button.style.border = "1px solid #555555";
+    button.style.backgroundColor = "#292929";
+    button.style.fontSize = "10px";
+    button.style.cursor = "pointer";
+    silenceMarkRow.appendChild(button);
+    return button;
+  };
+  const markSilences = makeSmallSilenceButton("Marcar silencios");
+  const unmarkSilences = makeSmallSilenceButton("Quitar marcadores");
+  silenceBody.appendChild(silenceMarkRow);
 
   const silenceStatus = makeElement(
     "div", "Selecciona uno o más clips para analizar."
@@ -3565,6 +3771,96 @@ function buildPanel() {
   updateNotice.style.textAlign = "center";
   panel.appendChild(updateNotice);
 
+  // Reportar un error: junta versión, sistema, el último mensaje de cada
+  // herramienta y los registros del motor, lo copia y lo deja como archivo
+  // en el Escritorio para mandarlo por mensaje.
+  const reportButton = makeElement("div", "🐞 Reportar un error");
+  reportButton.setAttribute("role", "button");
+  reportButton.setAttribute("tabindex", "0");
+  reportButton.style.height = "30px";
+  reportButton.style.display = "flex";
+  reportButton.style.alignItems = "center";
+  reportButton.style.justifyContent = "center";
+  reportButton.style.marginTop = "6px";
+  reportButton.style.border = "1px solid #555555";
+  reportButton.style.borderRadius = "7px";
+  reportButton.style.backgroundColor = "#292929";
+  reportButton.style.color = "#d5d5d5";
+  reportButton.style.cursor = "pointer";
+  reportButton.style.userSelect = "none";
+  panel.appendChild(reportButton);
+  const reportStatus = makeElement("div");
+  reportStatus.style.display = "none";
+  reportStatus.style.padding = "7px 8px";
+  reportStatus.style.backgroundColor = "#20252b";
+  reportStatus.style.borderRadius = "6px";
+  reportStatus.style.color = "#c7c7c7";
+  reportStatus.style.fontSize = "10px";
+  reportStatus.style.whiteSpace = "pre-wrap";
+  panel.appendChild(reportStatus);
+  const sendReport = makeElement("div", "Enviar por Instagram");
+  sendReport.setAttribute("role", "button");
+  sendReport.style.display = "none";
+  sendReport.style.height = "28px";
+  sendReport.style.alignItems = "center";
+  sendReport.style.justifyContent = "center";
+  sendReport.style.marginTop = "4px";
+  sendReport.style.borderRadius = "7px";
+  sendReport.style.backgroundColor = "#1473e6";
+  sendReport.style.color = "#ffffff";
+  sendReport.style.cursor = "pointer";
+  panel.appendChild(sendReport);
+  const panelReportText = () => {
+    const read = (getter) => { try { return String(getter() || "").trim(); } catch (_) { return ""; } };
+    let host = "";
+    try { host = `${require("uxp").host.name} ${require("uxp").host.version}`; } catch (_) { /* sin datos */ }
+    return [
+      `Panel: ${CURRENT_VERSION}`,
+      `Premiere: ${host || "desconocido"}`,
+      `Sistema del panel: ${read(() => os.platform())}`,
+      `Eliminar silencios: ${read(() => silenceStatus.textContent) || "(sin usar)"}`,
+      `Subtítulos: ${read(() => captionsStatus.textContent) || "(sin usar)"}`
+    ].join("\n");
+  };
+  reportButton.addEventListener("click", async () => {
+    if (reportButton.dataset.busy === "true") return;
+    reportButton.dataset.busy = "true";
+    reportStatus.style.display = "block";
+    reportStatus.textContent = "Preparando el reporte…";
+    let text = `Reporte de Gota Creator Kit (sin motor local)\n${panelReportText()}`;
+    let savedPath = "";
+    try {
+      const response = await fetch(`${SERVICE_URL}/v1/support-report`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ panel: panelReportText() })
+      });
+      if (response.ok) {
+        const payload = await response.json();
+        text = String(payload.text || text);
+        savedPath = String(payload.path || "");
+      }
+    } catch (_) { /* el motor no responde: se manda lo que sabe el panel */ }
+    let copied = false;
+    try {
+      await navigator.clipboard.setContent({ "text/plain": text });
+      copied = true;
+    } catch (_) { /* sin permiso de portapapeles */ }
+    reportStatus.textContent =
+      (copied ? "Reporte copiado. Pégalo en un mensaje y cuéntame qué estabas haciendo." : "No pude copiar el reporte.") +
+      (savedPath ? `\nTambién quedó guardado en:\n${savedPath}` : "");
+    sendReport.style.display = "flex";
+    reportButton.dataset.busy = "false";
+  });
+  sendReport.addEventListener("click", async () => {
+    try {
+      const result = await shell.openExternal("https://ig.me/m/jahir.emm");
+      if (result) throw new Error(String(result));
+    } catch (error) {
+      reportStatus.textContent += `\nNo se pudo abrir Instagram: ${error.message || String(error)}`;
+    }
+  });
+
   const footer = makeElement("div", "¡Entérate de las novedades!");
   footer.style.marginTop = "8px";
   footer.style.paddingTop = "10px";
@@ -3742,7 +4038,8 @@ let silenceDiagnosticLogs = [];
   }
 
   function setSilenceApplyEnabled(enabled) {
-    applySilence.textContent = "Aplicar resultado a la secuencia activa";
+    applySilence.textContent = "Crear secuencia sin silencios";
+    markSilences.style.opacity = enabled ? "1" : "0.55";
     applySilence.style.backgroundColor = enabled ? "#20a464" : "#555555";
     applySilence.style.opacity = enabled ? "1" : "0.55";
     applySilence.style.cursor = enabled ? "pointer" : "default";
@@ -3944,7 +4241,8 @@ let silenceDiagnosticLogs = [];
       });
       const built = await buildSequenceWithoutSilences(
         silenceProject, silenceSequence, silenceAnalyses,
-        (message) => { silenceStatus.textContent = message; }
+        (message) => { silenceStatus.textContent = message; },
+        { includeOtherTracks: silenceOthers.value !== "skip" }
       );
       await recordSilenceOperation("build_completed", {
         pieces: built.pieces, seconds: built.seconds
@@ -3954,6 +4252,10 @@ let silenceDiagnosticLogs = [];
         `(${formatTimecode(built.seconds)}).\n` +
         "Tu secuencia original quedó igual. Si no te gusta el resultado, " +
         "borra la secuencia nueva y vuelve a analizar con otros ajustes." +
+        (built.otherPlaced ? `\nOtras pistas: ${built.otherPlaced} partes recortadas junto con la voz.` : "") +
+        (built.otherFailed + built.skippedOthers
+          ? `\n${built.otherFailed + built.skippedOthers} elementos de otras pistas (textos, gráficos o secuencias anidadas) no se pudieron copiar: agrégalos a mano.`
+          : "") +
         (built.speedChanged
           ? "\nOjo: un clip tenía la velocidad cambiada; en la secuencia nueva va a velocidad normal."
           : "");
@@ -3969,6 +4271,41 @@ let silenceDiagnosticLogs = [];
         "Tu secuencia original no se modificó." +
         (diagnosticPath ? `\nRegistro para diagnóstico: ${diagnosticPath}` : "");
       setSilenceApplyEnabled(true);
+    } finally {
+      setSilenceBusy(false);
+    }
+  });
+
+  markSilences.addEventListener("click", async () => {
+    if (silenceBusy || !silenceAnalyses.length) return;
+    setSilenceBusy(true);
+    try {
+      const project = await ppro.Project.getActiveProject();
+      const sequence = project ? await project.getActiveSequence() : null;
+      if (!sequence) throw new Error("Abre la secuencia que analizaste.");
+      const count = await markSilencesInSequence(project, sequence, silenceAnalyses);
+      silenceStatus.textContent =
+        `Marqué ${count} silencios en rojo en «${sequence.name}». Así ves qué se quitará; ` +
+        "tu edición no cambió. Si te gusta, presiona «Crear secuencia sin silencios».";
+    } catch (error) {
+      silenceStatus.textContent = `No se pudieron marcar: ${error.message || String(error)}`;
+    } finally {
+      setSilenceBusy(false);
+    }
+  });
+  unmarkSilences.addEventListener("click", async () => {
+    if (silenceBusy) return;
+    setSilenceBusy(true);
+    try {
+      const project = await ppro.Project.getActiveProject();
+      const sequence = project ? await project.getActiveSequence() : null;
+      if (!sequence) throw new Error("Abre una secuencia.");
+      const count = await clearSilenceMarkers(project, sequence);
+      silenceStatus.textContent = count
+        ? `Quité ${count} marcadores de silencio de «${sequence.name}».`
+        : "Esta secuencia no tiene marcadores de silencio de Gota.";
+    } catch (error) {
+      silenceStatus.textContent = `No se pudieron quitar: ${error.message || String(error)}`;
     } finally {
       setSilenceBusy(false);
     }
@@ -4121,7 +4458,7 @@ let silenceDiagnosticLogs = [];
     sensitivity, peopleMode, framing, editStyle,
     thresholdPreset, thresholdInput,
     minimumSilence, minimumSilenceInput,
-    silencePadding, silencePaddingInput
+    silencePadding, silencePaddingInput, silenceOthers
   };
   const applyPreset = (presetName) => {
     if (presetName === "gota") {

@@ -52,7 +52,7 @@ from service.hybrid_license import (
     remove_license,
 )
 
-APP_VERSION = "3.3.12"
+APP_VERSION = "3.3.13"
 # Increment this whenever the binary contents of generated caption MOGRTs
 # change.  Including it in the cache key prevents an older cached MOGRT (with
 # the placeholder text) from being reused after an update.
@@ -1525,6 +1525,71 @@ def health():
         "engineVersion": APP_VERSION,
         "silenceDiagnosticsPath": str(SILENCE_DIAGNOSTIC_LOG),
     }
+
+
+class SupportReportRequest(BaseModel):
+    panel: str = Field(default="", max_length=20_000)
+
+
+def _tail_lines(path: Path, count: int) -> list[str]:
+    try:
+        with path.open("r", encoding="utf-8", errors="replace") as handle:
+            return handle.readlines()[-count:]
+    except OSError:
+        return []
+
+
+def build_support_report(panel_text: str = "") -> str:
+    """Texto para soporte: versión, sistema y lo último de los registros.
+
+    Se quitan la carpeta personal y el nombre de usuario de las rutas: el
+    reporte se manda por mensaje a otra persona.
+    """
+    import platform
+
+    logs = [
+        SILENCE_DIAGNOSTIC_LOG,
+        SILENCE_DIAGNOSTIC_LOG.with_name("autoframe-service.log"),
+        Path(__file__).resolve().parents[1] / "autoframe-service.log",
+    ]
+    seen: set[Path] = set()
+    parts = [
+        "Reporte de Gota Creator Kit",
+        f"Motor: {APP_VERSION}",
+        f"Sistema: {platform.system()} {platform.release()} ({platform.machine()})",
+        f"Python: {platform.python_version()}",
+    ]
+    if panel_text.strip():
+        parts += ["", "== Panel ==", panel_text.strip()]
+    for log in logs:
+        resolved = log.resolve()
+        if resolved in seen or not log.exists():
+            continue
+        seen.add(resolved)
+        lines = _tail_lines(log, 80)
+        if lines:
+            parts += ["", f"== {log.name} (últimas {len(lines)} líneas) ==", "".join(lines).rstrip()]
+    text = "\n".join(parts) + "\n"
+    home = str(Path.home())
+    text = text.replace(home, "~").replace(home.replace("\\", "/"), "~")
+    user = os.environ.get("USER") or os.environ.get("USERNAME") or ""
+    if len(user) >= 3:
+        text = text.replace(user, "usuario")
+    return text
+
+
+@app.post("/v1/support-report")
+def support_report(request: SupportReportRequest):
+    text = build_support_report(request.panel)
+    desktop = Path.home() / "Desktop"
+    folder = desktop if desktop.is_dir() else Path.home()
+    path = folder / "Gota Creator Kit - reporte de error.txt"
+    try:
+        path.write_text(text, encoding="utf-8")
+        saved = str(path)
+    except OSError:
+        saved = ""
+    return {"text": text, "path": saved}
 
 
 @app.get("/v1/system-fonts")

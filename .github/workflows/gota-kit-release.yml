@@ -1,0 +1,157 @@
+# Publica una versión del plugin en un solo paso.
+#
+#  1. Sube a main los números de versión (python3 tools/build-mac-package.py X.Y.Z
+#     los cambia todos) y las notas en updates/notas/X.Y.Z.md.
+#  2. Sube la etiqueta vX.Y.Z.
+#
+# GitHub arma Windows, macOS, el ZIP sin Creative Cloud y la Legacy FIRMADA,
+# crea el Release (marcado como «Latest»), y actualiza latest.json (el aviso de
+# actualización del panel) y el encabezado del README.
+#
+# «Run workflow» con una versión ya publicada solo firma y agrega su Legacy
+# (útil para la 3.3.12, que salió sin Legacy firmada).
+name: Gota Kit (publicar versión)
+
+on:
+  push:
+    tags: ["v[0-9]+.[0-9]+.[0-9]+"]
+  workflow_dispatch:
+    inputs:
+      legacy_version:
+        description: "Solo firmar y agregar la Legacy de esta versión ya publicada (p. ej. 3.3.12)"
+        required: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: gota-kit-release
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Armar y firmar
+    runs-on: windows-latest
+    timeout-minutes: 40
+    defaults:
+      run:
+        shell: pwsh
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      legacy_only: ${{ steps.version.outputs.legacy_only }}
+    steps:
+      - name: Versión
+        id: version
+        run: |
+          if ('${{ github.event_name }}' -eq 'workflow_dispatch') {
+            $version = '${{ github.event.inputs.legacy_version }}'
+            "legacy_only=true" >> $env:GITHUB_OUTPUT
+          } else {
+            $version = '${{ github.ref_name }}' -replace '^v', ''
+            "legacy_only=false" >> $env:GITHUB_OUTPUT
+          }
+          if ($version -notmatch '^\d+\.\d+\.\d+$') { throw "Versión inválida: $version" }
+          "version=$version" >> $env:GITHUB_OUTPUT
+
+      # Versión nueva: todo sale de la etiqueta. Solo Legacy: las herramientas
+      # salen de main (la etiqueta puede ser anterior a ellas) y el panel
+      # Legacy, de la etiqueta ya publicada.
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.version.outputs.legacy_only == 'true' && 'main' || format('v{0}', steps.version.outputs.version) }}
+          fetch-depth: 0
+
+      - name: Panel Legacy de la versión publicada
+        if: steps.version.outputs.legacy_only == 'true'
+        run: |
+          git checkout "v${{ steps.version.outputs.version }}" -- legacy-cep
+          $manifest = Get-Content legacy-cep/CSXS/manifest.xml -Raw
+          if ($manifest -notmatch 'ExtensionBundleVersion="${{ steps.version.outputs.version }}"') {
+            throw 'La Legacy de esa etiqueta no tiene la versión pedida.'
+          }
+
+      - name: Revisar que todo diga la misma versión
+        if: steps.version.outputs.legacy_only == 'false'
+        run: ./tools/Assert-ReleaseVersions.ps1 -ExpectedVersion ${{ steps.version.outputs.version }}
+
+      - uses: actions/setup-dotnet@v4
+        if: steps.version.outputs.legacy_only == 'false'
+        with:
+          dotnet-version: "9.0.x"
+
+      - name: Panel, motor y paquete de macOS
+        if: steps.version.outputs.legacy_only == 'false'
+        run: ./tools/Build-ReleasePackages.ps1 -Version ${{ steps.version.outputs.version }}
+
+      - name: Revisar el ZIP de macOS
+        if: steps.version.outputs.legacy_only == 'false'
+        run: python tools/check-mac-zip.py "outputs/GotaCreatorKit-${{ steps.version.outputs.version }}-macOS.zip" ${{ steps.version.outputs.version }}
+
+      - name: Instalador de Windows
+        if: steps.version.outputs.legacy_only == 'false'
+        run: |
+          $version = '${{ steps.version.outputs.version }}'
+          dotnet publish installer/AutoFrameInstaller.csproj -c Release -o build-installer `
+            --source https://api.nuget.org/v3/index.json
+          Copy-Item "build-installer/Instalar Gota Creator Kit.exe" "outputs/GotaCreatorKit-$version-Windows.exe"
+          ./tools/Build-WindowsManualInstallZip.ps1 -Version $version
+
+      - name: Firmar Legacy
+        env:
+          LEGACY_P12_BASE64: ${{ secrets.LEGACY_P12_BASE64 }}
+          LEGACY_P12_PASSWORD: ${{ secrets.LEGACY_P12_PASSWORD }}
+        run: ./tools/Sign-LegacyCep-CI.ps1 -Output "outputs/GotaCreatorKit-Legacy-Premiere-2021-a-2025.5-${{ steps.version.outputs.version }}.zxp"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: paquetes
+          path: |
+            outputs/GotaCreatorKit-*-Windows.exe
+            outputs/GotaCreatorKit-*-macOS.zip
+            outputs/GotaCreatorKit-*-Premiere-2026-sin-Creative-Cloud.zip
+            outputs/GotaCreatorKit-Legacy-*.zxp
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    name: Publicar
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      VERSION: ${{ needs.build.outputs.version }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: paquetes
+          path: paquetes
+
+      - name: Crear el Release
+        if: needs.build.outputs.legacy_only == 'false'
+        run: |
+          python3 tools/publish-release-docs.py "$VERSION" --release-notes release-notes.md
+          gh release create "v$VERSION" --verify-tag --latest \
+            --title "Gota Creator Kit $VERSION" --notes-file release-notes.md paquetes/*
+
+      - name: Agregar la Legacy firmada
+        if: needs.build.outputs.legacy_only == 'true'
+        run: |
+          gh release upload "v$VERSION" paquetes/GotaCreatorKit-Legacy-*.zxp --clobber
+          current=$(python3 -c "import json;print(json.load(open('latest.json'))['version'])")
+          if [ "$current" = "$VERSION" ]; then
+            python3 tools/publish-release-docs.py "$VERSION"
+          fi
+
+      - name: Actualizar README y aviso de actualización
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add README.md latest.json updates/latest.json
+          if git diff --cached --quiet; then echo "Sin cambios"; exit 0; fi
+          git commit -m "Publicar $VERSION: README y latest.json"
+          git push origin HEAD:main
