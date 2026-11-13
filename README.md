@@ -11,7 +11,7 @@ Herramientas para Adobe Premiere Pro: reencuadre automático, edición de silenc
 | **Windows** | [Instalador completo para Windows — GotaCreatorKit-3.3.12-Windows.exe](https://github.com/xG0ta/gota-creator-kit/releases/download/v3.3.12/GotaCreatorKit-3.3.12-Windows.exe) | Recomendado. Instala el panel y el motor local. También elimina copias UXP antiguas antes de instalar. |
 | **Premiere 2026 sin Creative Cloud** | [ZIP completo: EXE + CCX — GotaCreatorKit-3.3.12-Premiere-2026-sin-Creative-Cloud.zip](https://github.com/xG0ta/gota-creator-kit/releases/download/v3.3.12/GotaCreatorKit-3.3.12-Premiere-2026-sin-Creative-Cloud.zip) | Ejecuta primero el EXE y luego instala el CCX con un gestor compatible. Así también queda instalado el motor local. |
 | **macOS** | [Instalador completo para macOS — GotaCreatorKit-3.3.12-macOS.zip](https://github.com/xG0ta/gota-creator-kit/releases/download/v3.3.12/GotaCreatorKit-3.3.12-macOS.zip) | Descomprime el ZIP completo y abre **Instalar Gota Creator Kit.app**. |
-| **Premiere Pro 2021–2025.5** | [Gota Creator Kit Legacy 3.3.11 — ZXP](https://github.com/xG0ta/gota-creator-kit/releases/download/v3.3.11/GotaCreatorKit-Legacy-Premiere-2021-a-2025.5-3.3.11.zxp) | Para Premiere 2024 y anteriores. Instálalo con ZXP Installer. La Legacy 3.3.12 llegará firmada en unos días. |
+| **Premiere Pro 2021–2025.5** | [Gota Creator Kit Legacy 3.3.12 — ZXP](https://github.com/xG0ta/gota-creator-kit/releases/download/v3.3.12/GotaCreatorKit-Legacy-Premiere-2021-a-2025.5-3.3.12.zxp) | Para Premiere 2024 y anteriores. Instálalo con ZXP Installer. |
 
 ## Nuevo: Gota Subtítulos — app sin Premiere
 

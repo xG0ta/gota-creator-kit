@@ -4,6 +4,6 @@
   "downloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.3.12/GotaCreatorKit-3.3.12-Windows.exe",
   "windowsDownloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.3.12/GotaCreatorKit-3.3.12-Windows.exe",
   "macDownloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.3.12/GotaCreatorKit-3.3.12-macOS.zip",
-  "legacyDownloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.3.11/GotaCreatorKit-Legacy-Premiere-2021-a-2025.5-3.3.11.zxp",
+  "legacyDownloadUrl": "https://github.com/xG0ta/gota-creator-kit/releases/download/v3.3.12/GotaCreatorKit-Legacy-Premiere-2021-a-2025.5-3.3.12.zxp",
   "notes": "Eliminar silencios rehecho: arma una secuencia nueva solo con las partes con voz y no toca la original. Subtítulos animados como un video por línea, transcripción más precisa y elección de idioma. Versión de prueba abierta: si algo falla, manda el mensaje del panel."
 }
