@@ -4,7 +4,7 @@ const os = require("os");
 const localFileSystem = storage.localFileSystem;
 
 const SERVICE_URL = "http://127.0.0.1:8765";
-const CURRENT_VERSION = "3.3.14";
+const CURRENT_VERSION = "3.3.15";
 const UPDATE_MANIFEST_URL =
   "https://api.github.com/repos/xG0ta/gota-creator-kit/contents/latest.json?ref=main";
 const OUTPUT_WIDTH = 1080;
@@ -1752,16 +1752,17 @@ async function findSilenceSourceProjectItem(sequence, clip) {
       if (best > 0.5) item = null;
     }
     if (item) {
-      const projectItem = ppro.ClipProjectItem.cast(await item.getProjectItem());
+      const rawItem = await item.getProjectItem();
+      const projectItem = ppro.ClipProjectItem.cast(rawItem);
       const path = String(await projectItem.getMediaFilePath()).toLowerCase();
-      if (path === String(clip.mediaPath).toLowerCase()) return projectItem;
+      if (path === String(clip.mediaPath).toLowerCase()) return { projectItem, rawItem };
     }
   } catch (_) { /* se busca en el proyecto */ }
   // Respaldo: el mismo archivo dentro del panel Proyecto.
   const root = ppro.FolderItem.cast(await (await ppro.Project.getActiveProject()).getRootItem());
   const found = await collectImportedMedia(root, new Map(), true);
   const item = found.get(String(clip.mediaPath).toLowerCase());
-  return item ? ppro.ClipProjectItem.cast(item) : null;
+  return item ? { projectItem: ppro.ClipProjectItem.cast(item), rawItem: item } : null;
 }
 
 async function emptySequence(project, sequence) {
@@ -1838,15 +1839,17 @@ async function collectOtherTrackClips(sequence, analyses) {
           const start = (await item.getStartTime()).seconds;
           const end = (await item.getEndTime()).seconds;
           let projectItem = null;
+          let rawItem = null;
           let path = "";
           try {
-            projectItem = ppro.ClipProjectItem.cast(await item.getProjectItem());
+            rawItem = await item.getProjectItem();
+            projectItem = ppro.ClipProjectItem.cast(rawItem);
             path = String(await projectItem.getMediaFilePath() || "").toLowerCase();
           } catch (_) { /* no viene de un archivo */ }
           if (path && isAnalyzed(kind, trackIndex, path, start, end)) continue;
           if (!path) { skipped += 1; continue; }
           others.push({
-            kind, trackIndex, start, end, path, projectItem,
+            kind, trackIndex, start, end, path, projectItem, rawItem,
             inPoint: (await item.getInPoint()).seconds
           });
         } catch (_) {
@@ -1869,20 +1872,55 @@ async function saveProjectItemMarks(projectItem) {
   return null;
 }
 
-async function placeMarkedRange(project, editor, projectItem, inSeconds, outSeconds, atSeconds, videoTrack, audioTrack) {
-  const marked = runPremiereTransaction(project, "Gota Kit: marcar parte", (compoundAction) => {
-    compoundAction.addAction(projectItem.createSetInOutPointsAction(
-      ppro.TickTime.createWithSeconds(inSeconds),
-      ppro.TickTime.createWithSeconds(outSeconds)
-    ));
-  });
-  if (!marked) throw new Error("Premiere no aceptó las marcas.");
-  const placed = runPremiereTransaction(project, "Gota Kit: colocar parte", (compoundAction) => {
-    compoundAction.addAction(overwriteProjectItemAction(
-      editor, projectItem, ppro.TickTime.createWithSeconds(atSeconds), videoTrack, audioTrack
-    ));
-  });
-  if (!placed) throw new Error("Premiere no pudo colocar la parte.");
+function errorText(error) {
+  return String((error && error.message) || error || "error desconocido");
+}
+
+// Corre una transacción y dice si se aplicó; el error de Premiere se guarda
+// para explicarlo (algunas versiones lanzan la excepción, otras devuelven false).
+function tryPremiereTransaction(project, label, build) {
+  try {
+    return { ok: runPremiereTransaction(project, label, build) !== false, error: "" };
+  } catch (error) {
+    return { ok: false, error: errorText(error) };
+  }
+}
+
+// source = { projectItem (ClipProjectItem), rawItem (ProjectItem) }.
+// Las marcas van en el ClipProjectItem; la colocación recibe el ProjectItem
+// tal como lo da Premiere (así lo hace el ejemplo oficial de Adobe). Pasarle
+// el ClipProjectItem convertido daba «Invalid parameter» en Premiere real.
+async function placeMarkedRange(project, editor, source, inSeconds, outSeconds, atSeconds, videoTrack, audioTrack) {
+  const inTime = () => ppro.TickTime.createWithSeconds(Math.max(0, inSeconds));
+  const outTime = () => ppro.TickTime.createWithSeconds(Math.max(Math.max(0, inSeconds) + 0.001, outSeconds));
+  const atTime = () => ppro.TickTime.createWithSeconds(Math.max(0, atSeconds));
+  const clipItems = [];
+  if (source.rawItem) clipItems.push(() => ppro.ClipProjectItem.cast(source.rawItem));
+  if (source.projectItem) clipItems.push(() => source.projectItem);
+
+  const markErrors = [];
+  let marked = false;
+  for (const getClip of clipItems) {
+    const result = tryPremiereTransaction(project, "Gota Kit: marcar parte", (compoundAction) => {
+      compoundAction.addAction(getClip().createSetInOutPointsAction(inTime(), outTime()));
+    });
+    if (result.ok) { marked = true; break; }
+    markErrors.push(result.error || "Premiere no aceptó las marcas");
+  }
+  if (!marked) throw new Error(`al marcar el clip (${markErrors.join(" / ")})`);
+
+  const placeItems = [];
+  if (source.rawItem) placeItems.push(source.rawItem);
+  if (source.projectItem && source.projectItem !== source.rawItem) placeItems.push(source.projectItem);
+  const placeErrors = [];
+  for (const item of placeItems) {
+    const result = tryPremiereTransaction(project, "Gota Kit: colocar parte", (compoundAction) => {
+      compoundAction.addAction(overwriteProjectItemAction(editor, item, atTime(), videoTrack, audioTrack));
+    });
+    if (result.ok) return;
+    placeErrors.push(result.error || "Premiere no pudo colocar la parte");
+  }
+  throw new Error(`al colocarla en la secuencia (${placeErrors.join(" / ")})`);
 }
 
 // Registro de cada fase de «Quitar silencios» en el motor local (no en el
@@ -1909,8 +1947,10 @@ async function buildSequenceWithoutSilences(project, sequence, analyses, onProgr
   const ordered = [...analyses].sort((left, right) => left.clip.startSeconds - right.clip.startSeconds);
   const pieces = [];
   const sources = new Map();
-  const remember = (path, projectItem) => {
-    if (!sources.has(path)) sources.set(path, { projectItem, saved: null });
+  const remember = (path, found) => {
+    if (!sources.has(path)) {
+      sources.set(path, { projectItem: found.projectItem, rawItem: found.rawItem || null, saved: null });
+    }
     return path;
   };
   let speedChanged = false;
@@ -1922,9 +1962,9 @@ async function buildSequenceWithoutSilences(project, sequence, analyses, onProgr
     if (!kept.length) continue;
     const scale = Number(clip.sourceToTimelineScale || 1);
     if (Math.abs(scale - 1) > 0.01) speedChanged = true;
-    const projectItem = await findSilenceSourceProjectItem(sequence, clip);
-    if (!projectItem) throw new Error(`No encontré ${clip.name} en el proyecto.`);
-    const key = remember(String(clip.mediaPath).toLowerCase(), projectItem);
+    const found = await findSilenceSourceProjectItem(sequence, clip);
+    if (!found) throw new Error(`No encontré ${clip.name} en el proyecto.`);
+    const key = remember(String(clip.mediaPath).toLowerCase(), found);
     const audioOnly = clip.mediaKind === "audio";
     for (const segment of kept) {
       pieces.push({
@@ -1949,7 +1989,7 @@ async function buildSequenceWithoutSilences(project, sequence, analyses, onProgr
     const collected = await collectOtherTrackClips(sequence, ordered);
     others = collected.others;
     skippedOthers = collected.skipped;
-    for (const other of others) remember(other.path, other.projectItem);
+    for (const other of others) remember(other.path, other);
   }
 
   // Premiere puede cerrarse si el monitor de origen tiene abierto el clip
@@ -1981,18 +2021,23 @@ async function buildSequenceWithoutSilences(project, sequence, analyses, onProgr
   try {
     for (let index = 0; index < pieces.length; index += 1) {
       const piece = pieces[index];
-      const { projectItem } = sources.get(piece.key);
+      const source = sources.get(piece.key);
       if (index % 5 === 0 || index + 1 === pieces.length) {
         onProgress(`Uniendo partes con voz: ${index + 1}/${pieces.length}…`);
       }
       const pieceStart = cursor;
       try {
         await placeMarkedRange(
-          project, editor, projectItem, piece.inSeconds, piece.outSeconds,
+          project, editor, source, piece.inSeconds, piece.outSeconds,
           pieceStart, piece.videoTrack, piece.audioTrack
         );
       } catch (error) {
-        throw new Error(`Parte ${index + 1}: ${error.message || error}`);
+        await recordSilenceOperation("place-failed", {
+          part: index + 1, error: errorText(error), inSeconds: piece.inSeconds, outSeconds: piece.outSeconds,
+          atSeconds: pieceStart, videoTrack: piece.videoTrack, audioTrack: piece.audioTrack,
+          audioOnly: piece.audioOnly, hasRawItem: Boolean(source.rawItem)
+        });
+        throw new Error(`Parte ${index + 1}: ${errorText(error)}`);
       }
       // El final real (ajustado a cuadros por Premiere) es el inicio de la
       // siguiente parte: así no quedan huecos ni se pisan.
@@ -2009,10 +2054,10 @@ async function buildSequenceWithoutSilences(project, sequence, analyses, onProgr
         const from = Math.max(other.start, piece.timelineStart);
         const to = Math.min(other.end, piece.timelineEnd, piece.timelineStart + (cursor - pieceStart));
         if (to - from < 0.02) continue;
-        const source = sources.get(other.path);
+        const otherSource = sources.get(other.path);
         try {
           await placeMarkedRange(
-            project, editor, source.projectItem,
+            project, editor, otherSource,
             other.inPoint + (from - other.start), other.inPoint + (to - other.start),
             pieceStart + (from - piece.timelineStart),
             other.kind === "video" ? other.trackIndex : -1,

@@ -98,6 +98,7 @@ var project = {
 
 function Editor(seq) { this.seq = seq; }
 Editor.prototype.createOverwriteItemAction = function (media, time, v, a) {
+  if (!media || media.__castOf) throw new Error("Invalid parameter");
   var seq = this.seq;
   return { apply: function () {
     var inP = media.inMark == null ? 0 : media.inMark;
@@ -121,7 +122,16 @@ var ppro = {
   Markers: { getMarkers: async function (seq) { return new MarkerSet(seq); } },
   TickTime: { createWithSeconds: TT },
   Constants: { TrackItemType: { CLIP: 1 }, MediaType: { VIDEO: "VIDEO", AUDIO: "AUDIO", ANY: "ANY" } },
-  ClipProjectItem: { cast: function (x) { if (!x || !x.path) throw new Error("not a clip"); return x; } },
+  // Como en Premiere, cast devuelve otro objeto (ClipProjectItem). Colocarlo con
+  // createOverwriteItemAction da «Invalid parameter»: se coloca el ProjectItem.
+  ClipProjectItem: { cast: function (x) {
+    if (!x || !x.path) throw new Error("not a clip");
+    if (x.__castOf) return x;
+    var w = { __castOf: x, path: x.path };
+    ["getMediaFilePath", "getInPoint", "getOutPoint", "createSetInOutPointsAction", "createClearInOutPointsAction", "createSetNameAction"]
+      .forEach(function (k) { w[k] = function () { return x[k].apply(x, arguments); }; });
+    return w;
+  } },
   FolderItem: { cast: function (x) { if (!x || !x.isFolder) throw new Error("not a folder"); return x; } },
   SequenceEditor: { getEditor: function (s) { return new Editor(s); } },
   Project: { getActiveProject: async function () { return project; } },
