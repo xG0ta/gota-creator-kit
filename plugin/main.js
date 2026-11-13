@@ -4,7 +4,7 @@ const os = require("os");
 const localFileSystem = storage.localFileSystem;
 
 const SERVICE_URL = "http://127.0.0.1:8765";
-const CURRENT_VERSION = "3.3.13";
+const CURRENT_VERSION = "3.3.14";
 const UPDATE_MANIFEST_URL =
   "https://api.github.com/repos/xG0ta/gota-creator-kit/contents/latest.json?ref=main";
 const OUTPUT_WIDTH = 1080;
@@ -1885,6 +1885,25 @@ async function placeMarkedRange(project, editor, projectItem, inSeconds, outSeco
   if (!placed) throw new Error("Premiere no pudo colocar la parte.");
 }
 
+// Registro de cada fase de «Quitar silencios» en el motor local (no en el
+// proyecto). Se borró por error en 3.3.12 y los botones lo seguían llamando:
+// el error dejaba el panel congelado en «Leyendo la selección de Premiere…».
+// Nunca debe detener la edición: si el motor no contesta en 4 s, se sigue.
+async function recordSilenceOperation(event, details = {}) {
+  try {
+    const request = fetch(`${SERVICE_URL}/v3/silence-diagnostics`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ event, details })
+    }).then((response) => response.json()).catch(() => ({}));
+    const timeout = new Promise((resolve) => setTimeout(() => resolve({}), 4000));
+    const payload = await Promise.race([request, timeout]);
+    return (payload && payload.diagnosticLogPath) || "";
+  } catch (_) {
+    return "";
+  }
+}
+
 async function buildSequenceWithoutSilences(project, sequence, analyses, onProgress = () => {}, options = {}) {
   const includeOthers = options.includeOtherTracks !== false;
   const ordered = [...analyses].sort((left, right) => left.clip.startSeconds - right.clip.startSeconds);
@@ -1943,7 +1962,7 @@ async function buildSequenceWithoutSilences(project, sequence, analyses, onProgr
 
   onProgress("Creando una copia de la secuencia…");
   const copy = await cloneSequence(project, sequence);
-  const copyName = `${sequence.name} - sin silencios`;
+  const copyName = options.copyName || `${sequence.name} - sin silencios`;
   try {
     const copyItem = await copy.getProjectItem();
     runPremiereTransaction(project, "Gota Kit: nombrar secuencia sin silencios", (compoundAction) => {
@@ -2019,8 +2038,10 @@ async function buildSequenceWithoutSilences(project, sequence, analyses, onProgr
     }
   }
 
-  try { await project.openSequence(copy); } catch (_) {
-    try { await project.setActiveSequence(copy); } catch (__) { /* el usuario la abre */ }
+  if (options.openResult !== false) {
+    try { await project.openSequence(copy); } catch (_) {
+      try { await project.setActiveSequence(copy); } catch (__) { /* el usuario la abre */ }
+    }
   }
   return {
     sequence: copy, name: copyName, pieces: pieces.length, seconds: cursor, speedChanged,
@@ -2079,6 +2100,62 @@ async function markSilencesInSequence(project, sequence, analyses) {
     });
   } catch (_) { /* quedan con el color por omisión */ }
   return ranges.length;
+}
+
+// Mejores momentos: marcadores verdes con el título que propuso la IA.
+const MOMENT_MARKER_TAG = "(Gota)";
+
+function isMomentMarkerName(name) {
+  return /^Momento \d+ \(Gota\)/.test(String(name));
+}
+
+async function clearMomentMarkers(project, sequence) {
+  const markers = await ppro.Markers.getMarkers(sequence);
+  const ours = [];
+  for (const marker of markers.getMarkers()) {
+    try { if (isMomentMarkerName(await marker.getName())) ours.push(marker); } catch (_) { /* inválido */ }
+  }
+  if (!ours.length) return 0;
+  runPremiereTransaction(project, "Gota Kit: quitar marcadores de momentos", (compoundAction) => {
+    for (const marker of ours) compoundAction.addAction(markers.createRemoveMarkerAction(marker));
+  });
+  return ours.length;
+}
+
+async function markMomentsInSequence(project, sequence, clip, moments) {
+  await clearMomentMarkers(project, sequence);
+  const markers = await ppro.Markers.getMarkers(sequence);
+  const scale = Number(clip.sourceToTimelineScale || 1);
+  const items = moments.map((moment, index) => ({
+    name: `Momento ${index + 1} ${MOMENT_MARKER_TAG}: ${moment.line1 || ""}`.trim(),
+    start: clip.startSeconds + (moment.startSeconds - clip.inPointSeconds) * scale,
+    duration: (moment.endSeconds - moment.startSeconds) * scale,
+    comment: [moment.line1, moment.line2].filter(Boolean).join(" / ") +
+      `\nPuntaje ${moment.score}/10. ${moment.reason || ""}`
+  })).filter((item) => item.duration > 0.5);
+  if (!items.length) return 0;
+  const added = runPremiereTransaction(project, "Gota Kit: marcar mejores momentos", (compoundAction) => {
+    for (const item of items) {
+      compoundAction.addAction(markers.createAddMarkerAction(
+        item.name, "Comment",
+        ppro.TickTime.createWithSeconds(item.start), ppro.TickTime.createWithSeconds(item.duration),
+        item.comment
+      ));
+    }
+  });
+  if (!added) throw new Error("Premiere no pudo agregar los marcadores.");
+  // Verde (índice 0) para distinguirlos de los silencios (rojo).
+  try {
+    const fresh = await ppro.Markers.getMarkers(sequence);
+    const ours = [];
+    for (const marker of fresh.getMarkers()) {
+      if (isMomentMarkerName(await marker.getName())) ours.push(marker);
+    }
+    runPremiereTransaction(project, "Gota Kit: color de marcadores de momentos", (compoundAction) => {
+      for (const marker of ours) compoundAction.addAction(marker.createSetColorByIndexAction(0));
+    });
+  } catch (_) { /* quedan con el color por omisión */ }
+  return items.length;
 }
 
 function makeElement(tag, text) {
@@ -2143,6 +2220,7 @@ function buildPanel() {
     option.value = value;
     aspect.appendChild(option);
   });
+  aspect.value = "0.5625";
   aspectLabel.appendChild(aspect);
   panel.appendChild(aspectLabel);
 
@@ -2169,6 +2247,7 @@ function buildPanel() {
     option.value = value;
     speed.appendChild(option);
   });
+  speed.value = "4";
   speedLabel.appendChild(speed);
   panel.appendChild(speedLabel);
 
@@ -2184,6 +2263,7 @@ function buildPanel() {
     option.value = value;
     preset.appendChild(option);
   });
+  preset.value = "gota";
   presetLabel.appendChild(preset);
   panel.appendChild(presetLabel);
 
@@ -2633,6 +2713,7 @@ function buildPanel() {
     option.value = value;
     silenceOthers.appendChild(option);
   });
+  silenceOthers.value = "trim";  // UXP deja el selector en blanco si no se elige uno
   silenceOthersLabel.appendChild(silenceOthers);
   silenceBody.appendChild(silenceOthersLabel);
 
@@ -2695,6 +2776,392 @@ function buildPanel() {
   silenceStatus.style.fontSize = "10px";
   silenceBody.appendChild(silenceStatus);
   updateSilenceCollapsed();
+
+  // ---------------------------------------------------------------------------
+  // Mejores momentos (desde 3.3.14). Idea tomada de «La perra que hace mi
+  // trabajo»: Whisper y Ollama locales leen la conversación y eligen los clips
+  // con más gancho. Se marcan en verde en la secuencia y, si el usuario quiere,
+  // cada uno se arma en su propia secuencia NUEVA (la original no se toca).
+  // ---------------------------------------------------------------------------
+  const momentsPanel = makeElement("div");
+  momentsPanel.style.display = "flex";
+  momentsPanel.style.flexDirection = "column";
+  momentsPanel.style.gap = "8px";
+  momentsPanel.style.marginTop = "4px";
+  panel.appendChild(momentsPanel);
+  let momentsCollapsed = true;
+  try {
+    momentsCollapsed = window.localStorage.getItem("gckMomentsCollapsed") !== "false";
+  } catch (_) { /* empieza plegado */ }
+  const momentsHeading = makeElement("div");
+  momentsHeading.style.fontWeight = "bold";
+  momentsHeading.style.padding = "8px";
+  momentsHeading.style.backgroundColor = "#20252b";
+  momentsHeading.style.border = "1px solid #3b4652";
+  momentsHeading.style.borderRadius = "6px";
+  momentsHeading.style.cursor = "pointer";
+  momentsHeading.style.userSelect = "none";
+  momentsPanel.appendChild(momentsHeading);
+  const momentsBody = makeElement("div");
+  momentsBody.style.flexDirection = "column";
+  momentsBody.style.gap = "8px";
+  momentsPanel.appendChild(momentsBody);
+  const updateMomentsCollapsed = () => {
+    momentsHeading.textContent = `${momentsCollapsed ? "▶" : "▼"} Mejores momentos (IA)`;
+    momentsBody.style.display = momentsCollapsed ? "none" : "flex";
+  };
+  momentsHeading.addEventListener("click", () => {
+    momentsCollapsed = !momentsCollapsed;
+    updateMomentsCollapsed();
+    try { window.localStorage.setItem("gckMomentsCollapsed", String(momentsCollapsed)); } catch (_) { /* sesión */ }
+  });
+
+  const momentsHelp = makeElement(
+    "div",
+    "Selecciona el clip largo (podcast, entrevista, live). La IA local lo escucha, elige los momentos con más " +
+    "gancho y les pone título. Necesita Ollama abierto; sin Ollama elige por cantidad de conversación."
+  );
+  momentsHelp.style.color = "#b8b8b8";
+  momentsHelp.style.fontSize = "10px";
+  momentsBody.appendChild(momentsHelp);
+
+  const momentsRow = makeElement("div");
+  momentsRow.style.display = "flex";
+  momentsRow.style.gap = "8px";
+  const momentsLengthLabel = makeElement("label", "Duración de cada clip");
+  momentsLengthLabel.style.flex = "1";
+  const momentsLength = makeElement("select");
+  [["30", "30 s"], ["45", "45 s"], ["60", "1 min"], ["90", "1 min 30 s"], ["120", "2 min"], ["180", "3 min"]]
+    .forEach(([value, label]) => {
+      const option = makeElement("option", label);
+      option.value = value;
+      momentsLength.appendChild(option);
+    });
+  momentsLength.value = "60";
+  momentsLengthLabel.appendChild(momentsLength);
+  const momentsCountLabel = makeElement("label", "Cuántos clips");
+  momentsCountLabel.style.flex = "1";
+  const momentsCount = makeElement("input");
+  momentsCount.type = "number";
+  momentsCount.min = "1";
+  momentsCount.max = "30";
+  momentsCount.step = "1";
+  momentsCount.value = "5";
+  momentsCount.style.width = "100%";
+  momentsCount.style.boxSizing = "border-box";
+  momentsCountLabel.appendChild(momentsCount);
+  momentsRow.appendChild(momentsLengthLabel);
+  momentsRow.appendChild(momentsCountLabel);
+  momentsBody.appendChild(momentsRow);
+
+  const momentsQualityLabel = makeElement("label", "Transcripción");
+  const momentsQuality = makeElement("select");
+  [["base", "Rápida (recomendada para videos largos)"], ["small", "Más precisa (tarda más)"]]
+    .forEach(([value, label]) => {
+      const option = makeElement("option", label);
+      option.value = value;
+      momentsQuality.appendChild(option);
+    });
+  momentsQuality.value = "base";  // UXP deja el selector en blanco si no se elige uno
+  momentsQualityLabel.appendChild(momentsQuality);
+  momentsBody.appendChild(momentsQualityLabel);
+
+  const makeMomentsButton = (label, color) => {
+    const button = makeElement("div", label);
+    button.setAttribute("role", "button");
+    button.setAttribute("tabindex", "0");
+    button.style.height = "34px";
+    button.style.display = "flex";
+    button.style.alignItems = "center";
+    button.style.justifyContent = "center";
+    button.style.borderRadius = "8px";
+    button.style.backgroundColor = color;
+    button.style.fontWeight = "600";
+    button.style.cursor = "pointer";
+    button.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") button.click();
+    });
+    momentsBody.appendChild(button);
+    return button;
+  };
+  const findMoments = makeMomentsButton("Buscar mejores momentos", "#1473e6");
+  const cancelMoments = makeMomentsButton("Cancelar búsqueda", "#7a2b2b");
+  cancelMoments.style.display = "none";
+
+  const momentsList = makeElement("div");
+  momentsList.style.display = "flex";
+  momentsList.style.flexDirection = "column";
+  momentsList.style.gap = "6px";
+  momentsBody.appendChild(momentsList);
+
+  const momentsOthersLabel = makeElement("label", "Otras pistas (música, títulos, B-roll)");
+  const momentsOthers = makeElement("select");
+  [["trim", "Incluirlas recortadas en cada clip"], ["skip", "Solo el clip principal"]].forEach(([value, label]) => {
+    const option = makeElement("option", label);
+    option.value = value;
+    momentsOthers.appendChild(option);
+  });
+  momentsOthers.value = "trim";  // UXP deja el selector en blanco si no se elige uno
+  momentsOthersLabel.appendChild(momentsOthers);
+  momentsBody.appendChild(momentsOthersLabel);
+
+  const buildMoments = makeMomentsButton("Crear una secuencia por clip", "#555555");
+  const momentsMarkRow = makeElement("div");
+  momentsMarkRow.style.display = "flex";
+  momentsMarkRow.style.gap = "6px";
+  const makeSmallMomentsButton = (label) => {
+    const button = makeElement("div", label);
+    button.setAttribute("role", "button");
+    button.style.flex = "1";
+    button.style.height = "28px";
+    button.style.display = "flex";
+    button.style.alignItems = "center";
+    button.style.justifyContent = "center";
+    button.style.borderRadius = "7px";
+    button.style.border = "1px solid #555555";
+    button.style.backgroundColor = "#292929";
+    button.style.fontSize = "10px";
+    button.style.cursor = "pointer";
+    momentsMarkRow.appendChild(button);
+    return button;
+  };
+  const markMoments = makeSmallMomentsButton("Marcar en la secuencia");
+  const unmarkMoments = makeSmallMomentsButton("Quitar marcadores");
+  momentsBody.appendChild(momentsMarkRow);
+
+  const momentsStatus = makeElement("div", "Selecciona el clip largo en la línea de tiempo.");
+  momentsStatus.style.padding = "8px";
+  momentsStatus.style.backgroundColor = "#181818";
+  momentsStatus.style.whiteSpace = "pre-wrap";
+  momentsStatus.style.fontSize = "10px";
+  momentsBody.appendChild(momentsStatus);
+  updateMomentsCollapsed();
+
+  let momentsBusy = false;
+  let momentsJobId = null;
+  let momentsClip = null;
+  let momentsFound = [];
+  const momentsChecks = [];
+
+  const setMomentsReady = (ready) => {
+    for (const button of [buildMoments, markMoments]) {
+      button.style.opacity = ready ? "1" : "0.55";
+      button.style.cursor = ready ? "pointer" : "default";
+    }
+    buildMoments.style.backgroundColor = ready ? "#20a464" : "#555555";
+  };
+  const setMomentsBusy = (isBusy, searching = false) => {
+    momentsBusy = isBusy;
+    findMoments.style.opacity = isBusy ? "0.55" : "1";
+    findMoments.textContent = searching ? "Buscando…" : "Buscar mejores momentos";
+    cancelMoments.style.display = searching ? "flex" : "none";
+  };
+  setMomentsReady(false);
+
+  const chosenMoments = () => momentsFound.filter((_, index) => momentsChecks[index]?.checked);
+
+  const renderMoments = () => {
+    momentsList.innerHTML = "";
+    momentsChecks.length = 0;
+    const scale = Number(momentsClip?.sourceToTimelineScale || 1);
+    momentsFound.forEach((moment, index) => {
+      const row = makeElement("label");
+      row.style.display = "flex";
+      row.style.gap = "6px";
+      row.style.alignItems = "flex-start";
+      row.style.padding = "6px";
+      row.style.border = "1px solid #3b4652";
+      row.style.borderRadius = "6px";
+      row.style.fontSize = "10px";
+      const check = makeElement("input");
+      check.type = "checkbox";
+      check.checked = true;
+      momentsChecks.push(check);
+      const text = makeElement("div");
+      const at = momentsClip.startSeconds + (moment.startSeconds - momentsClip.inPointSeconds) * scale;
+      const seconds = (moment.endSeconds - moment.startSeconds) * scale;
+      text.textContent =
+        `${index + 1}. ${moment.line1}${moment.line2 ? " / " + moment.line2 : ""}\n` +
+        `${formatTimecode(at)} · ${Math.round(seconds)} s · puntaje ${moment.score}/10\n` +
+        `${moment.reason || ""}`;
+      text.style.whiteSpace = "pre-wrap";
+      row.appendChild(check);
+      row.appendChild(text);
+      momentsList.appendChild(row);
+    });
+  };
+
+  findMoments.addEventListener("click", async () => {
+    if (momentsBusy || silenceBusy || busy) return;
+    setMomentsBusy(true, true);
+    setMomentsReady(false);
+    momentsFound = [];
+    renderMoments();
+    try {
+      await requireSignedLicense();
+      const project = await ppro.Project.getActiveProject();
+      if (!project) throw new Error("No hay un proyecto activo.");
+      const sequence = await project.getActiveSequence();
+      if (!sequence) throw new Error("No hay una secuencia activa.");
+      const clips = await collectSelectedSilenceClips(sequence);
+      if (!clips.length) throw new Error("Selecciona el clip largo (video o audio) en la línea de tiempo.");
+      // Con video y audio seleccionados se usa el más largo; a igual largo, el de video.
+      const clip = [...clips].sort((left, right) =>
+        (right.durationSeconds - left.durationSeconds) ||
+        ((left.mediaKind === "audio") - (right.mediaKind === "audio"))
+      )[0];
+      const clipSeconds = Number(momentsLength.value);
+      const count = Math.round(Number(momentsCount.value));
+      if (!Number.isFinite(count) || count < 1 || count > 30) throw new Error("Escribe de 1 a 30 clips.");
+      if (clip.durationSeconds < clipSeconds) {
+        throw new Error(`El clip dura ${formatTimecode(clip.durationSeconds)}: es más corto que cada momento pedido.`);
+      }
+      momentsStatus.textContent = `Preparando «${clip.name}»…`;
+      const response = await fetch(`${SERVICE_URL}/v3/highlight-jobs`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          mediaPath: clip.mediaPath,
+          startSeconds: clip.inPointSeconds,
+          endSeconds: clip.outPointSeconds,
+          clipSeconds,
+          count,
+          model: momentsQuality.value
+        })
+      });
+      if (!response.ok) {
+        if (response.status === 404) {
+          throw new Error("El motor local es de una versión anterior. Reinicia Premiere para activar el nuevo.");
+        }
+        throw new Error(`Motor local ${response.status}: ${await response.text()}`);
+      }
+      const created = await response.json();
+      momentsJobId = created.jobId;
+      const startedAt = Date.now();
+      let job;
+      do {
+        await new Promise((resolve) => setTimeout(resolve, 800));
+        const jobResponse = await fetch(`${SERVICE_URL}/v1/jobs/${created.jobId}`);
+        if (!jobResponse.ok) throw new Error("No se pudo consultar la búsqueda.");
+        job = await jobResponse.json();
+        const remaining = estimateRemainingSeconds(startedAt, job.progress);
+        momentsStatus.textContent =
+          `${job.stage || "Trabajando…"}\nProgreso: ${job.progress || 0}%` +
+          (remaining == null ? "" : `\nTiempo estimado: ${formatRemainingTime(remaining)}`) +
+          "\nLa primera vez descarga el modelo de voz; puedes seguir editando.";
+      } while (["queued", "running", "canceling"].includes(job.status));
+      momentsJobId = null;
+      if (job.status === "canceled") throw new Error("Búsqueda cancelada.");
+      if (job.status !== "completed") throw new Error(job.error || "La búsqueda falló.");
+      try { await fetch(`${SERVICE_URL}/v1/jobs/${created.jobId}`, { method: "DELETE" }); } catch (_) { /* se limpia solo */ }
+      momentsClip = clip;
+      momentsFound = job.result.clips || [];
+      renderMoments();
+      const notes = (job.result.notes || []).filter(Boolean);
+      momentsStatus.textContent =
+        `Encontré ${momentsFound.length} momentos en «${clip.name}»` +
+        (job.result.usedAi ? ` (IA: ${job.result.aiModel}).` : ".") +
+        (notes.length ? `\n${notes.join("\n")}` : "") +
+        "\nDesmarca los que no quieras. «Marcar en la secuencia» no cambia tu edición.";
+      setMomentsReady(momentsFound.length > 0);
+    } catch (error) {
+      momentsStatus.textContent = `Error: ${error.message || String(error)}`;
+    } finally {
+      momentsJobId = null;
+      setMomentsBusy(false);
+    }
+  });
+
+  cancelMoments.addEventListener("click", async () => {
+    if (!momentsJobId) return;
+    momentsStatus.textContent = "Cancelando…";
+    try { await fetch(`${SERVICE_URL}/v1/jobs/${momentsJobId}`, { method: "DELETE" }); } catch (_) { /* nada */ }
+  });
+
+  const momentRanges = (moments) => moments.map((moment) => ({
+    moment,
+    analyses: [{
+      clip: momentsClip,
+      result: { keptSegments: [{ startSeconds: moment.startSeconds, endSeconds: moment.endSeconds }] }
+    }]
+  }));
+
+  markMoments.addEventListener("click", async () => {
+    if (momentsBusy || !momentsFound.length) return;
+    const moments = chosenMoments();
+    if (!moments.length) { momentsStatus.textContent = "Marca al menos un momento."; return; }
+    setMomentsBusy(true);
+    try {
+      const project = await ppro.Project.getActiveProject();
+      const sequence = project ? await project.getActiveSequence() : null;
+      if (!sequence) throw new Error("Abre la secuencia donde buscaste los momentos.");
+      const analyses = [{ clip: momentsClip }];
+      await refreshAnalysisLocations(sequence, analyses);
+      momentsClip = analyses[0].clip;
+      const count = await markMomentsInSequence(project, sequence, momentsClip, moments);
+      momentsStatus.textContent =
+        `Marqué ${count} momentos en verde en «${sequence.name}». Tu edición no cambió.`;
+    } catch (error) {
+      momentsStatus.textContent = `No se pudieron marcar: ${error.message || String(error)}`;
+    } finally {
+      setMomentsBusy(false);
+    }
+  });
+
+  unmarkMoments.addEventListener("click", async () => {
+    if (momentsBusy) return;
+    setMomentsBusy(true);
+    try {
+      const project = await ppro.Project.getActiveProject();
+      const sequence = project ? await project.getActiveSequence() : null;
+      if (!sequence) throw new Error("Abre una secuencia.");
+      const count = await clearMomentMarkers(project, sequence);
+      momentsStatus.textContent = count
+        ? `Quité ${count} marcadores de momentos de «${sequence.name}».`
+        : "Esta secuencia no tiene marcadores de momentos de Gota.";
+    } catch (error) {
+      momentsStatus.textContent = `No se pudieron quitar: ${error.message || String(error)}`;
+    } finally {
+      setMomentsBusy(false);
+    }
+  });
+
+  buildMoments.addEventListener("click", async () => {
+    if (momentsBusy || silenceBusy || !momentsFound.length) return;
+    const moments = chosenMoments();
+    if (!moments.length) { momentsStatus.textContent = "Marca al menos un momento."; return; }
+    setMomentsBusy(true);
+    const made = [];
+    try {
+      const project = await ppro.Project.getActiveProject();
+      const sequence = project ? await project.getActiveSequence() : null;
+      if (!sequence) throw new Error("Abre la secuencia donde buscaste los momentos (con el clip seleccionado).");
+      const analyses = [{ clip: momentsClip }];
+      await refreshAnalysisLocations(sequence, analyses);
+      momentsClip = analyses[0].clip;
+      const jobs = momentRanges(moments);
+      for (let index = 0; index < jobs.length; index += 1) {
+        const { moment, analyses: pieces } = jobs[index];
+        const name = `${sequence.name} - Momento ${String(index + 1).padStart(2, "0")} - ${moment.line1}`.slice(0, 120);
+        momentsStatus.textContent = `Armando clip ${index + 1} de ${jobs.length}: ${moment.line1}…`;
+        const built = await buildSequenceWithoutSilences(
+          project, sequence, pieces, () => {},
+          { includeOtherTracks: momentsOthers.value !== "skip", copyName: name, openResult: index === jobs.length - 1 }
+        );
+        made.push(built.name);
+        await pauseForPremiere(60);
+      }
+      momentsStatus.textContent =
+        `Listo: ${made.length} secuencias nuevas («… - Momento 01 - …»). Tu secuencia original quedó igual.\n` +
+        "Para hacerlas verticales: abre cada una, selecciona el clip y usa Reencuadre con «Vertical 9:16».";
+    } catch (error) {
+      momentsStatus.textContent =
+        `Se armaron ${made.length} clips y luego falló: ${error.message || String(error)}\n` +
+        "Tu secuencia original no se modificó.";
+    } finally {
+      setMomentsBusy(false);
+    }
+  });
 
   // Copy Paste evita el paso de guardar una imagen manualmente. El motor local
   // recibe únicamente el bitmap que el usuario ya copió y lo deja en una
@@ -4906,6 +5373,7 @@ let silenceDiagnosticLogs = [];
   const captionsCase = makeElement("select");
   [["upper", "MAYÚSCULAS"], ["normal", "Normal"], ["lower", "minúsculas"], ["title", "Tipo Título"]]
     .forEach(([value, text]) => { const option = makeElement("option", text); option.value = value; captionsCase.appendChild(option); });
+  captionsCase.value = "upper";
   captionsCaseLabel.appendChild(captionsCase);
   captionsBody.appendChild(captionsCaseLabel);
   const captionsLanguageLabel = makeElement("label", "Idioma del video");

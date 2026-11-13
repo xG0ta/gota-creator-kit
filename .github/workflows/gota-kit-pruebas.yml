@@ -16,6 +16,7 @@ on:
       - "service/**"
       - "service_v2/**"
       - "tools/premiere-sim/**"
+      - "tools/check-js-functions.py"
       - ".github/workflows/gota-kit-pruebas.yml"
   pull_request:
   workflow_dispatch:
@@ -55,5 +56,7 @@ jobs:
         run: |
           node --check plugin/main.js
           for f in legacy-cep/js/*.js; do node --check "$f"; done
+      - name: Funciones que existen
+        run: python3 tools/check-js-functions.py plugin/main.js legacy-cep/js/*.js
       - name: Simulación de «Quitar silencios»
         run: python3 tools/premiere-sim/run.py

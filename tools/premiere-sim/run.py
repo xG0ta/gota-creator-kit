@@ -27,6 +27,8 @@ EXPORTS = [
     "overwriteProjectItemAction",
     "markSilencesInSequence",
     "clearSilenceMarkers",
+    "markMomentsInSequence",
+    "clearMomentMarkers",
 ]
 PRELUDE = 'if (typeof print === "undefined") { globalThis.print = function () { console.log.apply(console, arguments); }; }\n'
 

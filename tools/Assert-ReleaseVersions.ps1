@@ -1,5 +1,5 @@
 param(
-  [string]$ExpectedVersion = '3.3.13'
+  [string]$ExpectedVersion = '3.3.14'
 )
 
 $root = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))

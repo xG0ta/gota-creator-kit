@@ -42,6 +42,7 @@ from .planner import plan_crops, plan_podcast_layout
 from service_v2.detector import analyze_identities
 from service_v2.editorial import EditorialFrame, PROFILES, build_shot_plan
 from service.silence import analyze_silences
+from service import highlights as highlight_engine
 from service.captions import build_caption_png as render_caption_png
 from service.caption_motion import entrance_name, line_clip
 from service.licensing import LicenseError, default_store
@@ -52,7 +53,7 @@ from service.hybrid_license import (
     remove_license,
 )
 
-APP_VERSION = "3.3.13"
+APP_VERSION = "3.3.14"
 # Increment this whenever the binary contents of generated caption MOGRTs
 # change.  Including it in the cache key prevents an older cached MOGRT (with
 # the placeholder text) from being reused after an update.
@@ -183,6 +184,18 @@ class SilenceRequest(BaseModel):
     paddingSeconds: float = Field(default=0.12, ge=0, le=1)
     startSeconds: float = Field(default=0, ge=0)
     endSeconds: float = Field(gt=0)
+
+
+class HighlightRequest(BaseModel):
+    """Mejores momentos: tramo montado en Premiere y cuántos clips de qué largo."""
+    mediaPath: str = Field(min_length=1, max_length=4096)
+    startSeconds: float = Field(default=0, ge=0)
+    endSeconds: float = Field(gt=0)
+    clipSeconds: float = Field(default=60, ge=5, le=600)
+    count: int = Field(default=5, ge=1, le=30)
+    language: str = Field(default="es", min_length=2, max_length=12)
+    model: str = Field(default="base", pattern="^(tiny|base|small|large-v3-turbo)$")
+    ollamaModel: str = Field(default="", max_length=120)
 
 
 class SilenceDiagnosticRequest(BaseModel):
@@ -463,7 +476,7 @@ def read_wav_samples(path: Path):
     return np.frombuffer(frames, dtype=np.int16).astype(np.float32) / 32768.0
 
 
-def transcribe_local_media(request: TranscribeRequest) -> dict:
+def transcribe_local_media(request: TranscribeRequest, progress_callback=None) -> dict:
     """Transcribe con Whisper local solo el tramo montado en la secuencia.
 
     El modelo se descarga una vez a la caché privada de Gota Creator Kit. La
@@ -517,6 +530,9 @@ def transcribe_local_media(request: TranscribeRequest) -> dict:
                 if clip_end is not None and chunk_start >= clip_end:
                     break
                 chunk_duration = min(chunk_size, total_duration - offset * chunk_size)
+                if progress_callback is not None:
+                    # Mejores momentos transcribe videos largos: avisa el avance (y permite cancelar).
+                    progress_callback(min(1.0, offset * chunk_size / total_duration))
                 segment_path = cache_root / f"transcribe-{uuid4().hex}.wav"
                 command = [
                     imageio_ffmpeg.get_ffmpeg_exe(), "-y", "-hide_banner", "-loglevel", "error",
@@ -1097,6 +1113,104 @@ def run_v2_job(job_id: str, request: AnalyzeV2Request):
             jobs[job_id].update({
                 "status": "canceled" if canceled else "failed",
                 "error": str(error),
+            })
+
+
+def _highlight_transcript_cache(request: HighlightRequest, source: Path) -> Path:
+    stat = source.stat()
+    key = hashlib.sha256(json.dumps([
+        str(source), stat.st_size, int(stat.st_mtime), round(request.startSeconds, 2),
+        round(request.endSeconds, 2), request.model, request.language,
+    ]).encode("utf-8")).hexdigest()[:32]
+    folder = preview_cache_dir.parent / "highlights-cache"
+    folder.mkdir(parents=True, exist_ok=True)
+    return folder / f"{key}.json"
+
+
+def run_highlight_job(job_id: str, request: HighlightRequest):
+    """Transcribe (o reutiliza la transcripción guardada) y elige los mejores momentos."""
+    def update(value: float, stage: str):
+        with jobs_lock:
+            job = jobs.get(job_id)
+            if job is None or job.get("cancelRequested"):
+                raise RuntimeError("Búsqueda cancelada por el usuario")
+            job.update({"status": "running", "progress": max(0, min(99, round(value * 100))), "stage": stage})
+
+    def check():
+        with jobs_lock:
+            if jobs.get(job_id, {}).get("cancelRequested"):
+                raise RuntimeError("Búsqueda cancelada por el usuario")
+
+    try:
+        source = Path(request.mediaPath).expanduser().resolve()
+        if not source.is_file():
+            raise ValueError("El medio seleccionado ya no existe en este equipo.")
+        cache = _highlight_transcript_cache(request, source)
+        segments = None
+        if cache.is_file():
+            try:
+                segments = json.loads(cache.read_text(encoding="utf-8")).get("segments")
+            except (OSError, ValueError):
+                segments = None
+        if segments is None:
+            update(0, "Transcribiendo la conversación…")
+            transcript = transcribe_local_media(
+                TranscribeRequest(
+                    mediaPath=str(source), startSeconds=request.startSeconds,
+                    endSeconds=request.endSeconds, language=request.language, model=request.model,
+                ),
+                progress_callback=lambda value: update(0.7 * value, "Transcribiendo la conversación…"),
+            )
+            segments = [
+                {"startSeconds": s["startSeconds"], "endSeconds": s["endSeconds"], "text": s["text"]}
+                for s in transcript.get("segments", [])
+            ]
+            try:
+                cache.write_text(json.dumps({"segments": segments}, ensure_ascii=False), encoding="utf-8")
+            except OSError:
+                pass
+        ask = None
+        ai_note = ""
+        try:
+            model = highlight_engine.pick_text_model(highlight_engine.installed_models(), request.ollamaModel)
+            if model:
+                ask = highlight_engine.ollama_ask(model)
+                ai_note = model
+            else:
+                ai_note = "Ollama no tiene un modelo de texto (instala uno: ollama pull qwen3:4b-instruct)."
+        except highlight_engine.OllamaUnavailable:
+            ai_note = "Ollama no está abierto: los momentos se eligieron sin IA, por cantidad de conversación."
+        result = highlight_engine.select_highlights(
+            segments, request.clipSeconds, request.count, request.startSeconds, request.endSeconds,
+            ask=ask, progress=lambda value, stage="": update(0.7 + 0.3 * value, stage), check=check,
+        )
+        result["aiModel"] = ai_note if ask else ""
+        if not ask:
+            result["notes"].insert(0, ai_note)
+        result["segmentCount"] = len(segments)
+        diagnostic_log = write_silence_diagnostic(
+            "highlights_completed", jobId=job_id, mediaName=source.name, clips=len(result["clips"]),
+            usedAi=result["usedAi"], model=ai_note,
+        )
+        with jobs_lock:
+            if job_id in jobs:
+                jobs[job_id].update({
+                    "status": "completed", "progress": 100, "stage": "Listo",
+                    "result": result, "diagnosticLogPath": diagnostic_log,
+                })
+    except Exception as error:
+        diagnostic_log = write_silence_diagnostic(
+            "highlights_failed", jobId=job_id, mediaName=Path(request.mediaPath).name,
+            error=str(error), trace=traceback.format_exc(limit=8),
+        )
+        with jobs_lock:
+            if job_id not in jobs:
+                return
+            canceled = jobs[job_id].get("cancelRequested", False)
+            jobs[job_id].update({
+                "status": "canceled" if canceled else "failed",
+                "error": str(error),
+                "diagnosticLogPath": diagnostic_log,
             })
 
 
@@ -1920,6 +2034,24 @@ def create_silence_job(request: SilenceRequest):
             "engine": "silence-1.0",
         }
     executor.submit(run_silence_job, job_id, request)
+    return {"jobId": job_id, "status": "queued", "progress": 0}
+
+
+@app.post("/v3/highlight-jobs", status_code=202)
+def create_highlight_job(request: HighlightRequest):
+    if request.endSeconds <= request.startSeconds:
+        raise HTTPException(status_code=422, detail="El tramo del clip está vacío.")
+    cleanup_expired_jobs()
+    job_id = str(uuid4())
+    with jobs_lock:
+        jobs[job_id] = {
+            "status": "queued",
+            "progress": 0,
+            "stage": "En cola",
+            "createdAt": time(),
+            "engine": "highlights-1.0",
+        }
+    executor.submit(run_highlight_job, job_id, request)
     return {"jobId": job_id, "status": "queued", "progress": 0}
 
 
