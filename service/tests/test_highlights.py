@@ -36,7 +36,7 @@ class FakeAi:
                 t += 300
             return {"clips": clips}
         if "clip independiente" in prompt:
-            return {"completo": True, "interes": 8, "motivo": "se entiende solo"}
+            return {"completo": True, "interes": 8, "motivo": "una frase"}
         if "line1" in prompt:
             return {"resumen": "Cuenta algo", "line1": "Le pasó algo increíble!", "line2": "y nadie le creyó"}
         return {}
@@ -60,6 +60,8 @@ class HighlightTests(unittest.TestCase):
             self.assertIn(clip["startSeconds"], [round(s["startSeconds"], 2) for s in segments])
             self.assertIn(clip["endSeconds"], [round(s["endSeconds"], 2) for s in segments])
             self.assertEqual(clip["line1"], "LE PASÓ ALGO INCREÍBLE!")
+            # Si la IA copia el ejemplo («una frase»), se queda el motivo de la primera pasada.
+            self.assertEqual(clip["reason"], "historia graciosa")
         self.assertEqual([c["rank"] for c in clips], [1, 2, 3, 4])
 
     def test_invented_times_fall_back_to_conversation(self):

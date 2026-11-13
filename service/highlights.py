@@ -31,6 +31,8 @@ VISION_HINTS = ("vl", "llava", "vision", "moondream", "minicpm-v")
 GAP_SECONDS = 20.0   # separación preferida entre clips: evita el mismo momento con variaciones
 MIN_SCORE = 6.0      # puntaje (1-10) a partir del cual un momento se considera bueno
 
+PLACEHOLDER_REASONS = {"", "...", "una frase", "de qué trata, en pocas palabras", "de que trata, en pocas palabras"}
+
 Ask = Callable[[str, dict], dict]
 Progress = Callable[[float, str], None]
 
@@ -243,7 +245,8 @@ def propose_with_ai(segments: list[dict], length: float, count: int, ask: Ask,
                 score = 5.0
             candidates.append({
                 "start": start, "end": end, "score": max(0.0, min(10.0, score)),
-                "reason": " ".join(str(item.get("reason") or "").split())[:140],
+                "reason": "" if str(item.get("reason") or "").strip(" .").lower() in PLACEHOLDER_REASONS
+                else " ".join(str(item.get("reason") or "").split())[:140],
             })
     return candidates
 
@@ -259,7 +262,8 @@ def review_with_ai(clip: dict, segments: list[dict], ask: Ask) -> tuple[float, s
         "CRITERIOS: (1) se entiende sin haber visto lo anterior; (2) empieza y termina de forma natural, sin quedar a "
         "media idea; (3) es interesante: historia, humor, opinión fuerte, consejo o momento emotivo. Sé exigente: un "
         "saludo, relleno o una charla sin gancho merece nota baja. Responde ÚNICAMENTE con JSON: "
-        "{\"completo\":true,\"interes\":7,\"motivo\":\"una frase\"} (interes de 1 a 10)."
+        "{\"completo\":true,\"interes\":7,\"motivo\":\"...\"} (interes de 1 a 10; motivo = en pocas palabras de qué trata "
+        "el clip y por qué engancha)."
     )
     try:
         answer = ask(prompt, {"temperature": 0.1, "num_ctx": 4096, "num_predict": 150})
@@ -268,7 +272,10 @@ def review_with_ai(clip: dict, segments: list[dict], ask: Ask) -> tuple[float, s
         return None
     if answer.get("completo") is False:
         interest -= 3
-    return max(0.0, min(10.0, interest)), " ".join(str(answer.get("motivo") or "").split())[:140]
+    reason = " ".join(str(answer.get("motivo") or "").split())[:140]
+    if reason.strip(" .").lower() in PLACEHOLDER_REASONS:
+        reason = ""   # el modelo copió el ejemplo: se queda el motivo de la primera pasada
+    return max(0.0, min(10.0, interest)), reason
 
 
 def title_with_ai(clip: dict, segments: list[dict], ask: Ask | None) -> dict:
