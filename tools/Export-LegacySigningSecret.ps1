@@ -1,5 +1,5 @@
 <#
-  Se corre UNA sola vez en la laptop Windows (donde vive la firma de Legacy).
+  Se corre UNA sola vez en la PC Windows donde vive la firma de Legacy.
   Sube el certificado y su contraseña como «secretos» cifrados del repositorio
   en GitHub, para que el workflow de publicación firme el ZXP sin la laptop.
 
@@ -8,9 +8,14 @@
   Necesita GitHub CLI (gh) con la sesión iniciada: `gh auth login`.
   Nada se escribe en el repositorio ni en Git: los valores van directo a gh
   por la entrada estándar y GitHub los guarda cifrados.
+  En la PC de escritorio la firma quedó dentro de la carpeta de Codex:
+    ./Export-LegacySigningSecret.ps1 -SecretsDirectory "<ruta>\GotaCreatorKitBuild"
 #>
+param(
+  [string]$SecretsDirectory = (Join-Path $env:LOCALAPPDATA 'GotaCreatorKitBuild')
+)
 $ErrorActionPreference = 'Stop'
-$secretsDirectory = Join-Path $env:LOCALAPPDATA 'GotaCreatorKitBuild'
+$secretsDirectory = $SecretsDirectory
 $certificate = Join-Path $secretsDirectory 'legacy-signing.p12'
 $protectedPassword = Join-Path $secretsDirectory 'legacy-signing-password.txt'
 if (-not (Test-Path -LiteralPath $certificate) -or -not (Test-Path -LiteralPath $protectedPassword)) {
