@@ -1,0 +1,5 @@
+# Los scripts de macOS deben conservar saltos de línea LF aunque el paquete
+# se arme en Windows (GitHub Actions); con CRLF macOS no los puede ejecutar.
+*.command text eol=lf
+*.sh text eol=lf
+installer-mac/**/Contents/MacOS/* text eol=lf
